@@ -55,9 +55,24 @@ export const LAUNCH_MODES = new Set(["solo", "implement-review", "research"]);
 export const DANGEROUS_FLAG = " --dangerously-skip-permissions";
 export const EFFORT_FLAG = ` --effort ${settings.effort ?? "medium"}`;
 
-// Off by default so a fresh clone works on standard-context accounts. Machines entitled to the
-// 1M-context Sonnet/Opus variants opt in via data/settings.json → "extendedContext": true.
-export const EXTENDED_CONTEXT = settings.extendedContext ?? false;
+// Whether to use the 1M-context [1m] model variants. Resolution order:
+//   1. explicit data/settings.json → "extendedContext": true|false always wins (manual override)
+//   2. otherwise AUTO-DETECT from the user's own Claude Code config: if their ~/.claude/settings.json
+//      already references a "[1m]" model, they're entitled to and using it, so match that.
+//   3. otherwise off (safe default — appending [1m] on a non-entitled account makes launches fail).
+// This means a 1M-plan user who's set it up in Claude Code gets 1M sessions + a correct % gauge
+// with zero configuration, while standard accounts stay safely on 200k.
+function detectExtendedFromClaudeConfig(): boolean {
+  for (const p of [join(HOME, ".claude", "settings.json"), join(HOME, ".claude.json")]) {
+    try {
+      if (readFileSync(p, "utf-8").includes("[1m]")) return true;
+    } catch {
+      // file missing / unreadable — ignore
+    }
+  }
+  return false;
+}
+export const EXTENDED_CONTEXT = settings.extendedContext ?? detectExtendedFromClaudeConfig();
 
 // Context-window denominator for the % gauge — matches whichever window the launches actually use.
 export const CONTEXT_WINDOW_TOKENS = EXTENDED_CONTEXT ? 1_000_000 : 200_000;

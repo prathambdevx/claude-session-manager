@@ -111,8 +111,11 @@ Everything works out of the box on a standard Claude account. To override defaul
 }
 ```
 
-- **`extendedContext`** — set to `true` only if your account has the extended **1M-context**
-  Sonnet/Opus models. When on, launched sessions use the `[1m]` model variant and the context gauge
-  measures against 1M. **Leave it `false` (the default) on a standard account** — otherwise launches
-  would request a model your account can't use and fail. This is the one setting that matters for
-  portability; the rest are conveniences.
+- **`extendedContext`** — controls whether launched Sonnet/Opus sessions use the **1M-context**
+  `[1m]` model variant (and whether the context gauge measures against 1M vs. 200k).
+  **You usually don't need to set this** — if you're omitting it, the tool **auto-detects**: it reads
+  your own Claude Code config (`~/.claude/settings.json` / `~/.claude.json`) and, if that already
+  references a `[1m]` model, turns extended context on for you. So a 1M-plan user who's set 1M up in
+  Claude Code gets 1M sessions + a correct gauge with zero configuration, while standard accounts
+  stay safely on 200k (appending `[1m]` on a non-entitled account makes launches fail). Set it
+  explicitly to `true`/`false` only to override the auto-detection.
