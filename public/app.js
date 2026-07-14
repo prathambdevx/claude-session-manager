@@ -2,6 +2,8 @@ const API = "";
 let sessions = [];
 let agents = [];
 let delegations = [];
+let todos = [];
+let currentTab = localStorage.getItem("currentTab") || "sessions";
 // global "run dangerously" default — drives resume/fork directly and pre-checks per-launch modals.
 // defaults ON (matches the tool's dangerous-by-default behavior) unless the user turned it off.
 function dangerousDefault() {
@@ -19,13 +21,37 @@ const DEFAULT_COLUMNS = [
   { id: "done", title: "Done" },
 ];
 const OLD_DEFAULT_ORDER = ["todo", "priority", "research", "in-progress", "done"];
-let boardColumns = JSON.parse(localStorage.getItem("boardColumns") || "null") || DEFAULT_COLUMNS;
-if (boardColumns.map((c) => c.id).join(",") === OLD_DEFAULT_ORDER.join(",")) {
-  boardColumns = DEFAULT_COLUMNS; // pick up the new column order for anyone with the old default saved
+// Board columns are stored server-side (data/board.json). Start with defaults for the first
+// synchronous render; loadSessions replaces with server's copy (migrating localStorage on first run).
+function migrateColumns(cols) {
+  if (cols.map((c) => c.id).join(",") === OLD_DEFAULT_ORDER.join(",")) return DEFAULT_COLUMNS.slice();
+  const todo = cols.find((c) => c.id === "todo");
+  if (todo && todo.title === "To Do") todo.title = "All sessions";
+  return cols;
 }
-const todoCol = boardColumns.find((c) => c.id === "todo");
-if (todoCol && todoCol.title === "To Do") todoCol.title = "All sessions"; // pick up the renamed default for existing boards
-function saveBoardColumns() { localStorage.setItem("boardColumns", JSON.stringify(boardColumns)); }
+let boardColumns = DEFAULT_COLUMNS.slice();
+async function saveBoardColumns() {
+  await fetch("/api/board", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ columns: boardColumns }),
+  });
+}
+
+const DEFAULT_TODO_COLUMNS = [
+  { id: "backlog", title: "Backlog" },
+  { id: "todo", title: "To Do" },
+  { id: "in-progress", title: "In Progress" },
+  { id: "done", title: "Done" },
+];
+let todoColumns = DEFAULT_TODO_COLUMNS.slice();
+async function saveTodoColumns() {
+  await fetch("/api/todo-board", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ columns: todoColumns }),
+  });
+}
 
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -54,7 +80,28 @@ async function loadSessions() {
   sessions = [...data.sessions, ...tickets];
   agents = data.agents || [];
   delegations = data.delegations || [];
+  todos = data.todos || [];
+
+  // session board columns: server is source of truth; migrate localStorage on first run
+  if (Array.isArray(data.board) && data.board.length) {
+    boardColumns = migrateColumns(data.board);
+  } else {
+    const legacy = JSON.parse(localStorage.getItem("boardColumns") || "null");
+    boardColumns = migrateColumns(legacy && legacy.length ? legacy : DEFAULT_COLUMNS.slice());
+    saveBoardColumns();
+  }
+
+  // todo board columns: same pattern
+  if (Array.isArray(data.todoBoard) && data.todoBoard.length) {
+    todoColumns = data.todoBoard;
+  } else {
+    const legacy = JSON.parse(localStorage.getItem("todoColumns") || "null");
+    todoColumns = legacy && legacy.length ? legacy : DEFAULT_TODO_COLUMNS.slice();
+    saveTodoColumns();
+  }
+
   render();
+  if (currentTab === "todos") renderTodoBoard();
 }
 
 async function patchMeta(id, patch) {
@@ -324,31 +371,32 @@ function boardCardHtml(s) {
   const title = s.meta?.name || (s.firstMessage ? s.firstMessage.slice(0, 50) : "(untitled)");
   const desc = s.meta?.description;
   const isLive = !!s.running;
-  const isAuto = s.meta?.descriptionSource === "auto";
   const summarizing = summarizingIds.has(s.id);
   return `
     <div class="board-card" draggable="true" data-card-id="${s.id}">
       <div class="bc-title">
         <span class="dot ${isLive ? "live" : "idle"}" style="margin-top:0"></span>
         <span style="flex:1; min-width:0; overflow-wrap:anywhere;">${escapeHtml(title)}</span>
-        <span class="rename-pencil" data-action="rename" data-id="${s.id}" title="Rename">✎</span>
+        <div class="bc-menu-wrap">
+          <button class="bc-menu-btn" data-menu-toggle="${s.id}" title="Options">⋮</button>
+          <div class="bc-dropdown" id="menu-${s.id}">
+            <button data-action="resume" data-id="${s.id}">▶ Resume</button>
+            <button data-action="fork" data-id="${s.id}">⑂ Fork</button>
+            <button data-action="review" data-id="${s.id}">🔎 Review</button>
+            <button data-action="extract" data-id="${s.id}">🧠 Extract</button>
+            <button data-action="rename" data-id="${s.id}">✎ Rename</button>
+            <button data-action="editDesc" data-id="${s.id}">✐ Edit description</button>
+            <button class="danger" data-action="delete" data-id="${s.id}">🗑 Delete</button>
+          </div>
+        </div>
       </div>
-      <div class="bc-desc" style="display:flex; align-items:baseline; gap:5px; ${desc ? "" : "font-style:italic; color:var(--dim);"}">
-        <span style="flex:1; min-width:0; overflow-wrap:anywhere;">${escapeHtml(desc || "no description yet")}</span>
-        ${isAuto ? '<span class="auto-tag">auto</span>' : ""}
-        <button class="summarize-btn ${summarizing ? "loading" : ""}" data-action="summarize" data-id="${s.id}" title="Auto-generate a short description from this session's messages">${summarizing ? "…" : "✨"}</button>
+      <div class="bc-desc ${desc ? "" : "no-desc"}">
+        <span class="bc-desc-text">${escapeHtml(desc || "no description")}</span>
+        ${desc && !summarizing ? "" : `<button class="summarize-btn ${summarizing ? "loading" : ""}" data-action="summarize" data-id="${s.id}" title="Auto-generate description">${summarizing ? "" : "✦"}</button>`}
       </div>
       <div class="bc-meta">
         <span class="chip">${escapeHtml(projectName(s.cwd))}</span>
         ${s.gitBranch ? `<span class="chip branch">${escapeHtml(s.gitBranch)}</span>` : ""}
-        ${ctxBadgeHtml(s)}
-      </div>
-      <div class="bc-actions">
-        <button data-action="resume" data-id="${s.id}">▶ Resume</button>
-        <button data-action="fork" data-id="${s.id}">⑂ Fork</button>
-        <button data-action="review" data-id="${s.id}" title="Send this session's changed files to a reviewer agent">🔎 Review</button>
-        <button data-action="extract" data-id="${s.id}" title="Condense this session into a briefing for a fresh session">🧠 Extract</button>
-        <button class="danger" data-action="delete" data-id="${s.id}">🗑</button>
       </div>
     </div>
   `;
@@ -363,13 +411,18 @@ function ticketCardHtml(s) {
       <div class="bc-title">
         <span class="ticket-tag">TICKET</span>
         <span style="flex:1; min-width:0; overflow-wrap:anywhere; ${done ? "text-decoration:line-through; opacity:0.6;" : ""}">${escapeHtml(title)}</span>
-        <span class="rename-pencil" data-action="rename" data-id="${s.id}" title="Rename">✎</span>
+        <div class="bc-menu-wrap">
+          <button class="bc-menu-btn" data-menu-toggle="${s.id}" title="Options">⋮</button>
+          <div class="bc-dropdown" id="menu-${s.id}">
+            <button data-action="ticket-convert" data-id="${s.id}">▶ Start session</button>
+            <button data-action="rename" data-id="${s.id}">✎ Rename</button>
+            <button class="danger" data-action="delete" data-id="${s.id}">🗑 Delete</button>
+          </div>
+        </div>
       </div>
       ${notes ? `<div class="bc-desc"><span style="flex:1; overflow-wrap:anywhere;">${escapeHtml(notes)}</span></div>` : ""}
-      <div class="bc-actions">
-        <button data-action="ticket-done" data-id="${s.id}">${done ? "↩ Reopen" : "✓ Done"}</button>
-        <button data-action="ticket-convert" data-id="${s.id}" title="Start a Claude session from this ticket">▶ Start session</button>
-        <button class="danger" data-action="delete" data-id="${s.id}">🗑</button>
+      <div class="bc-meta">
+        <button class="ticket-done-btn ${done ? "is-done" : ""}" data-action="ticket-done" data-id="${s.id}">${done ? "↩ Reopen" : "✓ Done"}</button>
       </div>
     </div>
   `;
@@ -395,9 +448,16 @@ function renderBoardView(filtered) {
             <span class="drag-handle">⠿</span>
             <span>${escapeHtml(c.title)}</span>
             <span class="board-count">${(byColumn.get(c.id) || []).length}</span>
-            <span class="rename-pencil" data-add-col-task="${c.id}" title="Start a new task in this column" style="margin-left:auto; font-weight:700; font-size:14px;">+</span>
-            <span class="rename-pencil" data-rename-col="${c.id}" title="Rename column">✎</span>
-            <span class="remove-col" data-remove-col="${c.id}" title="Remove column">✕</span>
+            <div class="col-header-actions" style="margin-left:auto; display:flex; align-items:center; gap:2px;">
+            <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
+            <div class="bc-menu-wrap">
+              <button class="bc-menu-btn" data-col-menu-toggle="${c.id}" title="Column options">⋮</button>
+              <div class="bc-dropdown" id="col-menu-${c.id}">
+                <button data-rename-col="${c.id}">✎ Rename</button>
+                <button class="danger" data-remove-col="${c.id}">✕ Remove</button>
+              </div>
+            </div>
+            </div>
           </div>
           <div class="board-col-body" data-col-drop="${c.id}">
             ${(byColumn.get(c.id) || []).map(boardCardHtml).join("") || '<div class="empty" style="padding:16px 0;">Drop here</div>'}
@@ -425,6 +485,54 @@ function renderBoardView(filtered) {
       if (action === "rename") {
         const next = prompt(s?.isTicket ? "Rename ticket:" : "Rename session:", s?.meta?.name || "");
         if (next !== null) patchMeta(id, { name: next.trim() || undefined });
+      }
+      if (action === "editDesc") {
+        const next = prompt("Edit description:", s?.meta?.description || "");
+        if (next !== null) patchMeta(id, { description: next.trim() || undefined, descriptionSource: next.trim() ? "manual" : undefined });
+      }
+    });
+  });
+
+  // three-dot menu toggle
+  app.querySelectorAll("[data-menu-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.menuToggle;
+      const dropdown = document.getElementById("menu-" + id);
+      const wasOpen = dropdown.classList.contains("open");
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      if (!wasOpen) {
+        const rect = btn.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        dropdown.style.left = "";
+        dropdown.style.right = (window.innerWidth - rect.right) + "px";
+        if (spaceBelow < 200) {
+          dropdown.style.top = "";
+          dropdown.style.bottom = (window.innerHeight - rect.top) + "px";
+        } else {
+          dropdown.style.top = rect.bottom + 4 + "px";
+          dropdown.style.bottom = "";
+        }
+        dropdown.classList.add("open");
+      }
+    });
+  });
+
+  // column three-dot menu toggle
+  app.querySelectorAll("[data-col-menu-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.colMenuToggle;
+      const dropdown = document.getElementById("col-menu-" + id);
+      const wasOpen = dropdown.classList.contains("open");
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      if (!wasOpen) {
+        const rect = btn.getBoundingClientRect();
+        dropdown.style.left = "";
+        dropdown.style.right = (window.innerWidth - rect.right) + "px";
+        dropdown.style.top = rect.bottom + 4 + "px";
+        dropdown.style.bottom = "";
+        dropdown.classList.add("open");
       }
     });
   });
@@ -530,38 +638,38 @@ function renderBoardView(filtered) {
 
 // ---------- Agents dock (board-only band above the columns) ----------
 
-function agentsDockHtml() {
-  const collapsed = localStorage.getItem("agentsDockCollapsed") === "1";
-  const recent = delegations.slice(0, 8);
-  const jobChip = (d) => {
-    const icon = d.status === "done" ? "✓" : d.status === "error" ? "✗" : "⏳";
-    const cls = d.status === "done" ? "job-done" : d.status === "error" ? "job-error" : "job-running";
-    // every chip (running too) opens the detail modal — running shows the live activity feed
-    return `<span class="job-chip ${cls}" data-open-delegation="${d.id}" title="${escapeAttr(d.agentName + " → " + d.sessionLabel)} — click for details">
-      ${icon} ${escapeHtml(d.agentEmoji)} ${escapeHtml(d.sessionLabel.slice(0, 24))}</span>`;
-  };
-  return `
-    <div class="agents-dock ${collapsed ? "collapsed" : ""}" id="agentsDock">
-      <div class="dock-row">
-        <span class="dock-label" id="agentsDockToggle" title="Collapse/expand">AGENTS ${collapsed ? "▸" : "▾"}</span>
-        ${agents
-          .map(
-            (a) => `<div class="agent-tile" data-agent-drop="${a.id}" data-agent-edit="${a.id}" title="${escapeAttr(a.prompt.slice(0, 120))} — drop a session to delegate; click to edit">
-              <span>${escapeHtml(a.emoji)}</span> <span>${escapeHtml(a.name)}</span>
-              <span class="agent-perm ${a.permission === "edit" ? "perm-edit" : "perm-ro"}">${a.permission === "edit" ? "✎" : "👁"}</span>
-            </div>`
-          )
-          .join("")}
-        <div class="agent-tile agent-new" id="agentNewTile" title="Create a new agent">＋ New agent</div>
-      </div>
-      <div class="dock-row dock-jobs">
-        <span class="dock-label">JOBS</span>
-        ${recent.length ? recent.map(jobChip).join("") : '<span class="dock-empty">no delegations yet — drop a session on an agent</span>'}
-        <a class="dock-all" href="/delegations" target="_blank" rel="noopener">all ↗</a>
-      </div>
-    </div>
-  `;
-}
+// function agentsDockHtml() {
+//   const collapsed = localStorage.getItem("agentsDockCollapsed") === "1";
+//   const recent = delegations.slice(0, 8);
+//   const jobChip = (d) => {
+//     const icon = d.status === "done" ? "✓" : d.status === "error" ? "✗" : "⏳";
+//     const cls = d.status === "done" ? "job-done" : d.status === "error" ? "job-error" : "job-running";
+//     return `<span class="job-chip ${cls}" data-open-delegation="${d.id}" title="${escapeAttr(d.agentName + " → " + d.sessionLabel)} — click for details">
+//       ${icon} ${escapeHtml(d.agentEmoji)} ${escapeHtml(d.sessionLabel.slice(0, 24))}</span>`;
+//   };
+//   return `
+//     <div class="agents-dock ${collapsed ? "collapsed" : ""}" id="agentsDock">
+//       <div class="dock-row">
+//         <span class="dock-label" id="agentsDockToggle" title="Collapse/expand">AGENTS ${collapsed ? "▸" : "▾"}</span>
+//         ${agents
+//           .map(
+//             (a) => `<div class="agent-tile" data-agent-drop="${a.id}" data-agent-edit="${a.id}" title="${escapeAttr(a.prompt.slice(0, 120))} — drop a session to delegate; click to edit">
+//               <span>${escapeHtml(a.emoji)}</span> <span>${escapeHtml(a.name)}</span>
+//               <span class="agent-perm ${a.permission === "edit" ? "perm-edit" : "perm-ro"}">${a.permission === "edit" ? "✎" : "👁"}</span>
+//             </div>`
+//           )
+//           .join("")}
+//         <div class="agent-tile agent-new" id="agentNewTile" title="Create a new agent">＋ New agent</div>
+//       </div>
+//       <div class="dock-row dock-jobs">
+//         <span class="dock-label">JOBS</span>
+//         ${recent.length ? recent.map(jobChip).join("") : '<span class="dock-empty">no delegations yet — drop a session on an agent</span>'}
+//         <a class="dock-all" href="/delegations" target="_blank" rel="noopener">all ↗</a>
+//       </div>
+//     </div>
+//   `;
+// }
+function agentsDockHtml() { return ''; }
 
 function wireAgentsDock(app) {
   const dock = app.querySelector("#agentsDock");
@@ -1333,9 +1441,9 @@ function cardHtml(s) {
         <button class="primary" data-action="resume" data-id="${s.id}">▶ Resume</button>
         <button data-action="fork" data-id="${s.id}">⑂ Fork</button>
         <button data-action="copy" data-id="${s.id}">⧉ Copy cmd</button>
-        <button data-action="pin" data-id="${s.id}">${s.meta?.pinned ? "★ Pinned" : "☆ Pin"}</button>
         <button data-action="review" data-id="${s.id}" title="Send this session's changed files to a reviewer agent">🔎 Review</button>
         <button data-action="extract" data-id="${s.id}" title="Condense this session into a briefing for a fresh session">🧠 Extract</button>
+        <button data-action="pin" data-id="${s.id}">${s.meta?.pinned ? "★ Pinned" : "☆ Pin"}</button>
         <button data-action="toggleDetails" data-id="${s.id}">${open ? "▲ Less" : "▾ Tags/notes"}</button>
         <span class="spacer"></span>
         <button class="danger" data-action="delete" data-id="${s.id}">🗑 Delete</button>
@@ -1350,6 +1458,7 @@ function cardHtml(s) {
 }
 
 document.getElementById("search").addEventListener("input", (e) => {
+  if (currentTab === "todos") { renderTodoBoard(); return; }
   render();
   clearTimeout(contentSearchTimer);
   contentSearchTimer = setTimeout(() => fetchContentMatches(e.target.value), 350);
@@ -1367,7 +1476,38 @@ globalDangerousBox.addEventListener("change", (e) => {
   localStorage.setItem("globalDangerous", e.target.checked ? "1" : "0");
 });
 document.getElementById("refreshBtn").addEventListener("click", loadSessions);
+document.getElementById("groupByProjectBtn").addEventListener("click", async () => {
+  // collect all unique project names from real sessions (not tickets)
+  const projects = [...new Set(sessions.filter((s) => !s.isTicket && s.cwd).map((s) => projectName(s.cwd)))].sort();
+  if (!projects.length) { toast("No sessions to group"); return; }
+
+  // build new columns: "All sessions" first, then one per project
+  boardColumns = [
+    { id: "all", title: "All sessions" },
+    ...projects.map((p) => ({ id: "proj-" + p.toLowerCase().replace(/[^a-z0-9]+/g, "-"), title: p })),
+  ];
+  await saveBoardColumns();
+
+  // assign each session to its project column
+  for (const s of sessions) {
+    if (s.isTicket) continue;
+    const name = projectName(s.cwd);
+    const col = boardColumns.find((c) => c.title === name);
+    if (col && s.meta?.board !== col.id) {
+      patchMeta(s.id, { board: col.id });
+    }
+  }
+
+  // switch to board view
+  setView("board");
+  toast(`Created ${projects.length} project columns`);
+});
 document.getElementById("globalSearchBtn").addEventListener("click", openGlobalSearchModal);
+
+// close card menus on outside click
+document.addEventListener("click", () => {
+  document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+});
 
 document.addEventListener("keydown", (e) => {
   const tag = document.activeElement?.tagName;
@@ -1431,6 +1571,428 @@ async function launchTask({ cwd, task, name, model, mode, dangerous = true }) {
   return data;
 }
 
+// ---------- todo board ----------
+
+function todoCardHtml(t) {
+  const statusCls = t.status === "done" ? "s-done" : t.status === "in-progress" ? "s-in-progress" : "s-todo";
+  const assignedSession = t.assignedSessionId ? sessions.find((s) => s.id === t.assignedSessionId) : null;
+  const sessionLabel = assignedSession ? (assignedSession.meta?.name || assignedSession.meta?.description || assignedSession.firstMessage || "").slice(0, 30) : "";
+  return `
+    <div class="todo-card board-card" draggable="true" data-todo-id="${t.id}">
+      <div class="tc-title">
+        <span style="flex:1; min-width:0; overflow-wrap:anywhere;">${escapeHtml(t.title)}</span>
+        <div class="bc-menu-wrap">
+          <button class="bc-menu-btn" data-todo-menu="${t.id}" title="Options">⋮</button>
+          <div class="bc-dropdown" id="todo-menu-${t.id}">
+            <button data-todo-action="edit" data-todo-id="${t.id}">✎ Edit</button>
+            <button data-todo-action="assign" data-todo-id="${t.id}">▶ Assign to Claude</button>
+            ${t.status !== "done" ? `<button data-todo-action="done" data-todo-id="${t.id}">✓ Mark done</button>` : `<button data-todo-action="reopen" data-todo-id="${t.id}">↺ Reopen</button>`}
+            <button class="danger" data-todo-action="delete" data-todo-id="${t.id}">🗑 Delete</button>
+          </div>
+        </div>
+      </div>
+      ${t.description ? `<div class="tc-desc">${escapeHtml(t.description)}</div>` : ""}
+      <div class="tc-footer">
+        <span class="tc-status ${statusCls}">${t.status || "todo"}</span>
+        ${sessionLabel ? `<span class="tc-session">→ ${escapeHtml(sessionLabel)}</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderTodoBoard() {
+  const todoApp = document.getElementById("todoApp");
+  todoApp.classList.add("board-mode");
+  const q = document.getElementById("search").value.trim().toLowerCase();
+  const filtered = q ? todos.filter((t) => (t.title + " " + (t.description || "")).toLowerCase().includes(q)) : todos;
+
+  const byCol = new Map(todoColumns.map((c) => [c.id, []]));
+  for (const t of filtered) {
+    const col = t.board && byCol.has(t.board) ? t.board : todoColumns[0].id;
+    byCol.get(col).push(t);
+  }
+  // sort by most recently updated first
+  for (const arr of byCol.values()) arr.sort((a, b) => b.updatedAt - a.updatedAt);
+
+  todoApp.innerHTML = `
+    <div class="board">
+      ${todoColumns.map((c) => `
+        <div class="board-col" data-todo-col-id="${c.id}">
+          <div class="board-col-header" draggable="true" data-todo-col-drag="${c.id}">
+            <span class="drag-handle">⠿</span>
+            <span>${escapeHtml(c.title)}</span>
+            <span class="board-count">${(byCol.get(c.id) || []).length}</span>
+            <div class="bc-menu-wrap" style="margin-left:auto;">
+              <button class="bc-menu-btn" data-todo-col-menu="${c.id}" title="Column options">⋮</button>
+              <div class="bc-dropdown" id="todo-col-menu-${c.id}">
+                <button data-todo-col-action="add" data-col="${c.id}">+ New todo</button>
+                <button data-todo-col-action="rename" data-col="${c.id}">✎ Rename</button>
+                <button class="danger" data-todo-col-action="remove" data-col="${c.id}">✕ Remove</button>
+              </div>
+            </div>
+          </div>
+          <div class="board-col-body" data-todo-col-drop="${c.id}">
+            ${(byCol.get(c.id) || []).map(todoCardHtml).join("") || '<div class="empty" style="padding:16px 0;">Drop here</div>'}
+          </div>
+        </div>
+      `).join("")}
+      <button class="add-col-btn" id="addTodoColBtn">+ Add column</button>
+    </div>
+  `;
+
+  wireTodoBoard(todoApp);
+}
+
+function wireTodoBoard(app) {
+  // card three-dot menu
+  app.querySelectorAll("[data-todo-menu]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.todoMenu;
+      const dropdown = document.getElementById("todo-menu-" + id);
+      const wasOpen = dropdown.classList.contains("open");
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      if (!wasOpen) {
+        const rect = btn.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        dropdown.style.right = (window.innerWidth - rect.right) + "px";
+        dropdown.style.left = "";
+        if (spaceBelow < 200) { dropdown.style.top = ""; dropdown.style.bottom = (window.innerHeight - rect.top) + "px"; }
+        else { dropdown.style.top = rect.bottom + 4 + "px"; dropdown.style.bottom = ""; }
+        dropdown.classList.add("open");
+      }
+    });
+  });
+
+  // card actions
+  app.querySelectorAll("[data-todo-action]").forEach((el) => {
+    el.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const action = el.dataset.todoAction;
+      const id = el.dataset.todoId;
+      const t = todos.find((x) => x.id === id);
+      if (action === "edit") openTodoEditModal(id);
+      if (action === "assign") openTodoAssignModal(id);
+      if (action === "done") await patchTodo(id, { status: "done" });
+      if (action === "reopen") await patchTodo(id, { status: "todo" });
+      if (action === "delete") {
+        if (!confirm(`Delete "${t?.title}"?`)) return;
+        await fetch(`/api/todos/${id}`, { method: "DELETE" });
+        todos = todos.filter((x) => x.id !== id);
+        renderTodoBoard();
+        toast("Todo deleted");
+      }
+    });
+  });
+
+  // column three-dot menu
+  app.querySelectorAll("[data-todo-col-menu]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.todoColMenu;
+      const dropdown = document.getElementById("todo-col-menu-" + id);
+      const wasOpen = dropdown.classList.contains("open");
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      if (!wasOpen) {
+        const rect = btn.getBoundingClientRect();
+        dropdown.style.right = (window.innerWidth - rect.right) + "px";
+        dropdown.style.left = "";
+        dropdown.style.top = rect.bottom + 4 + "px";
+        dropdown.style.bottom = "";
+        dropdown.classList.add("open");
+      }
+    });
+  });
+
+  // column actions
+  app.querySelectorAll("[data-todo-col-action]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const action = el.dataset.todoColAction;
+      const colId = el.dataset.col;
+      if (action === "add") openTodoCreateModal(colId);
+      if (action === "rename") {
+        const col = todoColumns.find((c) => c.id === colId);
+        const next = prompt("Rename column:", col?.title || "");
+        if (next && next.trim()) { col.title = next.trim(); saveTodoColumns(); renderTodoBoard(); }
+      }
+      if (action === "remove") {
+        const col = todoColumns.find((c) => c.id === colId);
+        if (todoColumns.length <= 1) { toast("Need at least one column"); return; }
+        if (!confirm(`Remove column "${col?.title}"?`)) return;
+        // move todos to first column
+        todos.forEach((t) => { if (t.board === colId) patchTodo(t.id, { board: todoColumns[0].id }); });
+        todoColumns = todoColumns.filter((c) => c.id !== colId);
+        saveTodoColumns();
+        renderTodoBoard();
+      }
+    });
+  });
+
+  // add column
+  document.getElementById("addTodoColBtn")?.addEventListener("click", () => {
+    const title = prompt("New column name:");
+    if (!title?.trim()) return;
+    const id = title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+    if (todoColumns.some((c) => c.id === id)) { toast("Column already exists"); return; }
+    todoColumns.push({ id: id || crypto.randomUUID(), title: title.trim() });
+    saveTodoColumns();
+    renderTodoBoard();
+  });
+
+  // drag & drop for todo cards
+  app.querySelectorAll("[data-todo-id]").forEach((card) => {
+    if (!card.classList.contains("todo-card")) return;
+    card.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/todo-id", card.dataset.todoId);
+      card.classList.add("dragging");
+    });
+    card.addEventListener("dragend", () => card.classList.remove("dragging"));
+  });
+
+  app.querySelectorAll("[data-todo-col-drop]").forEach((zone) => {
+    zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.closest(".board-col").classList.add("dragover"); });
+    zone.addEventListener("dragleave", () => zone.closest(".board-col").classList.remove("dragover"));
+    zone.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      zone.closest(".board-col").classList.remove("dragover");
+      const todoId = e.dataTransfer.getData("text/todo-id");
+      if (!todoId) return;
+      const colId = zone.dataset.todoColDrop;
+      await patchTodo(todoId, { board: colId });
+    });
+  });
+
+  // drag & drop for column reorder
+  app.querySelectorAll("[data-todo-col-drag]").forEach((hdr) => {
+    hdr.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/todo-col-drag", hdr.dataset.todoColDrag);
+      hdr.closest(".board-col").classList.add("dragging");
+    });
+    hdr.addEventListener("dragend", () => hdr.closest(".board-col").classList.remove("dragging"));
+  });
+  app.querySelectorAll("[data-todo-col-id]").forEach((col) => {
+    col.addEventListener("dragover", (e) => { if (e.dataTransfer.types.includes("text/todo-col-drag")) { e.preventDefault(); col.classList.add("dragover"); } });
+    col.addEventListener("dragleave", () => col.classList.remove("dragover"));
+    col.addEventListener("drop", (e) => {
+      col.classList.remove("dragover");
+      const fromId = e.dataTransfer.getData("text/todo-col-drag");
+      if (!fromId) return;
+      const toId = col.dataset.todoColId;
+      if (fromId === toId) return;
+      const fromIdx = todoColumns.findIndex((c) => c.id === fromId);
+      const toIdx = todoColumns.findIndex((c) => c.id === toId);
+      const [moved] = todoColumns.splice(fromIdx, 1);
+      todoColumns.splice(toIdx, 0, moved);
+      saveTodoColumns();
+      renderTodoBoard();
+    });
+  });
+}
+
+async function patchTodo(id, patch) {
+  const t = todos.find((x) => x.id === id);
+  if (t) Object.assign(t, patch);
+  renderTodoBoard();
+  await fetch(`/api/todos/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+}
+
+function openTodoCreateModal(colId) {
+  modalShell(`
+    <h3>+ New Todo</h3>
+    <div class="modal-row">
+      <label for="todoTitle">Title</label>
+      <input type="text" id="todoTitle" placeholder="What needs to be done?" />
+    </div>
+    <div class="modal-row">
+      <label for="todoDesc">Description (optional)</label>
+      <textarea id="todoDesc" class="notes-input" style="min-height:80px" placeholder="Add details, context, acceptance criteria..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button id="todoCreateCancel">Cancel</button>
+      <button class="primary" id="todoCreateSave">Create</button>
+    </div>
+  `);
+  document.getElementById("todoCreateCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("todoCreateSave").addEventListener("click", async () => {
+    const title = document.getElementById("todoTitle").value.trim();
+    if (!title) { toast("Give it a title"); return; }
+    const description = document.getElementById("todoDesc").value.trim();
+    const res = await fetch("/api/todos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, description: description || undefined, board: colId }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      todos.push(data.todo);
+      closeReviewModal();
+      renderTodoBoard();
+      toast("Todo created");
+    } else {
+      toast("Failed: " + (data.error || "unknown"));
+    }
+  });
+}
+
+function openTodoEditModal(id) {
+  const t = todos.find((x) => x.id === id);
+  if (!t) return;
+  modalShell(`
+    <h3>Edit Todo</h3>
+    <div class="modal-row">
+      <label for="todoEditTitle">Title</label>
+      <input type="text" id="todoEditTitle" value="${escapeAttr(t.title)}" />
+    </div>
+    <div class="modal-row">
+      <label for="todoEditDesc">Description</label>
+      <textarea id="todoEditDesc" class="notes-input" style="min-height:80px">${escapeHtml(t.description || "")}</textarea>
+    </div>
+    <div class="modal-row">
+      <label for="todoEditStatus">Status</label>
+      <select id="todoEditStatus">
+        <option value="todo" ${t.status === "todo" ? "selected" : ""}>To Do</option>
+        <option value="in-progress" ${t.status === "in-progress" ? "selected" : ""}>In Progress</option>
+        <option value="done" ${t.status === "done" ? "selected" : ""}>Done</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button id="todoEditCancel">Cancel</button>
+      <button class="primary" id="todoEditSave">Save</button>
+    </div>
+  `);
+  document.getElementById("todoEditCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("todoEditSave").addEventListener("click", async () => {
+    const title = document.getElementById("todoEditTitle").value.trim();
+    if (!title) { toast("Title is required"); return; }
+    await patchTodo(id, {
+      title,
+      description: document.getElementById("todoEditDesc").value.trim() || undefined,
+      status: document.getElementById("todoEditStatus").value,
+    });
+    closeReviewModal();
+    toast("Todo updated");
+  });
+}
+
+function openTodoAssignModal(id) {
+  const t = todos.find((x) => x.id === id);
+  if (!t) return;
+  const projectOptions = [...new Set(sessions.filter((s) => s.cwd && !s.isTicket).map((s) => s.cwd))].sort();
+  const recentSessions = sessions
+    .filter((s) => !s.isTicket)
+    .sort((a, b) => b.lastActive - a.lastActive)
+    .slice(0, 20);
+
+  modalShell(`
+    <h3>▶ Assign to Claude</h3>
+    <div style="font-size:12px; color:var(--dim); margin-bottom:4px;">${escapeHtml(t.title)}</div>
+    <div class="mode-toggle" style="max-width:300px;">
+      <button id="assignNew" class="active">New session</button>
+      <button id="assignExisting">Existing session</button>
+    </div>
+    <div id="assignNewFields">
+      <div class="modal-row">
+        <label for="assignProject">Project</label>
+        <select id="assignProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join("")}</select>
+      </div>
+      <div class="modal-row">
+        <label for="assignModel">Model</label>
+        ${modelSelectHtml("assignModel")}
+      </div>
+      ${dangerousCheckboxHtml("assignDangerous")}
+    </div>
+    <div id="assignExistingFields" style="display:none;">
+      <div class="modal-row">
+        <label for="assignSession">Pick a session</label>
+        <select id="assignSession">
+          ${recentSessions.map((s) => `<option value="${s.id}">${escapeHtml((s.meta?.name || s.firstMessage || s.id).slice(0, 60))}</option>`).join("")}
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="assignCancel">Cancel</button>
+      <button class="primary" id="assignGo">▶ Assign</button>
+    </div>
+  `, 480);
+
+  let mode = "new";
+  document.getElementById("assignNew").addEventListener("click", () => {
+    mode = "new";
+    document.getElementById("assignNew").classList.add("active");
+    document.getElementById("assignExisting").classList.remove("active");
+    document.getElementById("assignNewFields").style.display = "";
+    document.getElementById("assignExistingFields").style.display = "none";
+  });
+  document.getElementById("assignExisting").addEventListener("click", () => {
+    mode = "existing";
+    document.getElementById("assignExisting").classList.add("active");
+    document.getElementById("assignNew").classList.remove("active");
+    document.getElementById("assignNewFields").style.display = "none";
+    document.getElementById("assignExistingFields").style.display = "";
+  });
+  document.getElementById("assignCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("assignGo").addEventListener("click", async () => {
+    let body;
+    if (mode === "new") {
+      const cwd = document.getElementById("assignProject").value;
+      const model = document.getElementById("assignModel").value;
+      const dangerous = document.getElementById("assignDangerous").checked;
+      if (!cwd) { toast("Pick a project"); return; }
+      body = { cwd, model: model || undefined, dangerous };
+    } else {
+      const sessionId = document.getElementById("assignSession").value;
+      if (!sessionId) { toast("Pick a session"); return; }
+      body = { sessionId, dangerous: dangerousDefault() };
+    }
+    const res = await fetch(`/api/todos/${id}/assign`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const t2 = todos.find((x) => x.id === id);
+      if (t2) { t2.assignedSessionId = data.sessionId; t2.status = "in-progress"; }
+      closeReviewModal();
+      renderTodoBoard();
+      toast("Assigned to Claude — session launched");
+      loadSessions();
+    } else {
+      toast("Failed: " + (data.error || "unknown"));
+    }
+  });
+}
+
+// ---------- tab switching ----------
+
+function setTab(tab) {
+  currentTab = tab;
+  localStorage.setItem("currentTab", tab);
+  document.getElementById("tabSessions").classList.toggle("active", tab === "sessions");
+  document.getElementById("tabTodos").classList.toggle("active", tab === "todos");
+  const app = document.getElementById("app");
+  const todoApp = document.getElementById("todoApp");
+  if (tab === "sessions") {
+    app.style.display = "";
+    todoApp.style.display = "none";
+    render();
+  } else {
+    app.style.display = "none";
+    todoApp.style.display = "";
+    renderTodoBoard();
+  }
+}
+
+document.getElementById("tabSessions").addEventListener("click", () => setTab("sessions"));
+document.getElementById("tabTodos").addEventListener("click", () => setTab("todos"));
+
 loadSessions();
 loadProjects();
-setInterval(loadSessions, 15000); // keep "running" dots + new sessions fresh
+setInterval(loadSessions, 15000);
+// apply initial tab
+if (currentTab === "todos") setTimeout(() => setTab("todos"), 0);

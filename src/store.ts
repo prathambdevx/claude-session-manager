@@ -4,8 +4,39 @@ import { readdir, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
-  META_PATH, TICKETS_PATH, AGENTS_PATH, REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, RUNNING_DIR,
+  META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, BOARD_PATH, TODO_BOARD_PATH,
+  REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, RUNNING_DIR,
 } from "./config.ts";
+
+// ---------- board columns (server-side so they're shared across browsers/tabs) ----------
+
+export type BoardColumn = { id: string; title: string };
+
+export async function loadBoard(): Promise<BoardColumn[] | null> {
+  try {
+    const j = JSON.parse(await readFile(BOARD_PATH, "utf-8"));
+    return Array.isArray(j.columns) ? j.columns : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveBoard(columns: BoardColumn[]) {
+  await Bun.write(BOARD_PATH, JSON.stringify({ columns }, null, 2));
+}
+
+export async function loadTodoBoard(): Promise<BoardColumn[] | null> {
+  try {
+    const j = JSON.parse(await readFile(TODO_BOARD_PATH, "utf-8"));
+    return Array.isArray(j.columns) ? j.columns : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveTodoBoard(columns: BoardColumn[]) {
+  await Bun.write(TODO_BOARD_PATH, JSON.stringify({ columns }, null, 2));
+}
 
 // ---------- sidecar metadata (names, tags, notes, status, pinned, archived) ----------
 
@@ -57,6 +88,31 @@ export async function loadTickets(): Promise<Record<string, Ticket>> {
 
 export async function saveTickets(tickets: Record<string, Ticket>) {
   await Bun.write(TICKETS_PATH, JSON.stringify(tickets, null, 2));
+}
+
+// ---------- todos (standalone task board) ----------
+
+export type Todo = {
+  id: string;
+  title: string;
+  description?: string;
+  board?: string;
+  status?: "todo" | "in-progress" | "done";
+  assignedSessionId?: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export async function loadTodos(): Promise<Record<string, Todo>> {
+  try {
+    return JSON.parse(await readFile(TODOS_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+export async function saveTodos(todos: Record<string, Todo>) {
+  await Bun.write(TODOS_PATH, JSON.stringify(todos, null, 2));
 }
 
 // ---------- review reports ----------
