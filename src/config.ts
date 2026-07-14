@@ -14,6 +14,7 @@ export const DATA_DIR = join(ROOT_DIR, "data");
 export const META_PATH = join(DATA_DIR, "meta.json");
 export const TICKETS_PATH = join(DATA_DIR, "tickets.json");
 export const AGENTS_PATH = join(DATA_DIR, "agents.json");
+export const BOARD_PATH = join(DATA_DIR, "board.json");
 export const REVIEWS_DIR = join(DATA_DIR, "reviews");
 export const CONTEXTS_DIR = join(DATA_DIR, "contexts");
 export const DELEGATIONS_DIR = join(DATA_DIR, "delegations");

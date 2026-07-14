@@ -4,8 +4,25 @@ import { readdir, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
-  META_PATH, TICKETS_PATH, AGENTS_PATH, REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, RUNNING_DIR,
+  META_PATH, TICKETS_PATH, AGENTS_PATH, BOARD_PATH, REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, RUNNING_DIR,
 } from "./config.ts";
+
+// ---------- board columns (server-side so they're shared across browsers/tabs) ----------
+
+export type BoardColumn = { id: string; title: string };
+
+export async function loadBoard(): Promise<BoardColumn[] | null> {
+  try {
+    const j = JSON.parse(await readFile(BOARD_PATH, "utf-8"));
+    return Array.isArray(j.columns) ? j.columns : null;
+  } catch {
+    return null; // no file yet — frontend seeds defaults and saves them
+  }
+}
+
+export async function saveBoard(columns: BoardColumn[]) {
+  await Bun.write(BOARD_PATH, JSON.stringify({ columns }, null, 2));
+}
 
 // ---------- sidecar metadata (names, tags, notes, status, pinned, archived) ----------
 

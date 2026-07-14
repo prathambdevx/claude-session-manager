@@ -19,13 +19,23 @@ const DEFAULT_COLUMNS = [
   { id: "done", title: "Done" },
 ];
 const OLD_DEFAULT_ORDER = ["todo", "priority", "research", "in-progress", "done"];
-let boardColumns = JSON.parse(localStorage.getItem("boardColumns") || "null") || DEFAULT_COLUMNS;
-if (boardColumns.map((c) => c.id).join(",") === OLD_DEFAULT_ORDER.join(",")) {
-  boardColumns = DEFAULT_COLUMNS; // pick up the new column order for anyone with the old default saved
+// Board columns are now stored server-side (data/board.json) so they're the SAME in every browser
+// and tab, not per-browser. Start from a safe default for the first synchronous render; loadSessions
+// replaces this with the server's copy (migrating any old localStorage columns up on first run).
+function migrateColumns(cols) {
+  if (cols.map((c) => c.id).join(",") === OLD_DEFAULT_ORDER.join(",")) return DEFAULT_COLUMNS.slice();
+  const todo = cols.find((c) => c.id === "todo");
+  if (todo && todo.title === "To Do") todo.title = "All sessions";
+  return cols;
 }
-const todoCol = boardColumns.find((c) => c.id === "todo");
-if (todoCol && todoCol.title === "To Do") todoCol.title = "All sessions"; // pick up the renamed default for existing boards
-function saveBoardColumns() { localStorage.setItem("boardColumns", JSON.stringify(boardColumns)); }
+let boardColumns = DEFAULT_COLUMNS.slice();
+async function saveBoardColumns() {
+  await fetch("/api/board", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ columns: boardColumns }),
+  });
+}
 
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -54,6 +64,16 @@ async function loadSessions() {
   sessions = [...data.sessions, ...tickets];
   agents = data.agents || [];
   delegations = data.delegations || [];
+
+  if (Array.isArray(data.board) && data.board.length) {
+    boardColumns = migrateColumns(data.board); // server is the source of truth once it has columns
+  } else {
+    // first run: adopt this browser's old localStorage columns (if any) so nothing is lost, then
+    // persist them to the server; afterwards every browser shares this set
+    const legacy = JSON.parse(localStorage.getItem("boardColumns") || "null");
+    boardColumns = migrateColumns(legacy && legacy.length ? legacy : DEFAULT_COLUMNS.slice());
+    saveBoardColumns();
+  }
   render();
 }
 

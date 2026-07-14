@@ -7,6 +7,7 @@ import {
   loadMeta, saveMeta, loadTickets, saveTickets, loadRunning,
   saveReview, loadReview, saveContext, loadContext,
   loadAgents, saveAgents, saveDelegation, loadDelegation, loadAllDelegations, deleteDelegation,
+  loadBoard, saveBoard,
 } from "./store.ts";
 import type { Meta, Ticket, ReviewRecord, ContextRecord, Agent, Delegation } from "./store.ts";
 import {
@@ -32,22 +33,34 @@ export async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
 
   if (url.pathname === "/api/sessions" && req.method === "GET") {
-    const [sessions, running, meta, tickets, agents, delegations] = await Promise.all([
+    const [sessions, running, meta, tickets, agents, delegations, board] = await Promise.all([
       scanAllSessions(),
       loadRunning(),
       loadMeta(),
       loadTickets(),
       loadAgents(),
       loadAllDelegations(),
+      loadBoard(),
     ]);
     const enriched = sessions.map((s) => ({
       ...s,
       running: running[s.id] ?? null,
       meta: meta[s.id] ?? {},
     }));
-    // tickets ride along as pseudo-sessions (isTicket flag); agents + delegations power the board's
-    // Agents dock. One round-trip renders the whole board.
-    return json({ sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations });
+    // tickets ride along as pseudo-sessions (isTicket flag); agents + delegations power the Agents
+    // dock; board = the shared column layout. One round-trip renders the whole board.
+    return json({ sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, board });
+  }
+
+  if (url.pathname === "/api/board" && req.method === "PUT") {
+    const body = await req.json().catch(() => ({}));
+    const cols = Array.isArray(body?.columns) ? body.columns : null;
+    if (!cols) return json({ error: "columns array required" }, { status: 400 });
+    const clean = cols
+      .filter((c: any) => c && typeof c.id === "string" && typeof c.title === "string")
+      .map((c: any) => ({ id: c.id.slice(0, 60), title: c.title.slice(0, 80) }));
+    await saveBoard(clean);
+    return json({ ok: true, columns: clean });
   }
 
   // ---------- agents CRUD ----------
