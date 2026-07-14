@@ -1,0 +1,12 @@
+# Personal / local state — never publish. Contains your session names, tickets, notes,
+# review reports, context briefings, and agent-job outputs.
+data/
+
+# Logs
+*.log
+
+# Dependencies (none currently, but just in case)
+node_modules/
+
+# macOS
+.DS_Store
