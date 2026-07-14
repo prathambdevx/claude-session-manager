@@ -5,7 +5,7 @@ import { chmod } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
-import { HOME, CLAUDE_BIN, KNOWN_MODELS, DANGEROUS_FLAG, EFFORT_FLAG } from "./config.ts";
+import { HOME, CLAUDE_BIN, KNOWN_MODELS, DANGEROUS_FLAG, EFFORT_FLAG, EXTENDED_CONTEXT } from "./config.ts";
 import { pidAlive } from "./store.ts";
 import type { ReviewRecord, ContextRecord, Agent } from "./store.ts";
 
@@ -131,11 +131,13 @@ function researchPrompt(task: string): string {
   );
 }
 
-// Sonnet and Opus support the extended 1M-context variant via a "[1m]" suffix on the model alias
-// (confirmed from this account's own settings.json default: "model": "sonnet[1m]"). Every session
-// this tool launches should start with that context window regardless of which model is picked.
+// Sonnet and Opus support an extended 1M-context variant via a "[1m]" suffix on the model alias
+// — but ONLY on accounts entitled to it. Appending [1m] on a machine without that entitlement
+// makes `claude --model sonnet[1m]` fail, so it's gated behind EXTENDED_CONTEXT (off by default,
+// opt-in per machine via data/settings.json). Standard accounts just get the plain model alias.
 export function modelAliasWithContext(model: string): string {
-  return model === "sonnet" || model === "opus" ? `${model}[1m]` : model;
+  if (EXTENDED_CONTEXT && (model === "sonnet" || model === "opus")) return `${model}[1m]`;
+  return model;
 }
 
 export function buildLaunchScript(

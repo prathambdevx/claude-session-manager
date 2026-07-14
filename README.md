@@ -22,22 +22,18 @@ Requires [Bun](https://bun.sh) and the `claude` CLI on your PATH.
 ```bash
 git clone https://github.com/prathambdevx/claude-session-manager.git ~/tools/claude-sessions
 cd ~/tools/claude-sessions
-bun run start          # then open http://127.0.0.1:4321
+bun run setup          # installs auto-start, launches the server, then open http://127.0.0.1:4321
 ```
 
-That's it — the server reads your local `~/.claude/projects/**/*.jsonl` and shows all your sessions.
+`bun run setup` does the important part: it installs a `launchd` user agent so the server
+**starts automatically on every login and restarts itself if it ever dies** — so it's always
+running at `http://127.0.0.1:4321` without you having to start it again after a reboot. It figures
+out your machine's real `bun` path and install location automatically (nothing hardcoded).
 
-### Keep it always running (optional)
+- **Just run it once, no auto-start:** `bun run start`
+- **Remove auto-start later:** `bun run setup -- --uninstall`
 
-To have it start on login and auto-restart if it dies, install a `launchd` user agent. Create
-`~/Library/LaunchAgents/com.you.claude-sessions.plist` pointing at `bun run server.ts` in this
-directory with `RunAtLoad` and `KeepAlive` set to `true`, then:
-
-```bash
-launchctl load ~/Library/LaunchAgents/com.you.claude-sessions.plist
-```
-
-(Use absolute paths to your `bun` binary and this folder in the plist.)
+The server reads your local `~/.claude/projects/**/*.jsonl`, so it shows all your own sessions.
 
 ---
 
@@ -103,6 +99,20 @@ reports stay on your machine and are never committed.
 
 ## Configuration
 
-Current defaults are set in `src/config.ts` (port `4321`, `claude` binary path, model/effort). If
-you're on the extended 1M-context Claude models you can leave the `[1m]` model suffix in
-`src/claude.ts`; otherwise remove it so launches use standard-context models.
+Everything works out of the box on a standard Claude account. To override defaults, create
+`data/settings.json` (gitignored, per-machine) — every field is optional:
+
+```json
+{
+  "port": 4321,
+  "claudeBin": "/Users/you/.local/bin/claude",
+  "effort": "medium",
+  "extendedContext": false
+}
+```
+
+- **`extendedContext`** — set to `true` only if your account has the extended **1M-context**
+  Sonnet/Opus models. When on, launched sessions use the `[1m]` model variant and the context gauge
+  measures against 1M. **Leave it `false` (the default) on a standard account** — otherwise launches
+  would request a model your account can't use and fail. This is the one setting that matters for
+  portability; the rest are conveniences.
