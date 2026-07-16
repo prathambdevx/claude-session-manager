@@ -59,6 +59,7 @@ async function loadSessions() {
     changedFiles: [],
     contextPct: null,
     running: null,
+    startedSessionId: t.startedSessionId,
     meta: { name: t.title, notes: t.notes, board: t.board, status: t.done ? "done" : undefined },
   }));
   sessions = [...data.sessions, ...tickets];
@@ -88,6 +89,7 @@ async function patchMeta(id, patch) {
     if ("notes" in patch) body.notes = patch.notes;
     if ("board" in patch) body.board = patch.board;
     if ("status" in patch) body.done = patch.status === "done";
+    if ("startedSessionId" in patch) body.startedSessionId = patch.startedSessionId;
     await fetch(`/api/tickets/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -388,7 +390,9 @@ function ticketCardHtml(s) {
       ${notes ? `<div class="bc-desc"><span style="flex:1; overflow-wrap:anywhere;">${escapeHtml(notes)}</span></div>` : ""}
       <div class="bc-actions">
         <button data-action="ticket-done" data-id="${s.id}">${done ? "↩ Reopen" : "✓ Done"}</button>
-        <button data-action="ticket-convert" data-id="${s.id}" title="Start a Claude session from this ticket">▶ Start session</button>
+        ${s.startedSessionId
+          ? `<button data-action="resume" data-id="${s.startedSessionId}">▶ Resume</button>`
+          : `<button data-action="ticket-convert" data-id="${s.id}" title="Start a Claude session from this ticket">▶ Start session</button>`}
         <button class="danger" data-action="delete" data-id="${s.id}">🗑</button>
       </div>
     </div>
@@ -1182,7 +1186,7 @@ function openColumnTaskModal(colId) {
     const t = isTicketBox.checked;
     document.querySelectorAll(".session-only").forEach((el) => (el.style.display = t ? "none" : ""));
     document.getElementById("colNameLabel").textContent = t ? "Ticket title" : "Session name (optional)";
-    document.getElementById("colDescLabel").textContent = t ? "Notes (optional)" : "Task";
+    document.getElementById("colDescLabel").textContent = t ? "Task (optional)" : "Task";
     document.getElementById("colTaskStart").textContent = t ? "🎫 Create ticket" : "▶ Launch in new terminal";
   };
   isTicketBox.addEventListener("change", syncTicketMode);
@@ -1231,7 +1235,7 @@ function convertTicketToSession(id) {
   const projectOptions = [...new Set(sessions.filter((s) => s.cwd).map((s) => s.cwd))].sort();
   modalShell(`
     <h3>▶ Start session from ticket</h3>
-    <div style="font-size:12px; color:var(--dim);">The ticket is removed once the session launches.</div>
+    <div style="font-size:12px; color:var(--dim);">The ticket stays on the board and switches to a "Resume" button once the session launches.</div>
     <div class="modal-row">
       <label for="ctSessName">Session name (optional)</label>
       <input type="text" id="ctSessName" value="${escapeAttr(t.meta?.name || "")}" />
@@ -1263,10 +1267,8 @@ function convertTicketToSession(id) {
     const dangerous = document.getElementById("ctSessDangerous").checked;
     const data = await launchTask({ cwd, task, name, model, mode: "solo", dangerous });
     if (data?.ok) {
-      const board = t.meta?.board;
-      await fetch(`/api/tickets/${id}`, { method: "DELETE" }); // ticket becomes a real session
       closeReviewModal();
-      if (data.sessionId && board) patchMeta(data.sessionId, { board });
+      if (data.sessionId) await patchMeta(id, { startedSessionId: data.sessionId }); // ticket keeps its board slot, now resumes the launched session
       loadSessions();
     }
   });
@@ -1311,7 +1313,9 @@ function cardHtml(s) {
         </div>
         <div class="card-actions">
           <button data-action="ticket-done" data-id="${s.id}">${done ? "↩ Reopen" : "✓ Done"}</button>
-          <button data-action="ticket-convert" data-id="${s.id}">▶ Start session</button>
+          ${s.startedSessionId
+            ? `<button class="primary" data-action="resume" data-id="${s.startedSessionId}">▶ Resume</button>`
+            : `<button data-action="ticket-convert" data-id="${s.id}">▶ Start session</button>`}
           <span class="spacer"></span>
           <button class="danger" data-action="delete" data-id="${s.id}">🗑 Delete</button>
         </div>

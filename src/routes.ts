@@ -245,6 +245,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     if (typeof patch.notes === "string") allowed.notes = patch.notes.slice(0, 2000) || undefined;
     if (typeof patch.board === "string") allowed.board = patch.board || undefined;
     if (typeof patch.done === "boolean") allowed.done = patch.done;
+    if (typeof patch.startedSessionId === "string") allowed.startedSessionId = patch.startedSessionId || undefined;
     tickets[id] = { ...tickets[id], ...allowed };
     await saveTickets(tickets);
     return json({ ok: true, ticket: tickets[id] });

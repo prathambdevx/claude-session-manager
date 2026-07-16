@@ -61,6 +61,7 @@ export type Ticket = {
   cwd?: string;
   board?: string;
   done?: boolean;
+  startedSessionId?: string;
   createdAt: number;
 };
 
