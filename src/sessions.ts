@@ -55,7 +55,7 @@ export function projectNameFromCwd(cwd: string): string {
   return parts[parts.length - 1] || cwd;
 }
 
-async function scanTranscript(path: string, id: string, projectSlug: string): Promise<Session> {
+export async function scanTranscript(path: string, id: string, projectSlug: string): Promise<Session> {
   const st = await stat(path);
   const text = await readFile(path, "utf-8");
   const lines = text.split("\n").filter(Boolean);

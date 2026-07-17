@@ -10,7 +10,9 @@ const ROOT_DIR = join(import.meta.dir, "..");
 export const HOME = homedir();
 export const PROJECTS_DIR = join(HOME, ".claude", "projects");
 export const RUNNING_DIR = join(HOME, ".claude", "sessions");
-export const DATA_DIR = join(ROOT_DIR, "data");
+// CSM_DATA_DIR lets tests (tests/) point persistence at a throwaway temp dir instead of this
+// machine's real data/ — never set this yourself when running the app normally.
+export const DATA_DIR = process.env.CSM_DATA_DIR || join(ROOT_DIR, "data");
 export const META_PATH = join(DATA_DIR, "meta.json");
 export const TICKETS_PATH = join(DATA_DIR, "tickets.json");
 export const TODOS_PATH = join(DATA_DIR, "todos.json");
