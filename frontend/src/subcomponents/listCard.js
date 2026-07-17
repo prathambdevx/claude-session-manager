@@ -66,7 +66,7 @@ export function cardHtml(s) {
         <button data-action="fork" data-id="${s.id}">⑂ Fork</button>
         <button data-action="copy" data-id="${s.id}">⧉ Copy cmd</button>
         <button data-action="review" data-id="${s.id}" title="Send this session's changed files to a reviewer agent">🔎 Review</button>
-        <button data-action="extract" data-id="${s.id}" title="Condense this session into a briefing for a fresh session">🧠 Extract</button>
+        <!-- Extract is currently unused/hidden — see components/modals/extractModal.js -->
         <button data-action="pin" data-id="${s.id}">${s.meta?.pinned ? "★ Pinned" : "☆ Pin"}</button>
         <button data-action="toggleDetails" data-id="${s.id}">${open ? "▲ Less" : "▾ Tags/notes"}</button>
         <span class="spacer"></span>

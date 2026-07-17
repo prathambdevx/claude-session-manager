@@ -1,3 +1,6 @@
+// Currently unused — its only entry point (the Agents dock's "+ New agent" tile) is disabled in
+// agentsDock.js (agentsDockHtml() renders nothing), so this modal is unreachable from the UI. Left
+// intact in case Agents/Delegations are wanted again later.
 import { agents } from "../../state.js";
 import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
 import { escapeHtml, escapeAttr } from "../../ui/format.js";

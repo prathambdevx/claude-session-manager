@@ -418,6 +418,9 @@
   .modal-checkbox { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
   .dangerous-label { color: var(--danger); font-weight: 600; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+  /* the New Task modal nests its session-only fields in a wrapper, so restore the column spacing
+     .modal gives its direct children — otherwise Project/Model/"Run dangerously" all sit flush */
+  .session-only { display: flex; flex-direction: column; gap: 14px; }
   /* the delegation modal nests its content in a wrapper, so restore the column spacing .modal gives */
   #delegationModal { display: flex; flex-direction: column; gap: 12px; }
   #delegationModal .modal-actions { margin-top: 2px; }

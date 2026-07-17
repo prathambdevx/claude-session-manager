@@ -1,3 +1,5 @@
+// Currently unused — the "🧠 Extract" button is hidden from every card menu (boardCard.js,
+// listCard.js), but the feature itself is left intact here in case it's wanted again later.
 import { sessions } from "../../state.js";
 import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
 import { escapeHtml } from "../../ui/format.js";

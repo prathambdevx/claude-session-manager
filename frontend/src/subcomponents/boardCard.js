@@ -48,7 +48,7 @@ export function boardCardHtml(s) {
             <button data-action="resume" data-id="${s.id}">▶ Resume</button>
             <button data-action="fork" data-id="${s.id}">⑂ Fork</button>
             <button data-action="review" data-id="${s.id}">🔎 Review</button>
-            <button data-action="extract" data-id="${s.id}">🧠 Extract</button>
+            <!-- Extract is currently unused/hidden — see components/modals/extractModal.js -->
             <button data-action="editDesc" data-id="${s.id}">✐ Edit description</button>
             <button class="danger" data-action="delete" data-id="${s.id}">🗑 Delete</button>
           </div>

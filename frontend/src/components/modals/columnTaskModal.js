@@ -35,11 +35,6 @@ export function openColumnTaskModal(colId, ctx) {
         <label for="colTaskModel">Model</label>
         ${modelSelectHtml("colTaskModel")}
       </div>
-      <div class="mode-toggle">
-        <button id="colModeSolo" class="active" data-mode="solo" title="One interactive session, nothing automatic after it">Solo</button>
-        <button id="colModeReview" data-mode="implement-review" title="Runs the task, then automatically chains a reviewer pass on the diff">Implement → Review</button>
-        <button id="colModeResearch" data-mode="research" title="Read-only: searches the web, reads docs/MCPs, reports a plan — never edits files">🔎 Research</button>
-      </div>
       ${dangerousCheckboxHtml("colTaskDangerous")}
     </div>
     <div class="modal-actions">
@@ -56,14 +51,6 @@ export function openColumnTaskModal(colId, ctx) {
     document.getElementById("colTaskStart").textContent = t ? "🎫 Create ticket" : "▶ Launch in new terminal";
   };
   isTicketBox.addEventListener("change", syncTicketMode);
-  let colMode = "solo";
-  const colModeIds = { solo: "colModeSolo", "implement-review": "colModeReview", research: "colModeResearch" };
-  Object.entries(colModeIds).forEach(([modeVal, elId]) => {
-    document.getElementById(elId).addEventListener("click", () => {
-      colMode = modeVal;
-      Object.values(colModeIds).forEach((otherId) => document.getElementById(otherId).classList.toggle("active", otherId === elId));
-    });
-  });
   document.getElementById("colTaskCancel").addEventListener("click", closeReviewModal);
   document.getElementById("colTaskStart").addEventListener("click", async () => {
     const name = document.getElementById("colTaskName").value.trim();
@@ -88,7 +75,7 @@ export function openColumnTaskModal(colId, ctx) {
     const cwd = projectEl.dataset.lockedCwd || projectEl.value;
     const model = document.getElementById("colTaskModel").value;
     const dangerous = document.getElementById("colTaskDangerous").checked;
-    const data = await launchTask({ cwd, task: desc, name, model, mode: colMode, dangerous });
+    const data = await launchTask({ cwd, task: desc, name, model, mode: "solo", dangerous });
     if (data?.ok) {
       closeReviewModal();
       if (data.sessionId) patchMeta(data.sessionId, { board: colId }); // drop the new session straight into the column it was launched from
