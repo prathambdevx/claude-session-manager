@@ -56,6 +56,38 @@ test("computes contextPct from the last assistant usage entry", async () => {
   expect(session.contextPct).toBe(Math.min(100, Math.round((80000 / CONTEXT_WINDOW_TOKENS) * 100)));
 });
 
+test("a turn using more than 200K tokens proves extended context — window becomes 1M regardless of the global setting", async () => {
+  const path = await writeTranscript("extended-context.jsonl", [
+    line({ type: "user", message: { content: "hello" } }),
+    line({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "big turn" }], usage: { input_tokens: 5000, cache_read_input_tokens: 250000 } },
+    }),
+  ]);
+  const session = await scanTranscript(path, "ctx-extended", "-Users-me-project");
+  expect(session.contextTokens).toBe(255000);
+  expect(session.contextWindow).toBe(1_000_000);
+  expect(session.contextPct).toBe(Math.round((255000 / 1_000_000) * 100));
+});
+
+test("a mid-session model switch to extended context updates the window from the point of proof onward", async () => {
+  const path = await writeTranscript("model-switch.jsonl", [
+    line({ type: "user", message: { content: "hello" } }),
+    line({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "small turn" }], usage: { input_tokens: 1000, cache_read_input_tokens: 0 } },
+    }),
+    line({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "switched to 1M model" }], usage: { input_tokens: 3000, cache_read_input_tokens: 300000 } },
+    }),
+  ]);
+  const session = await scanTranscript(path, "ctx-switch", "-Users-me-project");
+  // last usage wins (303000), and it alone proves this session is now on an extended window
+  expect(session.contextTokens).toBe(303000);
+  expect(session.contextWindow).toBe(1_000_000);
+});
+
 test("contextPct is null (not 0) when no assistant turn has run yet — the post-/clear state", async () => {
   const path = await writeTranscript("fresh-clear.jsonl", [
     line({ type: "user", isMeta: true, message: { content: "<local-command-caveat>Caveat: ...</local-command-caveat>" } }),

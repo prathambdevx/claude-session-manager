@@ -2,7 +2,7 @@
 // one of two delivery paths per request (see routes/quickPrompts.ts): if that session's terminal
 // is already open, the prompt is typed straight into it (response has no jobId — nothing to track,
 // it's a real terminal now); otherwise it resumes that session's transcript in the background and
-// returns a jobId whose running/done/error state rides the normal 15s /api/sessions poll, same as
+// returns a jobId whose running/done/error state rides the normal /api/sessions poll, same as
 // delegations.
 import { toast } from "../ui/toast.js";
 

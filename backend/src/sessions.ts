@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PROJECTS_DIR, CONTEXT_WINDOW_TOKENS } from "./config.ts";
 import { runClaudeHeadless } from "./claude/index.ts";
+import { activityLine } from "./claude/activity.ts";
 import { StatCache } from "./cache.ts";
 
 export type Session = {
@@ -21,6 +22,7 @@ export type Session = {
   contextPct: number | null; // 0-100, null if unknown
   contextWindow: number | null; // the denominator actually used for contextPct
   changedFiles: string[];
+  lastActivity: string | null; // last tool-use/thinking/text line seen — "what is it doing" for a running session
 };
 
 const WRITE_TOOLS = new Set(["Edit", "Write", "NotebookEdit"]);
@@ -57,7 +59,7 @@ export function projectNameFromCwd(cwd: string): string {
 }
 
 // Full transcripts can be tens of MB and there can be hundreds of them — re-reading and
-// re-parsing every byte of every session on every poll (every 1.5-15s) is the dominant cost of
+// re-parsing every byte of every session on every poll (every few seconds) is the dominant cost of
 // this app. Almost all sessions are inactive between polls, so cache each file's computed Session
 // keyed by its own path, invalidated only when its mtime/size actually changed (i.e. it grew —
 // only the transcript(s) someone is actively working in). This turns a full re-scan into a cheap
@@ -77,6 +79,7 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
   const userMessageSample: string[] = [];
   let messageCount = 0;
   let lastContextTokens: number | null = null;
+  let lastActivity: string | null = null;
   const changedFiles = new Set<string>();
 
   for (const line of lines) {
@@ -114,9 +117,20 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
         (usage.cache_read_input_tokens ?? 0);
       if (total > 0) lastContextTokens = total;
     }
+    // last one wins — reflects the most recent thing this session did, for a running session's
+    // live-activity chip. Piggybacks on this same pass instead of re-reading the file.
+    const line2 = activityLine(d);
+    if (line2) lastActivity = line2;
   }
 
-  const contextWindow = CONTEXT_WINDOW_TOKENS;
+  // No transcript field ever records which context-window size a turn ran under — "[1m]" is
+  // resolved away before Claude Code logs message.model, and no usage field encodes window size.
+  // But if a turn's real usage exceeds the standard 200K window, that's proof (not a guess) it
+  // must have run extended — a 200K model physically can't hold that much context. This makes the
+  // denominator per-session and reacts correctly to a mid-session model switch, without needing to
+  // sniff model strings (confirmed unreliable).
+  const contextWindow =
+    lastContextTokens != null && lastContextTokens > 200_000 ? 1_000_000 : CONTEXT_WINDOW_TOKENS;
   const contextPct =
     lastContextTokens == null ? null : Math.min(100, Math.round((lastContextTokens / contextWindow) * 100));
 
@@ -134,6 +148,7 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
     messageCount,
     lastActive: st.mtimeMs,
     sizeBytes: st.size,
+    lastActivity,
   };
 
   transcriptCache.set(path, st.mtimeMs, st.size, session);

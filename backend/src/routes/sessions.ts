@@ -34,11 +34,25 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       loadSavedViews(),
       loadBoardSettings(),
     ]);
-    const enriched = sessions.map((s) => ({
-      ...s,
-      running: running[s.id] ?? null,
-      meta: reconciledMeta[s.id] ?? {},
-    }));
+    // Claude Code's own status file (running.status) isn't reliable for this: a long-running
+    // interactive terminal can get stuck reporting a stale "waiting" (e.g. from an old permission
+    // prompt) for the rest of its life even while real work keeps happening — confirmed live, a
+    // session sat at status:"waiting"/updatedAt from an hour prior while its transcript kept
+    // getting fresh tool-use writes every few seconds. Quick Prompt's own terminal-delivery path
+    // already sidesteps this the same way (routes/quickPrompts.ts's watchTranscriptForCompletion):
+    // trust the transcript's own mtime, not the CLI's self-reported flag. `busy` still counts too,
+    // since a background/headless job (Delegations, Quick Prompt's non-terminal path) has no
+    // transcript writes of its own to watch until it's done.
+    const ACTIVITY_WINDOW_MS = 15_000;
+    const enriched = sessions.map((s) => {
+      const r = running[s.id] ?? null;
+      return {
+        ...s,
+        running: r,
+        activelyWorking: r?.status === "busy" || Date.now() - s.lastActive < ACTIVITY_WINDOW_MS,
+        meta: reconciledMeta[s.id] ?? {},
+      };
+    });
     return json({
       sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, quickPrompts,
       todos: Object.values(todos), board, todoBoard, projectBoards, savedViews, boardSettings,

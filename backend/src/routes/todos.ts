@@ -2,7 +2,9 @@ import { existsSync } from "node:fs";
 import { KNOWN_MODELS, CLAUDE_BIN, DANGEROUS_FLAG } from "../config.ts";
 import { loadTodos, saveTodos, loadMeta, saveMeta } from "../store.ts";
 import { scanAllSessions } from "../sessions.ts";
-import { buildLaunchScript, openTerminalRunning, shellQuote } from "../claude/index.ts";
+import {
+  buildLaunchScript, openTerminalRunning, shellQuote, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath,
+} from "../claude/index.ts";
 import { json } from "./json.ts";
 
 export async function handleTodosRoutes(req: Request, url: URL): Promise<Response | null> {
@@ -74,7 +76,10 @@ export async function handleTodosRoutes(req: Request, url: URL): Promise<Respons
       if (!s) return json({ error: "session not found" }, { status: 404 });
       const task = todo.description || todo.title;
       const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${existingSessionId}${dangerous ? DANGEROUS_FLAG : ""} ${shellQuote(task)}`;
-      await openTerminalRunning(s.cwd, cmd);
+      const meta = await loadMeta();
+      const label = meta[existingSessionId]?.name || s.firstMessage || existingSessionId.slice(0, 8);
+      await writeGhosttyTitle(existingSessionId, ghosttyWindowTitle(label, existingSessionId));
+      await openTerminalRunning(s.cwd, cmd, { ghosttyTitleFile: ghosttyTitleFilePath(existingSessionId) });
       todo.assignedSessionId = existingSessionId;
       todo.status = "in-progress";
       todo.updatedAt = Date.now();
@@ -86,7 +91,8 @@ export async function handleTodosRoutes(req: Request, url: URL): Promise<Respons
       const task = todo.description || todo.title;
       const sessionId = crypto.randomUUID();
       const script = buildLaunchScript(task, "solo", { model, sessionId, dangerous });
-      await openTerminalRunning(cwd, script);
+      await writeGhosttyTitle(sessionId, ghosttyWindowTitle(todo.title, sessionId));
+      await openTerminalRunning(cwd, script, { ghosttyTitleFile: ghosttyTitleFilePath(sessionId) });
       const meta = await loadMeta();
       meta[sessionId] = { ...meta[sessionId], name: todo.title };
       await saveMeta(meta);

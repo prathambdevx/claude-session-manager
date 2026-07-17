@@ -3,7 +3,10 @@ import { PROJECTS_DIR, KNOWN_MODELS } from "../config.ts";
 import { loadMeta, saveMeta, saveContext, loadContext } from "../store.ts";
 import type { ContextRecord } from "../store.ts";
 import { scanAllSessions, buildTranscriptDigest } from "../sessions.ts";
-import { runClaudeHeadless, buildContextExtractionPrompt, buildContinuationPrompt, buildLaunchScript, openTerminalRunning } from "../claude/index.ts";
+import {
+  runClaudeHeadless, buildContextExtractionPrompt, buildContinuationPrompt, buildLaunchScript,
+  openTerminalRunning, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath,
+} from "../claude/index.ts";
 import { markdownToHtml } from "../html.ts";
 import { json } from "./json.ts";
 
@@ -61,7 +64,8 @@ export async function handleContextsRoutes(req: Request, url: URL): Promise<Resp
     const dangerous = body?.dangerous !== false;
     const newSessionId = crypto.randomUUID();
     const script = buildLaunchScript(buildContinuationPrompt(ctx), "solo", { model, sessionId: newSessionId, dangerous });
-    await openTerminalRunning(ctx.cwd, script);
+    await writeGhosttyTitle(newSessionId, ghosttyWindowTitle(name || "Continued session", newSessionId));
+    await openTerminalRunning(ctx.cwd, script, { ghosttyTitleFile: ghosttyTitleFilePath(newSessionId) });
     if (name) {
       const meta = await loadMeta();
       meta[newSessionId] = { ...meta[newSessionId], name };

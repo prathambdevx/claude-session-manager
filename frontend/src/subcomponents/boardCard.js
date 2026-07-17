@@ -1,6 +1,6 @@
 // One session/ticket card as it appears on the kanban board (main board, a per-project board,
-// or a "Group by project" column) — as opposed to subcomponents/listCard.js's list-view card.
-import { summarizingIds, quickPrompts } from "../state.js";
+// or a "Group by project" column).
+import { summarizingIds, quickPrompts, sessions } from "../state.js";
 import { escapeHtml, timeAgo, projectName } from "../ui/format.js";
 import { ctxBadgeFullHtml } from "../ui/contextBadge.js";
 
@@ -23,6 +23,45 @@ function jobChipHtml(s) {
     <div class="job-chip ${cls}" data-action="quickjob-dismiss" data-id="${j.id}" title="${escapeHtml(j.prompt)} — click to dismiss">
       <div class="jc-row">${icon}<span class="jc-text">${escapeHtml(label)}</span></div>
       <div class="jc-step">${escapeHtml(step)}</div>
+      <div class="jc-track"><div class="jc-fill"></div></div>
+    </div>
+  `;
+}
+
+// Any actively-working session gets the same live-progress chip Quick Prompt jobs use — reusing
+// .job-chip/.job-running (indeterminate bar, no fabricated percentage). s.activelyWorking is
+// computed server-side (routes/sessions.ts) from either Claude Code's own "busy" status OR a
+// recent transcript write — not "busy" alone, since that status file can get stuck reporting a
+// stale "waiting" indefinitely on a long-running interactive terminal. The label is
+// s.lastActivity, the last tool-use/thinking/text line seen in that session's transcript (same
+// activityLine() formatter Quick Prompt/Delegations use for their own live feed).
+function workingChipHtml(s) {
+  if (!s.activelyWorking) return "";
+  return `
+    <div class="job-chip job-running">
+      <div class="jc-row"><span class="job-spin"></span><span class="jc-text">${escapeHtml(s.lastActivity || "Working…")}</span></div>
+      <div class="jc-track"><div class="jc-fill"></div></div>
+    </div>
+  `;
+}
+
+// Once a session finishes responding, show the same green "done" treatment Quick Prompt jobs get
+// (.job-chip.job-done — full color-matched bar, ✓ icon) so anyone scanning the board can tell at a
+// glance "this one just answered" without opening it. There's no persisted job to know when a
+// session started/finished, so this is inferred straight from the transcript: activityLine() picks
+// the FIRST content-block type it finds in the last assistant message — if that's a plain text
+// block (💭), the last thing Claude did was give a final response with no further tool call queued
+// up in the same message, which is as close to "done, no job record needed" as this data gets.
+// Bounded to a recency window so a session that finished hours/days ago doesn't show a permanently
+// stale "Done" — same freshness-over-status-flag principle as activelyWorking.
+const DONE_CHIP_WINDOW_MS = 5 * 60 * 1000;
+function doneChipHtml(s) {
+  if (s.activelyWorking || !s.lastActivity?.startsWith("💭")) return "";
+  if (Date.now() - s.lastActive > DONE_CHIP_WINDOW_MS) return "";
+  const msg = s.lastActivity.slice(2).trim();
+  return `
+    <div class="job-chip job-done">
+      <div class="jc-row"><span class="jc-icon">✓</span><span class="jc-text">Done: "${escapeHtml(msg)}"</span></div>
       <div class="jc-track"><div class="jc-fill"></div></div>
     </div>
   `;
@@ -64,7 +103,7 @@ export function boardCardHtml(s) {
         <span class="bc-time" title="${new Date(s.lastActive).toLocaleString()}">${timeAgo(s.lastActive)}</span>
       </div>
       ${ctxBadgeFullHtml(s)}
-      ${jobChipHtml(s)}
+      ${jobChipHtml(s) || workingChipHtml(s) || doneChipHtml(s)}
     </div>
   `;
 }
@@ -73,12 +112,15 @@ export function ticketCardHtml(s) {
   const title = s.meta?.name || "(untitled ticket)";
   const notes = s.meta?.notes;
   const done = s.meta?.status === "done";
+  const startedSession = s.startedSessionId ? sessions.find((x) => x.id === s.startedSessionId) : null;
   return `
     <div class="board-card ticket-card ${done ? "ticket-done" : ""}" draggable="true" data-card-id="${s.id}">
       <div class="bc-title">
         <span class="ticket-tag">TICKET</span>
-        <span style="flex:1; min-width:0; overflow-wrap:anywhere; ${done ? "text-decoration:line-through; opacity:0.6;" : ""}">${escapeHtml(title)}</span>
+        <span style="min-width:0; overflow-wrap:anywhere; ${done ? "text-decoration:line-through; opacity:0.6;" : ""}">${escapeHtml(title)}</span>
         <span class="rename-pencil" data-action="rename" data-id="${s.id}" title="Rename">✎</span>
+        <span class="bc-title-spacer"></span>
+        ${s.startedSessionId ? `<span class="quick-prompt-btn" data-action="quickprompt" data-id="${s.startedSessionId}" title="Quick prompt — run something in the background, no terminal">⚡</span>` : ""}
         <div class="bc-menu-wrap">
           <button class="bc-menu-btn" data-menu-toggle="${s.id}" title="Options">⋮</button>
           <div class="bc-dropdown" id="menu-${s.id}">
@@ -93,6 +135,7 @@ export function ticketCardHtml(s) {
       <div class="bc-meta">
         <button class="ticket-done-btn ${done ? "is-done" : ""}" data-action="ticket-done" data-id="${s.id}">${done ? "↩ Reopen" : "✓ Done"}</button>
       </div>
+      ${startedSession ? (jobChipHtml(startedSession) || workingChipHtml(startedSession) || doneChipHtml(startedSession)) : ""}
     </div>
   `;
 }

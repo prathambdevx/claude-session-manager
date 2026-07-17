@@ -3,24 +3,7 @@
 import { spawn } from "node:child_process";
 import { CLAUDE_BIN, KNOWN_MODELS } from "../config.ts";
 import { modelAliasWithContext } from "./prompts.ts";
-
-// Turn one stream-json event into a short human-readable activity line, or null to skip it.
-function activityLine(d: any): string | null {
-  if (d?.type === "system" && d?.subtype === "init") return "▸ starting up…";
-  if (d?.type === "assistant" && Array.isArray(d?.message?.content)) {
-    for (const b of d.message.content) {
-      if (b?.type === "tool_use") {
-        const inp = b.input || {};
-        const detail = inp.file_path || inp.command || inp.pattern || inp.url || inp.query || "";
-        return `🔧 ${b.name}${detail ? `: ${String(detail).slice(0, 80)}` : ""}`;
-      }
-      if (b?.type === "text" && b.text?.trim()) {
-        return `💭 ${b.text.trim().replace(/\s+/g, " ").slice(0, 100)}`;
-      }
-    }
-  }
-  return null;
-}
+import { activityLine } from "./activity.ts";
 
 // Fire-and-forget spawn with a LIVE activity feed. Uses stream-json so we can parse each tool-use /
 // reasoning event as it happens; onProgress is called (throttled) with the rolling activity log, and

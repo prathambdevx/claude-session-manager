@@ -50,7 +50,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   const drift = missingProjectCount(ctx);
 
-  // Every render fully replaces .board's innerHTML (new session data, a column edit, a 15s poll,
+  // Every render fully replaces .board's innerHTML (new session data, a column edit, a poll,
   // …) — without this, the browser resets scrollLeft to 0 each time, which reads as the board
   // "jerking back to start" mid-scroll. Same for each column's own vertical scroll.
   const prevScrollLeft = app.querySelector(".board")?.scrollLeft || 0;

@@ -53,6 +53,14 @@ export function openQuickPromptModal(id) {
 
   const textEl = document.getElementById("qpText");
   textEl.focus();
+  // Enter sends (Shift+Enter still inserts a newline — that's the textarea's native behavior,
+  // nothing to do for it), matching how chat-style prompt boxes usually behave.
+  textEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      document.getElementById("qpGo").click();
+    }
+  });
 
   document.querySelectorAll("[data-fill]").forEach((btn) => {
     btn.addEventListener("click", () => {

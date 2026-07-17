@@ -1,7 +1,7 @@
 // Bridges /clear: the CLI starts a brand-new transcript id for the same running terminal instead
 // of resetting the old one in place, so this carries the old id's name/board/etc. over to the new
 // id. Exported so it can ALSO be driven by a fast independent background interval (see
-// startClearReconciliationPoller below) — relying only on the frontend's ~15s GET /api/sessions
+// startClearReconciliationPoller below) — relying only on the frontend's periodic GET /api/sessions
 // poll left a real gap: resume a session, /clear it within a couple seconds, and the pre-clear
 // pid->sessionId mapping may never get recorded before the id changes, so there's nothing to
 // carry over — the new id just shows up as a fresh untitled card instead of "reset to 0%, same

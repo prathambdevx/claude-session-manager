@@ -25,7 +25,7 @@ export function migrateColumns(cols) {
 
 // Client-only per-column flags (e.g. "never populated yet, so exempt from auto-hide-empty") live
 // only in memory on the current column objects — they're never sent to/from the server. Every
-// poll (loadSessions, every 15s) replaces the whole columns array with freshly-parsed objects from
+// poll (loadSessions) replaces the whole columns array with freshly-parsed objects from
 // the server response, which would otherwise silently drop these flags out from under the user a
 // few seconds after they took effect. Carry them forward by matching column id.
 const TRANSIENT_COLUMN_FLAGS = ["neverPopulated"];
