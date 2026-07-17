@@ -55,8 +55,20 @@ export function projectNameFromCwd(cwd: string): string {
   return parts[parts.length - 1] || cwd;
 }
 
+// Full transcripts can be tens of MB and there can be hundreds of them — re-reading and
+// re-parsing every byte of every session on every poll (every 1.5-15s) is the dominant cost of
+// this app. Almost all sessions are inactive between polls, so cache each file's computed Session
+// keyed by its own path, invalidated only when its mtime/size actually changed (i.e. it grew —
+// only the transcript(s) someone is actively working in). This turns a full re-scan into a cheap
+// stat() for every unchanged file instead of reading+JSON-parsing its entire contents again.
+const transcriptCache = new Map<string, { mtimeMs: number; size: number; session: Session }>();
+
 export async function scanTranscript(path: string, id: string, projectSlug: string): Promise<Session> {
   const st = await stat(path);
+  const cached = transcriptCache.get(path);
+  if (cached && cached.mtimeMs === st.mtimeMs && cached.size === st.size) {
+    return cached.session;
+  }
   const text = await readFile(path, "utf-8");
   const lines = text.split("\n").filter(Boolean);
 
@@ -109,7 +121,7 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
   const contextPct =
     lastContextTokens == null ? null : Math.min(100, Math.round((lastContextTokens / contextWindow) * 100));
 
-  return {
+  const session: Session = {
     id,
     projectSlug,
     cwd,
@@ -124,6 +136,9 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
     lastActive: st.mtimeMs,
     sizeBytes: st.size,
   };
+
+  transcriptCache.set(path, { mtimeMs: st.mtimeMs, size: st.size, session });
+  return session;
 }
 
 export async function scanAllSessions(): Promise<Session[]> {
