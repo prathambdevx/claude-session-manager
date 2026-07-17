@@ -22,6 +22,23 @@ export function migrateColumns(cols) {
   return cols;
 }
 
+// Client-only per-column flags (e.g. "never populated yet, so exempt from auto-hide-empty") live
+// only in memory on the current column objects — they're never sent to/from the server. Every
+// poll (loadSessions, every 15s) replaces the whole columns array with freshly-parsed objects from
+// the server response, which would otherwise silently drop these flags out from under the user a
+// few seconds after they took effect. Carry them forward by matching column id.
+const TRANSIENT_COLUMN_FLAGS = ["neverPopulated"];
+export function carryTransientColumnFlags(oldCols, newCols) {
+  if (!oldCols?.length) return newCols;
+  const byId = new Map(oldCols.map((c) => [c.id, c]));
+  for (const c of newCols) {
+    const old = byId.get(c.id);
+    if (!old) continue;
+    for (const flag of TRANSIENT_COLUMN_FLAGS) if (old[flag]) c[flag] = old[flag];
+  }
+  return newCols;
+}
+
 export function projectColumnId(cwd) {
   return "proj-" + projectName(cwd).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }

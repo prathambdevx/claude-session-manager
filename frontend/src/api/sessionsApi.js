@@ -3,10 +3,10 @@
 import {
   sessions, setSessions, agents, setAgents, delegations, setDelegations, todos, setTodos,
   boardMode, activeProjectCwd, boardColumns, projectBoards, setBoardColumns, setProjectBoards,
-  setCurrentProjectColumns, summarizingIds, setContentMatchIds, currentTab, DEFAULT_COLUMNS,
-  setSavedViews,
+  currentProjectColumns, setCurrentProjectColumns, summarizingIds, setContentMatchIds, currentTab,
+  DEFAULT_COLUMNS, setSavedViews,
 } from "../state.js";
-import { migrateColumns, mergeInProjectColumns } from "../routing/boardRouting.js";
+import { migrateColumns, mergeInProjectColumns, carryTransientColumnFlags } from "../routing/boardRouting.js";
 import { toast } from "../ui/toast.js";
 import { dangerousDefault } from "../ui/formFragments.js";
 import { render } from "../pages/sessionsPage.js";
@@ -62,10 +62,10 @@ export async function loadSessions() {
   // session board columns: server is source of truth; migrate localStorage on first run
   let cols;
   if (Array.isArray(data.board) && data.board.length) {
-    cols = migrateColumns(data.board);
+    cols = carryTransientColumnFlags(boardColumns, migrateColumns(data.board));
   } else {
     const legacy = JSON.parse(localStorage.getItem("boardColumns") || "null");
-    cols = migrateColumns(legacy && legacy.length ? legacy : [{ id: "todo", title: "All sessions" }]);
+    cols = carryTransientColumnFlags(boardColumns, migrateColumns(legacy && legacy.length ? legacy : [{ id: "todo", title: "All sessions" }]));
     setBoardColumns(cols);
     await saveBoardColumns();
   }
@@ -88,7 +88,7 @@ export async function loadSessions() {
 
   setProjectBoards((data.projectBoards && typeof data.projectBoards === "object") ? data.projectBoards : {});
   if (boardMode === "project" && activeProjectCwd) {
-    setCurrentProjectColumns(projectBoards[activeProjectCwd] || DEFAULT_COLUMNS.slice());
+    setCurrentProjectColumns(carryTransientColumnFlags(currentProjectColumns, projectBoards[activeProjectCwd] || DEFAULT_COLUMNS.slice()));
   }
 
   setSavedViews(Array.isArray(data.savedViews) ? data.savedViews : []);

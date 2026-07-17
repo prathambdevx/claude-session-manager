@@ -37,7 +37,13 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   const visibleCols = ctx.cols.filter((c) => {
     if (menuOpen) return true;
     if (c.hidden) return false;
-    if (autoHideEmpty && c.id !== homeId && cardsForColumn(c, ctx, filtered, homeId).length === 0) return false;
+    // auto-hide-empty only ever applies to a column that WAS populated and later emptied out —
+    // never to one that's simply new and hasn't had a chance to receive a card yet
+    if (autoHideEmpty && c.id !== homeId) {
+      const count = cardsForColumn(c, ctx, filtered, homeId).length;
+      if (count > 0 && c.neverPopulated) delete c.neverPopulated;
+      if (count === 0 && !c.neverPopulated) return false;
+    }
     return true;
   });
   const hiddenCount = ctx.cols.filter((c) => c.hidden).length;
@@ -58,11 +64,12 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     ${agentsDockHtml()}
     <div class="board-actions">
       <button class="btn ghost" id="addColBtn">+ Add column</button>
-      <span style="flex:1"></span>
       ${ctx.kind === "main" ? `
         <button class="btn accent" id="regroupBtn" title="${drift ? `${drift} project${drift === 1 ? "" : "s"} would get a column` : "Every project already has a column"}">
           ↻ Regroup by project${drift ? ` <span class="badge">${drift}</span>` : ""}
-        </button>
+        </button>` : ""}
+      <span style="flex:1"></span>
+      ${ctx.kind === "main" ? `
         <button class="btn ghost" id="saveViewBtn" title="Save this column layout as a reusable view">＋ Save as view</button>` : ""}
       <button class="btn ghost" id="boardUndoBtn" ${hasHistoryFor(ctx) ? "" : "disabled"} title="Undo the last change to this board">↩ Undo</button>
       ${manageColumnsButtonHtml()}
@@ -144,12 +151,19 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   wireInlineRename(app, ctx, rerender);
 
-  document.getElementById("addColBtn")?.addEventListener("click", () => {
+  document.getElementById("addColBtn")?.addEventListener("click", async () => {
+    const title = await openPromptModal({ title: "Add column", label: "Column name", placeholder: "e.g. Blocked" });
+    if (!title || !title.trim()) return;
     pushHistory(ctx);
-    const n = ctx.cols.filter((c) => !c.cwd).length + 1;
-    const created = { id: "custom-" + Date.now(), title: "New column " + n, fresh: true, renaming: true };
-    ctx.cols.push(created);
-    rerender();
+    const created = { id: "custom-" + Date.now(), title: title.trim(), fresh: true, neverPopulated: true };
+    // lands right next to the home column ("All sessions") — or first, if that's currently hidden
+    const home = ctx.cols[0];
+    const insertAt = home && home.hidden ? 0 : 1;
+    ctx.cols.splice(insertAt, 0, created);
+    ctx.save();
+    rerender().then(() => {
+      document.querySelector(`[data-col-id="${created.id}"]`)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+    });
     setTimeout(() => { delete created.fresh; }, 500);
   });
 
@@ -244,6 +258,7 @@ function reorderColumns(ctx, fromId, toId, rerender) {
 }
 
 async function removeColumn(ctx, id, rerender) {
+  if (id === ctx.cols[0]?.id) { toast(`"${ctx.cols[0].title}" can't be deleted — hide it instead`); return; }
   if (ctx.cols.length <= 1) { toast("Need at least one column"); return; }
   const col = ctx.cols.find((c) => c.id === id);
   const home = ctx.cols.find((c) => c.id !== id) || ctx.cols[0];

@@ -460,6 +460,7 @@
   .drow .quiet { font-size: 10px; color: var(--dim); font-style: italic; flex-shrink: 0; }
   .drow .row-rename { color: var(--dim); cursor: pointer; font-size: 12px; flex-shrink: 0; }
   .drow .row-rename:hover { color: var(--accent); }
+  .drow .row-locked { font-size: 11px; opacity: 0.6; flex-shrink: 0; cursor: default; }
   .drow .del-col {
     background: none; border: none; color: var(--dim); cursor: pointer; font-size: 12px; padding: 2px 4px; flex-shrink: 0;
   }

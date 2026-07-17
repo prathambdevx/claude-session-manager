@@ -42,18 +42,28 @@ function manageColumnsDropdownHtml() {
   return `<div class="bc-dropdown manage-columns-dropdown" id="manageColumnsDropdown"></div>`;
 }
 
+// A column can be invisible on the board for two different reasons — manually hidden (`c.hidden`),
+// or swept out by "auto-hide empty columns" because it's currently empty — but the switch and its
+// click behavior need to treat both as one "is this column currently shown?" state.
+function isAutoHidden(c, count, isHome) {
+  return autoHideEmpty && !isHome && count === 0 && !c.neverPopulated && !c.hidden;
+}
+
 // Rows are built and wired separately from the initial HTML string above since they depend on
 // `ctx.cols` at wiring time (columns can change between renders without a full board re-render).
-function columnRowHtml(c, count) {
-  const quiet = autoHideEmpty && count === 0;
+function columnRowHtml(c, count, isHome) {
+  const autoHidden = isAutoHidden(c, count, isHome);
+  const shown = !c.hidden && !autoHidden;
   return `
     <div class="drow" draggable="true" data-row-col-id="${c.id}">
       <span class="row-drag">⠿</span>
-      <button class="sw${!c.hidden ? " on" : ""}" data-toggle-hidden="${c.id}" title="${c.hidden ? "Show" : "Hide"} this column"></button>
+      <button class="sw${shown ? " on" : ""}" data-toggle-hidden="${c.id}" title="${shown ? "Hide" : "Show"} this column"></button>
       <span class="lbl">${escapeHtml(c.title)}</span>
-      ${quiet ? '<span class="quiet">auto-hidden</span>' : ""}
+      ${autoHidden ? '<span class="quiet">auto-hidden</span>' : ""}
       <span class="row-rename" data-rename-col="${c.id}" title="Rename &quot;${escapeHtml(c.title)}&quot;">✎</span>
-      <button class="del-col" data-delete-col="${c.id}" title="Remove &quot;${escapeHtml(c.title)}&quot;">✕</button>
+      ${isHome
+        ? `<span class="row-locked" title="The home column always shows every session — it can be hidden but never deleted">🔒</span>`
+        : `<button class="del-col" data-delete-col="${c.id}" title="Remove &quot;${escapeHtml(c.title)}&quot;">✕</button>`}
     </div>
   `;
 }
@@ -80,23 +90,34 @@ export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDelete
   dropdown.appendChild(ruleRow);
   ruleRow.querySelector("[data-toggle-auto-hide]").addEventListener("click", async () => {
     await saveAutoHideEmpty(!autoHideEmpty);
+    // a column stays visible while empty until this setting is actively re-toggled — flipping it
+    // (either direction) re-evaluates every column fresh, so "stay visible while new/empty" isn't
+    // permanent, but it's also never silent: it only ever changes right when you touch this switch
+    for (const c of ctx.cols) delete c.neverPopulated;
     toast(autoHideEmpty ? "Empty columns will hide automatically" : "Auto-hide turned off");
     menuOpen = true;
     rerender();
   });
 
-  for (const c of ctx.cols) {
+  ctx.cols.forEach((c, i) => {
     const row = document.createElement("div");
-    row.innerHTML = columnRowHtml(c, countFor(c));
+    row.innerHTML = columnRowHtml(c, countFor(c), i === 0);
     dropdown.appendChild(row.firstElementChild);
-  }
+  });
 
   dropdown.querySelectorAll("[data-toggle-hidden]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const c = ctx.cols.find((x) => x.id === btn.dataset.toggleHidden);
       if (!c) return;
       pushHistory(ctx);
-      c.hidden = !c.hidden;
+      const isHome = c === ctx.cols[0];
+      if (c.hidden) {
+        c.hidden = false; // manually hidden -> show
+      } else if (isAutoHidden(c, countFor(c), isHome)) {
+        c.neverPopulated = true; // only auto-hidden for being empty -> exempt it, show it
+      } else {
+        c.hidden = true; // currently shown -> hide it
+      }
       ctx.save();
       menuOpen = true;
       rerender();
