@@ -56,7 +56,7 @@ export const LAUNCH_MODES = new Set(["solo", "implement-review", "research"]);
 
 // every session this tool launches skips permission prompts, at the user's explicit request
 export const DANGEROUS_FLAG = " --dangerously-skip-permissions";
-export const EFFORT_FLAG = ` --effort ${settings.effort ?? "medium"}`;
+export const EFFORT_FLAG = settings.effort ? ` --effort ${settings.effort}` : "";
 
 // Whether to use the 1M-context [1m] model variants. Resolution order:
 //   1. explicit data/settings.json → "extendedContext": true|false always wins (manual override)

@@ -11,35 +11,41 @@
 <header>
   <h1><img src="/favicon.webp" alt="" style="width:22px; height:22px; vertical-align:-4px; margin-right:8px; border-radius:5px;" />Claude Sessions</h1>
   <div class="toolbar">
-    <!-- <div class="mode-toggle tab-toggle">
+    <div class="mode-toggle tab-toggle">
       <button id="tabSessions" class="active">Sessions</button>
       <button id="tabTodos">Todos</button>
-    </div> -->
-    <div style="display:none"><button id="tabSessions"></button><button id="tabTodos"></button></div>
-    <div class="mode-toggle" style="max-width:180px">
+    </div>
+    <!-- <div class="mode-toggle" style="max-width:180px">
       <button id="viewList" class="active" data-view="list">List</button>
       <button id="viewBoard" data-view="board">Board</button>
-    </div>
+    </div> -->
+    <div style="display:none"><button id="viewList"></button><button id="viewBoard"></button></div>
     <input type="text" id="search" placeholder="Search by name, project, message, tag, branch..." />
     <button id="globalSearchBtn" title="Search the full content of every session's conversation">🔍 Global search</button>
-    <select id="filterProject"><option value="">All projects</option></select>
+    <!-- <select id="filterProject"><option value="">All projects</option></select> -->
     <select id="sort">
       <option value="recent">Sort: Most recent</option>
       <option value="oldest">Sort: Oldest</option>
       <option value="messages">Sort: Most messages</option>
       <option value="project">Sort: Project name</option>
     </select>
-    <select id="filterDate">
+    <!-- <select id="filterDate">
       <option value="">All time</option>
       <option value="7">Last 7 days</option>
       <option value="30">Last 30 days</option>
-    </select>
-    <button id="refreshBtn">↻ Refresh</button>
+    </select> -->
+    <!-- <button id="refreshBtn">↻ Refresh</button> -->
     <button id="groupByProjectBtn" title="Create columns for each project and distribute sessions">📂 Group by project</button>
     <button onclick="window.open('/reviews','_blank')" title="See all past review reports">📋 All reviews</button>
-    <label class="dangerous-label" style="font-size:12px; display:flex; align-items:center; gap:4px;" title="Default for every launch (new / resume / fork / fix). Per-launch modals still let you override.">
+    <!-- <label class="dangerous-label" style="font-size:12px; display:flex; align-items:center; gap:4px;" title="Default for every launch (new / resume / fork / fix). Per-launch modals still let you override.">
       <input type="checkbox" id="globalDangerous" /> ⚠ Run dangerously
-    </label>
+    </label> -->
+    <div style="display:none">
+      <select id="filterProject"><option value="">All projects</option></select>
+      <select id="filterDate"><option value="">All time</option></select>
+      <button id="refreshBtn"></button>
+      <input type="checkbox" id="globalDangerous" />
+    </div>
   </div>
 </header>
 <div class="stat" id="statLine"></div>

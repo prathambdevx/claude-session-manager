@@ -12,7 +12,7 @@ function dangerousDefault() {
 let collapsedProjects = new Set(JSON.parse(localStorage.getItem("collapsedProjects") || "[]"));
 let expandedCards = new Set();
 let summarizingIds = new Set();
-let currentView = localStorage.getItem("currentView") || "list";
+let currentView = "board";
 const DEFAULT_COLUMNS = [
   { id: "todo", title: "All sessions" },
   { id: "in-progress", title: "In Progress" },
@@ -38,20 +38,6 @@ async function saveBoardColumns() {
   });
 }
 
-const DEFAULT_TODO_COLUMNS = [
-  { id: "backlog", title: "Backlog" },
-  { id: "todo", title: "To Do" },
-  { id: "in-progress", title: "In Progress" },
-  { id: "done", title: "Done" },
-];
-let todoColumns = DEFAULT_TODO_COLUMNS.slice();
-async function saveTodoColumns() {
-  await fetch("/api/todo-board", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ columns: todoColumns }),
-  });
-}
 
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -91,14 +77,6 @@ async function loadSessions() {
     saveBoardColumns();
   }
 
-  // todo board columns: same pattern
-  if (Array.isArray(data.todoBoard) && data.todoBoard.length) {
-    todoColumns = data.todoBoard;
-  } else {
-    const legacy = JSON.parse(localStorage.getItem("todoColumns") || "null");
-    todoColumns = legacy && legacy.length ? legacy : DEFAULT_TODO_COLUMNS.slice();
-    saveTodoColumns();
-  }
 
   render();
   if (currentTab === "todos") renderTodoBoard();
@@ -397,7 +375,9 @@ function boardCardHtml(s) {
       <div class="bc-meta">
         <span class="chip">${escapeHtml(projectName(s.cwd))}</span>
         ${s.gitBranch ? `<span class="chip branch">${escapeHtml(s.gitBranch)}</span>` : ""}
+        <span class="bc-time" title="${new Date(s.lastActive).toLocaleString()}">${timeAgo(s.lastActive)}</span>
       </div>
+      ${ctxBadgeFullHtml(s)}
     </div>
   `;
 }
@@ -490,6 +470,17 @@ function renderBoardView(filtered) {
         const next = prompt("Edit description:", s?.meta?.description || "");
         if (next !== null) patchMeta(id, { description: next.trim() || undefined, descriptionSource: next.trim() ? "manual" : undefined });
       }
+    });
+  });
+
+  // double-click on board card to resume session
+  app.querySelectorAll(".board-card[data-card-id]").forEach((card) => {
+    card.addEventListener("dblclick", (e) => {
+      if (e.target.closest(".bc-menu-wrap") || e.target.closest("button")) return;
+      const id = card.dataset.cardId;
+      const s = sessions.find((x) => x.id === id);
+      if (s?.isTicket) return;
+      resumeSession(id, false);
     });
   });
 
@@ -1366,10 +1357,33 @@ function toggleDetails(id) {
   render();
 }
 
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  const months = Math.floor(days / 30);
+  return `${months}mo ago`;
+}
+
 function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 }
 function escapeAttr(s) { return escapeHtml(s); }
+
+function ctxBadgeFullHtml(s) {
+  if (s.contextPct == null) return "";
+  const level = s.contextPct >= 80 ? "red" : s.contextPct >= 50 ? "yellow" : "green";
+  return `
+    <div class="ctx-bar-full ctx-${level}" title="~${s.contextTokens.toLocaleString()} tokens (~${s.contextPct}% of ${((s.contextWindow || 200000) / 1000).toFixed(0)}k)">
+      <div class="ctx-track"><div class="ctx-fill" style="width:${s.contextPct}%"></div></div>
+      <span class="ctx-label">${s.contextPct}%</span>
+    </div>`;
+}
 
 function ctxBadgeHtml(s) {
   if (s.contextPct == null) return "";
@@ -1477,14 +1491,20 @@ globalDangerousBox.addEventListener("change", (e) => {
 });
 document.getElementById("refreshBtn").addEventListener("click", loadSessions);
 document.getElementById("groupByProjectBtn").addEventListener("click", async () => {
-  // collect all unique project names from real sessions (not tickets)
-  const projects = [...new Set(sessions.filter((s) => !s.isTicket && s.cwd).map((s) => projectName(s.cwd)))].sort();
+  // collect unique projects with their cwd paths
+  const cwdMap = {};
+  for (const s of sessions) {
+    if (s.isTicket || !s.cwd) continue;
+    const name = projectName(s.cwd);
+    if (!cwdMap[name]) cwdMap[name] = s.cwd;
+  }
+  const projects = Object.keys(cwdMap).sort();
   if (!projects.length) { toast("No sessions to group"); return; }
 
-  // build new columns: "All sessions" first, then one per project
+  // build new columns: "All sessions" first, then one per project (with cwd)
   boardColumns = [
     { id: "all", title: "All sessions" },
-    ...projects.map((p) => ({ id: "proj-" + p.toLowerCase().replace(/[^a-z0-9]+/g, "-"), title: p })),
+    ...projects.map((p) => ({ id: "proj-" + p.toLowerCase().replace(/[^a-z0-9]+/g, "-"), title: p, cwd: cwdMap[p] })),
   ];
   await saveBoardColumns();
 
@@ -1606,9 +1626,9 @@ function renderTodoBoard() {
   const q = document.getElementById("search").value.trim().toLowerCase();
   const filtered = q ? todos.filter((t) => (t.title + " " + (t.description || "")).toLowerCase().includes(q)) : todos;
 
-  const byCol = new Map(todoColumns.map((c) => [c.id, []]));
+  const byCol = new Map(boardColumns.map((c) => [c.id, []]));
   for (const t of filtered) {
-    const col = t.board && byCol.has(t.board) ? t.board : todoColumns[0].id;
+    const col = t.board && byCol.has(t.board) ? t.board : boardColumns[0].id;
     byCol.get(col).push(t);
   }
   // sort by most recently updated first
@@ -1616,7 +1636,7 @@ function renderTodoBoard() {
 
   todoApp.innerHTML = `
     <div class="board">
-      ${todoColumns.map((c) => `
+      ${boardColumns.map((c) => `
         <div class="board-col" data-todo-col-id="${c.id}">
           <div class="board-col-header" draggable="true" data-todo-col-drag="${c.id}">
             <span class="drag-handle">⠿</span>
@@ -1712,18 +1732,18 @@ function wireTodoBoard(app) {
       const colId = el.dataset.col;
       if (action === "add") openTodoCreateModal(colId);
       if (action === "rename") {
-        const col = todoColumns.find((c) => c.id === colId);
+        const col = boardColumns.find((c) => c.id === colId);
         const next = prompt("Rename column:", col?.title || "");
-        if (next && next.trim()) { col.title = next.trim(); saveTodoColumns(); renderTodoBoard(); }
+        if (next && next.trim()) { col.title = next.trim(); saveBoardColumns(); renderTodoBoard(); }
       }
       if (action === "remove") {
-        const col = todoColumns.find((c) => c.id === colId);
-        if (todoColumns.length <= 1) { toast("Need at least one column"); return; }
+        const col = boardColumns.find((c) => c.id === colId);
+        if (boardColumns.length <= 1) { toast("Need at least one column"); return; }
         if (!confirm(`Remove column "${col?.title}"?`)) return;
         // move todos to first column
-        todos.forEach((t) => { if (t.board === colId) patchTodo(t.id, { board: todoColumns[0].id }); });
-        todoColumns = todoColumns.filter((c) => c.id !== colId);
-        saveTodoColumns();
+        todos.forEach((t) => { if (t.board === colId) patchTodo(t.id, { board: boardColumns[0].id }); });
+        boardColumns = boardColumns.filter((c) => c.id !== colId);
+        saveBoardColumns();
         renderTodoBoard();
       }
     });
@@ -1734,9 +1754,9 @@ function wireTodoBoard(app) {
     const title = prompt("New column name:");
     if (!title?.trim()) return;
     const id = title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    if (todoColumns.some((c) => c.id === id)) { toast("Column already exists"); return; }
-    todoColumns.push({ id: id || crypto.randomUUID(), title: title.trim() });
-    saveTodoColumns();
+    if (boardColumns.some((c) => c.id === id)) { toast("Column already exists"); return; }
+    boardColumns.push({ id: id || crypto.randomUUID(), title: title.trim() });
+    saveBoardColumns();
     renderTodoBoard();
   });
 
@@ -1780,11 +1800,11 @@ function wireTodoBoard(app) {
       if (!fromId) return;
       const toId = col.dataset.todoColId;
       if (fromId === toId) return;
-      const fromIdx = todoColumns.findIndex((c) => c.id === fromId);
-      const toIdx = todoColumns.findIndex((c) => c.id === toId);
-      const [moved] = todoColumns.splice(fromIdx, 1);
-      todoColumns.splice(toIdx, 0, moved);
-      saveTodoColumns();
+      const fromIdx = boardColumns.findIndex((c) => c.id === fromId);
+      const toIdx = boardColumns.findIndex((c) => c.id === toId);
+      const [moved] = boardColumns.splice(fromIdx, 1);
+      boardColumns.splice(toIdx, 0, moved);
+      saveBoardColumns();
       renderTodoBoard();
     });
   });
@@ -1882,6 +1902,9 @@ function openTodoEditModal(id) {
 function openTodoAssignModal(id) {
   const t = todos.find((x) => x.id === id);
   if (!t) return;
+  // auto-detect project from column's cwd
+  const col = t.board ? boardColumns.find((c) => c.id === t.board) : null;
+  const colCwd = col?.cwd || "";
   const projectOptions = [...new Set(sessions.filter((s) => s.cwd && !s.isTicket).map((s) => s.cwd))].sort();
   const recentSessions = sessions
     .filter((s) => !s.isTicket)
@@ -1898,7 +1921,7 @@ function openTodoAssignModal(id) {
     <div id="assignNewFields">
       <div class="modal-row">
         <label for="assignProject">Project</label>
-        <select id="assignProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join("")}</select>
+        <select id="assignProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}" ${p === colCwd ? "selected" : ""}>${escapeHtml(p)}</option>`).join("")}</select>
       </div>
       <div class="modal-row">
         <label for="assignModel">Model</label>

@@ -152,6 +152,16 @@
   .ctx-yellow .bar > span { background: var(--warn); }
   .ctx-red { background: rgba(192,57,43,0.14); color: var(--danger); }
   .ctx-red .bar > span { background: var(--danger); }
+  .ctx-bar-full { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .ctx-bar-full .ctx-track { flex: 1; height: 4px; border-radius: 3px; background: var(--chip-bg); overflow: hidden; }
+  .ctx-bar-full .ctx-fill { height: 100%; border-radius: 3px; transition: width 300ms ease; }
+  .ctx-bar-full .ctx-label { font-size: 10.5px; font-weight: 500; flex-shrink: 0; }
+  .ctx-bar-full.ctx-green .ctx-fill { background: var(--ok); }
+  .ctx-bar-full.ctx-green .ctx-label { color: var(--ok); }
+  .ctx-bar-full.ctx-yellow .ctx-fill { background: var(--warn); }
+  .ctx-bar-full.ctx-yellow .ctx-label { color: var(--warn); }
+  .ctx-bar-full.ctx-red .ctx-fill { background: var(--danger); }
+  .ctx-bar-full.ctx-red .ctx-label { color: var(--danger); }
   .description-line {
     font-size: 12.5px; color: var(--ink); margin-top: 2px; display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap;
   }
@@ -282,7 +292,8 @@
   .board-card .bc-desc { color: var(--dim); font-size: 11.5px; display: flex; align-items: center; gap: 6px; }
   .board-card .bc-desc.no-desc { font-style: italic; }
   .bc-desc-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-  .board-card .bc-meta { display: flex; gap: 6px; flex-wrap: wrap; overflow: hidden; }
+  .board-card .bc-meta { display: flex; gap: 6px; flex-wrap: wrap; overflow: hidden; align-items: center; }
+  .bc-time { font-size: 10.5px; color: var(--dim); margin-left: auto; flex-shrink: 0; }
   .bc-menu-wrap { position: relative; margin-left: auto; flex-shrink: 0; }
   .bc-menu-btn {
     background: none; border: none; color: var(--dim); font-size: 16px; padding: 0 4px;

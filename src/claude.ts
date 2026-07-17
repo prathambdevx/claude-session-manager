@@ -2,6 +2,7 @@
 // launching interactive sessions in a new Terminal window, reusing an existing tab, and the prompt
 // builders for the launcher / reviewer / context-extraction / continuation flows.
 import { chmod } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
@@ -57,7 +58,12 @@ export async function openTerminalRunning(cwd: string, command: string) {
   const path = join(tmpdir(), `claude-sessions-launch-${crypto.randomUUID()}.command`);
   await Bun.write(path, script);
   await chmod(path, 0o755);
-  spawn("open", ["-a", "Terminal", path], { stdio: "ignore", detached: true }).unref();
+  // prefer Ghostty if installed, fall back to Apple Terminal
+  if (existsSync("/Applications/Ghostty.app")) {
+    spawn("open", ["-a", "Ghostty", path], { stdio: "ignore", detached: true }).unref();
+  } else {
+    spawn("open", ["-a", "Terminal", path], { stdio: "ignore", detached: true }).unref();
+  }
 }
 
 // ---------- reuse an already-open Terminal tab instead of spawning a new one ----------

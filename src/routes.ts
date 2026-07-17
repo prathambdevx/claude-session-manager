@@ -61,7 +61,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     if (!cols) return json({ error: "columns array required" }, { status: 400 });
     const clean = cols
       .filter((c: any) => c && typeof c.id === "string" && typeof c.title === "string")
-      .map((c: any) => ({ id: c.id.slice(0, 60), title: c.title.slice(0, 80) }));
+      .map((c: any) => ({ id: c.id.slice(0, 60), title: c.title.slice(0, 80), ...(c.cwd ? { cwd: String(c.cwd).slice(0, 500) } : {}) }));
     await saveBoard(clean);
     return json({ ok: true, columns: clean });
   }
