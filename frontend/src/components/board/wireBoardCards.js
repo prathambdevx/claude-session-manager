@@ -1,0 +1,70 @@
+// Card action wiring shared by renderBoardView (main/per-project boards) and any other place a
+// board-card's markup gets inserted — click actions, double-click-to-resume, and the 3-dot menu.
+import { sessions } from "../../state.js";
+import { resumeSession, deleteSession, summarizeSession, patchMeta } from "../../api/sessionsApi.js";
+import { openReviewModal } from "../modals/reviewModal.js";
+import { openExtractModal } from "../modals/extractModal.js";
+import { openRenameModal } from "../modals/renameModal.js";
+import { convertTicketToSession } from "../modals/columnTaskModal.js";
+
+export function wireBoardCards(app) {
+  app.querySelectorAll("[data-action]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const { action, id } = el.dataset;
+      const s = sessions.find((x) => x.id === id);
+      const title = s?.meta?.name || s?.firstMessage || id;
+      if (action === "resume") resumeSession(id, false);
+      if (action === "fork") resumeSession(id, true);
+      if (action === "delete") deleteSession(id, title);
+      if (action === "review") openReviewModal(id);
+      if (action === "extract") openExtractModal(id);
+      if (action === "summarize") summarizeSession(id);
+      if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? undefined : "done" });
+      if (action === "ticket-convert") convertTicketToSession(id);
+      if (action === "rename") {
+        openRenameModal(id, s?.meta?.name, s?.isTicket ? "Rename ticket" : "Rename session");
+      }
+      if (action === "editDesc") {
+        const next = prompt("Edit description:", s?.meta?.description || "");
+        if (next !== null) patchMeta(id, { description: next.trim() || undefined, descriptionSource: next.trim() ? "manual" : undefined });
+      }
+    });
+  });
+
+  // double-click on board card to resume session
+  app.querySelectorAll(".board-card[data-card-id]").forEach((card) => {
+    card.addEventListener("dblclick", (e) => {
+      if (e.target.closest(".bc-menu-wrap") || e.target.closest("button")) return;
+      const id = card.dataset.cardId;
+      const s = sessions.find((x) => x.id === id);
+      if (s?.isTicket) return;
+      resumeSession(id, false);
+    });
+  });
+
+  // three-dot menu toggle
+  app.querySelectorAll("[data-menu-toggle]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.menuToggle;
+      const dropdown = document.getElementById("menu-" + id);
+      const wasOpen = dropdown.classList.contains("open");
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      if (!wasOpen) {
+        const rect = btn.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        dropdown.style.left = "";
+        dropdown.style.right = (window.innerWidth - rect.right) + "px";
+        if (spaceBelow < 200) {
+          dropdown.style.top = "";
+          dropdown.style.bottom = (window.innerHeight - rect.top) + "px";
+        } else {
+          dropdown.style.top = rect.bottom + 4 + "px";
+          dropdown.style.bottom = "";
+        }
+        dropdown.classList.add("open");
+      }
+    });
+  });
+}

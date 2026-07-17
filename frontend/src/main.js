@@ -1,0 +1,106 @@
+// Entry point — replicates the original monolithic app.js's exact effective bootstrap order:
+// 1) synchronously derive board routing state from the URL (must happen before the first
+//    render()/loadSessions() call), 2) wire every remaining top-level DOM control, 3) run the
+// original end-of-file init sequence (load data, start polling, restore the active tab).
+import { currentTab, contentSearchTimer, setContentSearchTimer, currentView, boardColumns, defaultViewId, setActiveView } from "./state.js";
+import { initBoardStateFromLocation, wirePopstate } from "./routing/boardRouting.js";
+import { loadSessions, loadProjects, fetchContentMatches } from "./api/sessionsApi.js";
+import { dangerousDefault } from "./ui/formFragments.js";
+import { render, setView } from "./pages/sessionsPage.js";
+import { setTab, wireTabs } from "./pages/todosPage.js";
+import { renderTodoBoard } from "./components/todoBoard/renderTodoBoard.js";
+import { openGlobalSearchModal } from "./components/modals/globalSearchModal.js";
+import { openColumnTaskModal } from "./components/modals/columnTaskModal.js";
+import { openCommandPalette } from "./components/commandPalette/commandPalette.js";
+import { mainBoardCtx } from "./routing/boardRouting.js";
+import { closeReviewModal } from "./ui/modalShell.js";
+import { initThemeToggle } from "./components/theme/themeToggle.js";
+import { boardMode } from "./state.js";
+
+initBoardStateFromLocation();
+wirePopstate();
+
+document.getElementById("search").addEventListener("input", (e) => {
+  if (currentTab === "todos") { renderTodoBoard(); return; }
+  render();
+  clearTimeout(contentSearchTimer);
+  setContentSearchTimer(setTimeout(() => fetchContentMatches(e.target.value), 350));
+});
+
+document.getElementById("sort").value = localStorage.getItem("sortMode") || "recent";
+document.getElementById("sort").addEventListener("change", (e) => {
+  localStorage.setItem("sortMode", e.target.value);
+  render();
+});
+document.getElementById("filterDate").addEventListener("change", render);
+document.getElementById("filterProject").addEventListener("change", render);
+
+const globalDangerousBox = document.getElementById("globalDangerous");
+globalDangerousBox.checked = dangerousDefault();
+globalDangerousBox.addEventListener("change", (e) => {
+  localStorage.setItem("globalDangerous", e.target.checked ? "1" : "0");
+});
+
+document.getElementById("refreshBtn").addEventListener("click", loadSessions);
+document.getElementById("globalSearchBtn").addEventListener("click", openGlobalSearchModal);
+
+initThemeToggle();
+
+// close card menus on outside click
+document.addEventListener("click", () => {
+  document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+});
+
+document.addEventListener("keydown", (e) => {
+  const tag = document.activeElement?.tagName;
+  const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+  if (e.key === "Escape") {
+    if (document.getElementById("modalRoot").innerHTML.trim()) { closeReviewModal(); return; }
+    if (typing) document.activeElement.blur();
+    return;
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+    e.preventDefault();
+    openCommandPalette();
+    return;
+  }
+  if (typing) return;
+  if (e.key === "/") {
+    e.preventDefault();
+    document.getElementById("search").focus();
+  } else if (e.key === "n") {
+    if (boardMode !== "main") return; // global shortcut only targets the main board, not a drilled-in project board
+    e.preventDefault();
+    openColumnTaskModal(boardColumns[0]?.id, mainBoardCtx()); // same New Task modal the column "+" opens
+  }
+});
+
+document.getElementById("viewList").addEventListener("click", () => setView("list"));
+document.getElementById("viewBoard").addEventListener("click", () => setView("board"));
+setView(currentView);
+
+wireTabs();
+
+loadSessions().then(() => {
+  // Apply the saved "default view" star exactly once at boot, and only when landing on the bare
+  // Main board URL — never on a direct/reloaded link into a specific project's own board, and
+  // never on the later 15s polls (those must never yank the user back to a different view mid-use).
+  if (boardMode === "main" && defaultViewId && defaultViewId !== "main") {
+    setActiveView(defaultViewId);
+    render();
+  }
+});
+loadProjects();
+setInterval(loadSessions, 15000);
+// Refresh immediately whenever you come back to this tab/window — otherwise a card's embedded
+// session id can be up to 15s stale. That staleness is exactly what let a real bug through: open a
+// session, /clear it (server-side reconciliation swaps which id owns that card), close the
+// terminal, then immediately re-click the SAME still-stale card before the next scheduled poll —
+// resuming the OLD pre-clear id instead of the one that actually now lives there. Since closing a
+// terminal and clicking back into the browser is exactly a focus/visibility change, catch it here.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") loadSessions();
+});
+window.addEventListener("focus", loadSessions);
+// apply initial tab
+if (currentTab === "todos") setTimeout(() => setTab("todos"), 0);

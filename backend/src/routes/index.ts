@@ -1,0 +1,41 @@
+// HTTP request routing: tries each resource's route module in turn (same effective order as the
+// original single-file router) and returns the first non-null Response.
+export { startClearReconciliationPoller } from "./reconcile.ts";
+import { handleSessionsRoutes } from "./sessions.ts";
+import { handleBoardRoutes } from "./board.ts";
+import { handleSavedViewsRoutes } from "./savedViews.ts";
+import { handleAgentsRoutes } from "./agents.ts";
+import { handleDelegationsRoutes } from "./delegations.ts";
+import { handleTicketsRoutes } from "./tickets.ts";
+import { handleProjectsRoutes } from "./projects.ts";
+import { handleSearchRoutes } from "./search.ts";
+import { handleLaunchRoutes } from "./launch.ts";
+import { handleReviewsRoutes } from "./reviews.ts";
+import { handleContextsRoutes } from "./contexts.ts";
+import { handleTodosRoutes } from "./todos.ts";
+import { handleStaticRoutes } from "./static.ts";
+
+const ROUTE_HANDLERS = [
+  handleSessionsRoutes,
+  handleBoardRoutes,
+  handleSavedViewsRoutes,
+  handleAgentsRoutes,
+  handleDelegationsRoutes,
+  handleTicketsRoutes,
+  handleProjectsRoutes,
+  handleSearchRoutes,
+  handleLaunchRoutes,
+  handleReviewsRoutes,
+  handleContextsRoutes,
+  handleTodosRoutes,
+  handleStaticRoutes,
+];
+
+export async function handleRequest(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  for (const handler of ROUTE_HANDLERS) {
+    const res = await handler(req, url);
+    if (res) return res;
+  }
+  return new Response("Not found", { status: 404 });
+}

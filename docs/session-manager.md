@@ -28,19 +28,22 @@ The core insight shaping the tool was that **nothing new needed to be persisted*
 
 ## Architecture at a glance
 
-**Backend** — A Bun HTTP server, split into focused modules:
+**Backend** (`backend/`) — A Bun HTTP server, split into focused modules:
 
 | Module | Responsibility |
 | --- | --- |
-| `src/config.ts` | Paths, constants, model set, CLI flags, context-window size |
-| `src/store.ts` | Load/save for sidecar metadata, tickets, reviews, contexts + live-process tracking |
-| `src/sessions.ts` | Transcript scanning, digest building, keyword + snippet search |
-| `src/claude.ts` | Headless CLI calls, Terminal launching, tab reuse, prompt builders |
-| `src/html.ts` | Server-rendered report + index pages |
-| `src/routes.ts` | HTTP routing |
-| `server.ts` | ~10-line entry point |
+| `backend/src/config.ts` | Paths, constants, model set, CLI flags, context-window size |
+| `backend/src/store.ts` | Load/save for sidecar metadata, tickets, reviews, contexts + live-process tracking |
+| `backend/src/sessions.ts` | Transcript scanning, digest building, keyword + snippet search |
+| `backend/src/claude.ts` | Headless CLI calls, Terminal launching, tab reuse, prompt builders |
+| `backend/src/html.ts` | Server-rendered report + index pages |
+| `backend/src/routes.ts` | HTTP routing |
+| `backend/server.ts` | ~10-line entry point |
 
-**Frontend** — A buildless single page: `public/index.html` (markup only), `public/styles.css`, and `public/app.js`. No bundler, no framework — deliberately chosen so it remains trivially serveable and editable.
+**Frontend** (`frontend/`) — A buildless page: `frontend/public/index.html` (markup only) and
+`frontend/public/styles.css`, with the JS split into small ES modules under `frontend/src/`
+(`ui/` primitives → `subcomponents/` → `components/` → `pages/`, wired up by `main.js`). No
+bundler, no framework — deliberately chosen so it remains trivially serveable and editable.
 
 **Durability** — A `launchd` user agent (`RunAtLoad` + `KeepAlive`) starts the server at login and respawns it if it dies, ensuring `[http://127.0.0.1:4321](http://127.0.0.1:4321)` is always up. Bound strictly to `127.0.0.1`.
 

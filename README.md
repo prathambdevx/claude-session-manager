@@ -78,11 +78,13 @@ Run scoped agents against any session, using that session's transcript + changed
 
 ## How it works
 
-- **Backend** — a small [Bun](https://bun.sh) HTTP server (`server.ts` + `src/`), split into focused
-  modules: `config`, `store` (JSON-file persistence), `sessions` (transcript scanning + search),
-  `claude` (CLI + Terminal launching + prompt builders), `html` (report pages), `routes`.
-- **Frontend** — a buildless single page (`public/index.html` + `styles.css` + `app.js`). No
-  framework, no bundler.
+- **Backend** (`backend/`) — a small [Bun](https://bun.sh) HTTP server (`server.ts` + `src/`),
+  split into focused modules: `config`, `store` (JSON-file persistence), `sessions` (transcript
+  scanning + search), `claude` (CLI + Terminal launching + prompt builders), `html` (report
+  pages), `routes`.
+- **Frontend** (`frontend/public/`) — a buildless page (`index.html` + `styles.css`), with the
+  JS split into small ES modules under `frontend/src/` (`ui/` primitives → `subcomponents/` →
+  `components/` → `pages/`, wired up by `main.js`). No framework, no bundler.
 - **Storage** — plain JSON files under `data/` (gitignored): your tickets, per-session metadata,
   custom agents, review reports, context briefings, and delegation outputs. Board *column
   definitions* live in browser `localStorage`.

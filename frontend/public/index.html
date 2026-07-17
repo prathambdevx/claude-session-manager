@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Claude Sessions</title>
+<link rel="icon" type="image/webp" href="/favicon.webp" />
+<script>
+  // applied before the stylesheet loads so there's no flash of the wrong theme on load
+  (function () {
+    var t = localStorage.getItem("theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+<header>
+  <h1><img src="/favicon.webp" alt="" style="width:22px; height:22px; vertical-align:-4px; margin-right:8px; border-radius:5px;" />Claude Sessions</h1>
+  <div class="toolbar">
+    <div class="mode-toggle tab-toggle">
+      <button id="tabSessions" class="active">Sessions</button>
+      <button id="tabTodos">Todos</button>
+    </div>
+    <!-- <div class="mode-toggle" style="max-width:180px">
+      <button id="viewList" class="active" data-view="list">List</button>
+      <button id="viewBoard" data-view="board">Board</button>
+    </div> -->
+    <div style="display:none"><button id="viewList"></button><button id="viewBoard"></button></div>
+    <input type="text" id="search" placeholder="Search by name, project, message, tag, branch..." />
+    <button id="globalSearchBtn" title="Search the full content of every session's conversation">🔍 Global search</button>
+    <!-- <select id="filterProject"><option value="">All projects</option></select> -->
+    <select id="sort">
+      <option value="recent">Sort: Most recent</option>
+      <option value="oldest">Sort: Oldest</option>
+      <option value="messages">Sort: Most messages</option>
+      <option value="project">Sort: Project name</option>
+    </select>
+    <!-- <select id="filterDate">
+      <option value="">All time</option>
+      <option value="7">Last 7 days</option>
+      <option value="30">Last 30 days</option>
+    </select> -->
+    <!-- <button id="refreshBtn">↻ Refresh</button> -->
+    <button onclick="window.open('/reviews','_blank')" title="See all past review reports">📋 All reviews</button>
+    <button id="themeToggleBtn" title="Toggle dark / light mode">🌙</button>
+    <!-- <label class="dangerous-label" style="font-size:12px; display:flex; align-items:center; gap:4px;" title="Default for every launch (new / resume / fork / fix). Per-launch modals still let you override.">
+      <input type="checkbox" id="globalDangerous" /> ⚠ Run dangerously
+    </label> -->
+    <div style="display:none">
+      <select id="filterProject"><option value="">All projects</option></select>
+      <select id="filterDate"><option value="">All time</option></select>
+      <button id="refreshBtn"></button>
+      <input type="checkbox" id="globalDangerous" />
+    </div>
+  </div>
+</header>
+<div class="stat" id="statLine"></div>
+<div class="layout">
+  <aside id="sidebar"></aside>
+  <div class="layout-main">
+    <main id="app"></main>
+    <main id="todoApp" style="display:none"></main>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div id="modalRoot"></div>
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
