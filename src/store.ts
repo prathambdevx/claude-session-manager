@@ -4,7 +4,7 @@ import { readdir, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
-  META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, BOARD_PATH, TODO_BOARD_PATH,
+  META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, BOARD_PATH, TODO_BOARD_PATH, PROJECT_BOARDS_PATH,
   REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, RUNNING_DIR, PID_LINKS_PATH,
 } from "./config.ts";
 
@@ -36,6 +36,24 @@ export async function loadTodoBoard(): Promise<BoardColumn[] | null> {
 
 export async function saveTodoBoard(columns: BoardColumn[]) {
   await Bun.write(TODO_BOARD_PATH, JSON.stringify({ columns }, null, 2));
+}
+
+// ---------- per-project board columns (keyed by raw cwd) — each project gets its own
+// independent column set, kept fully separate from the shared main board above ----------
+
+export type ProjectBoards = Record<string, BoardColumn[]>;
+
+export async function loadProjectBoards(): Promise<ProjectBoards> {
+  try {
+    const j = JSON.parse(await readFile(PROJECT_BOARDS_PATH, "utf-8"));
+    return j && typeof j === "object" && !Array.isArray(j) ? j : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function saveProjectBoards(boards: ProjectBoards) {
+  await Bun.write(PROJECT_BOARDS_PATH, JSON.stringify(boards, null, 2));
 }
 
 // ---------- sidecar metadata (names, tags, notes, status, pinned, archived) ----------

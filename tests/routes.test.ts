@@ -81,3 +81,30 @@ test("PUT /api/board persists column definitions", async () => {
   expect(data.ok).toBe(true);
   expect(data.columns).toEqual(columns);
 });
+
+test("PUT /api/project-board requires cwd and a columns array", async () => {
+  const noCwd = await put("/api/project-board", { columns: [] });
+  expect(noCwd.status).toBe(400);
+
+  const noCols = await put("/api/project-board", { cwd: "/x/proj" });
+  expect(noCols.status).toBe(400);
+});
+
+test("PUT /api/project-board sanitizes columns and keeps each project's board independent", async () => {
+  const res = await put("/api/project-board", {
+    cwd: "/x/proj-a",
+    columns: [{ id: "todo", title: "All sessions" }, { id: "bad" /* missing title, dropped */ }],
+  });
+  const data = await res.json();
+  expect(data.ok).toBe(true);
+  expect(data.columns).toEqual([{ id: "todo", title: "All sessions" }]);
+
+  await put("/api/project-board", { cwd: "/x/proj-b", columns: [{ id: "backlog", title: "Backlog" }] });
+
+  // verify on-disk state directly (this file avoids asserting through GET /api/sessions,
+  // since that calls scanAllSessions() and would make the test depend on real machine data)
+  const { loadProjectBoards } = await import("../src/store.ts");
+  const all = await loadProjectBoards();
+  expect(all["/x/proj-a"]).toEqual([{ id: "todo", title: "All sessions" }]);
+  expect(all["/x/proj-b"]).toEqual([{ id: "backlog", title: "Backlog" }]);
+});

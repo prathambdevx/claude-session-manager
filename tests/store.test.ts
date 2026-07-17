@@ -51,6 +51,23 @@ test("board columns default to null before the first save, then persist", async 
   expect(await store.loadBoard()).toEqual(columns);
 });
 
+test("project boards default to an empty map, then persist independently per cwd", async () => {
+  expect(await store.loadProjectBoards()).toEqual({});
+
+  const cols = [{ id: "todo", title: "All sessions" }, { id: "done", title: "Done" }];
+  await store.saveProjectBoards({ "/Users/x/proj-a": cols });
+  expect(await store.loadProjectBoards()).toEqual({ "/Users/x/proj-a": cols });
+
+  // a second project's columns don't clobber the first — keyed independently
+  const cols2 = [{ id: "backlog", title: "Backlog" }];
+  const all = await store.loadProjectBoards();
+  all["/Users/x/proj-b"] = cols2;
+  await store.saveProjectBoards(all);
+  const reloaded = await store.loadProjectBoards();
+  expect(reloaded["/Users/x/proj-a"]).toEqual(cols);
+  expect(reloaded["/Users/x/proj-b"]).toEqual(cols2);
+});
+
 test("reconcileClearedSessions carries a running session's name/board to its new post-/clear id", async () => {
   const meta: Record<string, import("../src/store.ts").Meta> = {
     "old-session-id": { name: "Bugs v1", board: "in-progress", pinned: true },

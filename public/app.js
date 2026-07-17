@@ -38,6 +38,56 @@ async function saveBoardColumns() {
   });
 }
 
+// ---------- per-project boards: "Group by project" browses INTO a separate, independently
+// persisted board per project instead of ever touching the main board's columns ----------
+let boardMode = localStorage.getItem("boardMode") || "main"; // "main" | "projects" | "project"
+let activeProjectCwd = localStorage.getItem("activeProjectCwd") || null;
+let projectBoards = {};           // Record<cwd, BoardColumn[]> — mirrors server's project-boards.json
+let currentProjectColumns = null; // BoardColumn[] for whichever project is currently drilled into
+
+async function saveProjectBoardColumns(cwd) {
+  await fetch("/api/project-board", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cwd, columns: currentProjectColumns }),
+  });
+}
+
+// ctx objects let renderBoardView work against either the main board or a per-project board
+// without duplicating its ~200 lines of column-management/drag-and-drop code. `cols` is a
+// getter/setter so a reassignment inside renderBoardView (e.g. removing a column) writes
+// through to the right global instead of just rebinding a local parameter.
+function mainBoardCtx() {
+  return {
+    get cols() { return boardColumns; },
+    set cols(v) { boardColumns = v; },
+    save: saveBoardColumns,
+  };
+}
+function projectBoardCtx(cwd) {
+  return {
+    get cols() { return currentProjectColumns; },
+    set cols(v) { currentProjectColumns = v; projectBoards[cwd] = v; },
+    save: () => saveProjectBoardColumns(cwd),
+  };
+}
+
+function setBoardMode(mode) {
+  boardMode = mode;
+  localStorage.setItem("boardMode", mode);
+  render();
+}
+
+async function enterProjectBoard(cwd) {
+  activeProjectCwd = cwd;
+  localStorage.setItem("activeProjectCwd", cwd);
+  const isFirstVisit = !projectBoards[cwd];
+  if (isFirstVisit) projectBoards[cwd] = DEFAULT_COLUMNS.slice(); // same defaults as the main board
+  currentProjectColumns = projectBoards[cwd];
+  if (isFirstVisit) await saveProjectBoardColumns(cwd);
+  setBoardMode("project");
+}
+
 
 function toast(msg) {
   const t = document.getElementById("toast");
@@ -78,6 +128,10 @@ async function loadSessions() {
     saveBoardColumns();
   }
 
+  projectBoards = (data.projectBoards && typeof data.projectBoards === "object") ? data.projectBoards : {};
+  if (boardMode === "project" && activeProjectCwd) {
+    currentProjectColumns = projectBoards[activeProjectCwd] || DEFAULT_COLUMNS.slice();
+  }
 
   render();
   if (currentTab === "todos") renderTodoBoard();
@@ -213,6 +267,18 @@ function matchesSearch(s, q) {
 
 function render() {
   const q = document.getElementById("search").value.trim();
+
+  if (boardMode === "projects") {
+    renderProjectPicker(q);
+    return;
+  }
+  if (boardMode === "project") {
+    const filtered = sessions.filter((s) => s.cwd === activeProjectCwd && matchesSearch(s, q));
+    document.getElementById("statLine").textContent = `${filtered.length} session${filtered.length === 1 ? "" : "s"} shown`;
+    renderBoardView(filtered, projectBoardCtx(activeProjectCwd), projectBreadcrumbHtml());
+    return;
+  }
+
   const sortMode = document.getElementById("sort").value;
   const dateFilter = document.getElementById("filterDate").value;
   const projectFilter = document.getElementById("filterProject").value;
@@ -228,10 +294,57 @@ function render() {
     `${filtered.length} session${filtered.length === 1 ? "" : "s"} shown · ${sessions.filter(s => s.running).length} currently running`;
 
   if (currentView === "board") {
-    renderBoardView(filtered);
+    renderBoardView(filtered, mainBoardCtx());
     return;
   }
   renderListView(filtered, sortMode);
+}
+
+// ---------- per-project board browsing: a picker listing every project, and a breadcrumb
+// header shown atop a drilled-in project's board ----------
+
+function projectBreadcrumbHtml() {
+  return `
+    <div class="board-breadcrumb">
+      <button data-back-to-projects>← All projects</button>
+      <button data-back-to-main>← Back to board</button>
+      <h2>${escapeHtml(projectName(activeProjectCwd))}</h2>
+    </div>
+  `;
+}
+
+function renderProjectPicker(q) {
+  const app = document.getElementById("app");
+  const byCwd = new Map();
+  for (const s of sessions) {
+    if (s.isTicket || !s.cwd) continue;
+    if (q && !matchesSearch(s, q)) continue;
+    if (!byCwd.has(s.cwd)) byCwd.set(s.cwd, []);
+    byCwd.get(s.cwd).push(s);
+  }
+  const entries = [...byCwd.entries()].sort((a, b) => projectName(a[0]).localeCompare(projectName(b[0])));
+
+  document.getElementById("statLine").textContent = `${entries.length} project${entries.length === 1 ? "" : "s"}`;
+
+  app.innerHTML = `
+    <div class="board-breadcrumb">
+      <button data-back-to-main>← Back to board</button>
+    </div>
+    <div class="project-picker">
+      ${entries.length ? entries.map(([cwd, list]) => `
+        <div class="project-picker-entry" data-project-cwd="${escapeAttr(cwd)}">
+          <div class="ppe-name">${escapeHtml(projectName(cwd))}</div>
+          <div class="ppe-cwd">${escapeHtml(cwd)}</div>
+          <div class="ppe-count">${list.length} session${list.length === 1 ? "" : "s"}</div>
+        </div>
+      `).join("") : '<div class="empty">No sessions with a project yet.</div>'}
+    </div>
+  `;
+
+  app.querySelector("[data-back-to-main]").addEventListener("click", () => setBoardMode("main"));
+  app.querySelectorAll("[data-project-cwd]").forEach((el) => {
+    el.addEventListener("click", () => enterProjectBoard(el.dataset.projectCwd));
+  });
 }
 
 function renderListView(filtered, sortMode) {
@@ -412,11 +525,11 @@ function ticketCardHtml(s) {
   `;
 }
 
-function renderBoardView(filtered) {
+function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   const app = document.getElementById("app");
-  const byColumn = new Map(boardColumns.map((c) => [c.id, []]));
+  const byColumn = new Map(ctx.cols.map((c) => [c.id, []]));
   for (const s of filtered) {
-    const col = s.meta?.board && byColumn.has(s.meta.board) ? s.meta.board : boardColumns[0]?.id;
+    const col = s.meta?.board && byColumn.has(s.meta.board) ? s.meta.board : ctx.cols[0]?.id;
     if (col && byColumn.has(col)) byColumn.get(col).push(s);
   }
   // running-first, then most recent — same rule as list view so a session you just touched floats up
@@ -424,9 +537,10 @@ function renderBoardView(filtered) {
   for (const arr of byColumn.values()) arr.sort(byRecency);
 
   app.innerHTML = `
+    ${breadcrumbHtml}
     ${agentsDockHtml()}
     <div class="board">
-      ${boardColumns.map((c) => `
+      ${ctx.cols.map((c) => `
         <div class="board-col" data-col-id="${c.id}">
           <div class="board-col-header" draggable="true" data-col-drag="${c.id}" title="Drag to reorder columns">
             <span class="drag-handle">⠿</span>
@@ -451,6 +565,11 @@ function renderBoardView(filtered) {
       <button class="add-col-btn" id="addColBtn">+ Add column</button>
     </div>
   `;
+
+  if (breadcrumbHtml) {
+    app.querySelector("[data-back-to-projects]")?.addEventListener("click", () => setBoardMode("projects"));
+    app.querySelector("[data-back-to-main]")?.addEventListener("click", () => setBoardMode("main"));
+  }
 
   app.querySelectorAll("[data-action]").forEach((el) => {
     el.addEventListener("click", (e) => {
@@ -535,7 +654,7 @@ function renderBoardView(filtered) {
   app.querySelectorAll("[data-add-col-task]").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
-      openColumnTaskModal(el.dataset.addColTask);
+      openColumnTaskModal(el.dataset.addColTask, ctx);
     });
   });
 
@@ -543,11 +662,11 @@ function renderBoardView(filtered) {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       const id = el.dataset.renameCol;
-      const col = boardColumns.find((c) => c.id === id);
+      const col = ctx.cols.find((c) => c.id === id);
       const next = prompt("Rename column:", col?.title || "");
       if (next === null || !next.trim()) return;
       col.title = next.trim();
-      saveBoardColumns();
+      ctx.save();
       render();
     });
   });
@@ -556,10 +675,10 @@ function renderBoardView(filtered) {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       const id = el.dataset.removeCol;
-      const col = boardColumns.find((c) => c.id === id);
-      if (!confirm(`Remove column "${col?.title}"? Sessions in it move back to "${boardColumns[0].title}".`)) return;
-      boardColumns = boardColumns.filter((c) => c.id !== id);
-      saveBoardColumns();
+      const col = ctx.cols.find((c) => c.id === id);
+      if (!confirm(`Remove column "${col?.title}"? Sessions in it move back to "${ctx.cols[0].title}".`)) return;
+      ctx.cols = ctx.cols.filter((c) => c.id !== id);
+      ctx.save();
       render();
     });
   });
@@ -570,9 +689,9 @@ function renderBoardView(filtered) {
     const base = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "col";
     let id = base;
     let n = 2;
-    while (boardColumns.some((c) => c.id === id)) { id = `${base}-${n++}`; } // ids can collide with a renamed column's stable id even when titles differ
-    boardColumns.push({ id, title: title.trim() });
-    saveBoardColumns();
+    while (ctx.cols.some((c) => c.id === id)) { id = `${base}-${n++}`; } // ids can collide with a renamed column's stable id even when titles differ
+    ctx.cols.push({ id, title: title.trim() });
+    ctx.save();
     render();
   });
 
@@ -611,12 +730,12 @@ function renderBoardView(filtered) {
       if (payload.startsWith("col:")) {
         const draggedId = payload.slice(4);
         if (draggedId === colId) return;
-        const fromIdx = boardColumns.findIndex((c) => c.id === draggedId);
-        const toIdx = boardColumns.findIndex((c) => c.id === colId);
+        const fromIdx = ctx.cols.findIndex((c) => c.id === draggedId);
+        const toIdx = ctx.cols.findIndex((c) => c.id === colId);
         if (fromIdx === -1 || toIdx === -1) return;
-        const [moved] = boardColumns.splice(fromIdx, 1);
-        boardColumns.splice(toIdx, 0, moved);
-        saveBoardColumns();
+        const [moved] = ctx.cols.splice(fromIdx, 1);
+        ctx.cols.splice(toIdx, 0, moved);
+        ctx.save();
         render();
         return;
       }
@@ -1223,8 +1342,8 @@ async function openContextResultModal(contextId, sessionId) {
   });
 }
 
-function openColumnTaskModal(colId) {
-  const col = boardColumns.find((c) => c.id === colId);
+function openColumnTaskModal(colId, ctx) {
+  const col = ctx.cols.find((c) => c.id === colId);
   const projectOptions = [...new Set(sessions.map((s) => s.cwd))].sort();
   modalShell(`
     <h3>⚡ New task → ${escapeHtml(col?.title || colId)}</h3>
@@ -1494,38 +1613,7 @@ globalDangerousBox.addEventListener("change", (e) => {
   localStorage.setItem("globalDangerous", e.target.checked ? "1" : "0");
 });
 document.getElementById("refreshBtn").addEventListener("click", loadSessions);
-document.getElementById("groupByProjectBtn").addEventListener("click", async () => {
-  // collect unique projects with their cwd paths
-  const cwdMap = {};
-  for (const s of sessions) {
-    if (s.isTicket || !s.cwd) continue;
-    const name = projectName(s.cwd);
-    if (!cwdMap[name]) cwdMap[name] = s.cwd;
-  }
-  const projects = Object.keys(cwdMap).sort();
-  if (!projects.length) { toast("No sessions to group"); return; }
-
-  // build new columns: "All sessions" first, then one per project (with cwd)
-  boardColumns = [
-    { id: "all", title: "All sessions" },
-    ...projects.map((p) => ({ id: "proj-" + p.toLowerCase().replace(/[^a-z0-9]+/g, "-"), title: p, cwd: cwdMap[p] })),
-  ];
-  await saveBoardColumns();
-
-  // assign each session to its project column
-  for (const s of sessions) {
-    if (s.isTicket) continue;
-    const name = projectName(s.cwd);
-    const col = boardColumns.find((c) => c.title === name);
-    if (col && s.meta?.board !== col.id) {
-      patchMeta(s.id, { board: col.id });
-    }
-  }
-
-  // switch to board view
-  setView("board");
-  toast(`Created ${projects.length} project columns`);
-});
+document.getElementById("groupByProjectBtn").addEventListener("click", () => setBoardMode("projects"));
 document.getElementById("globalSearchBtn").addEventListener("click", openGlobalSearchModal);
 
 // close card menus on outside click
@@ -1546,8 +1634,9 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     document.getElementById("search").focus();
   } else if (e.key === "n") {
+    if (boardMode !== "main") return; // global shortcut only targets the main board, not whatever project/picker is showing
     e.preventDefault();
-    openColumnTaskModal(boardColumns[0]?.id); // same New Task modal the column "+" opens
+    openColumnTaskModal(boardColumns[0]?.id, mainBoardCtx()); // same New Task modal the column "+" opens
   }
 });
 

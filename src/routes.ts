@@ -8,7 +8,7 @@ import {
   saveReview, loadReview, saveContext, loadContext,
   loadAgents, saveAgents, saveDelegation, loadDelegation, loadAllDelegations, deleteDelegation,
   loadTodos, saveTodos,
-  loadBoard, saveBoard, loadTodoBoard, saveTodoBoard,
+  loadBoard, saveBoard, loadTodoBoard, saveTodoBoard, loadProjectBoards, saveProjectBoards,
 } from "./store.ts";
 import type { Meta, Ticket, ReviewRecord, ContextRecord, Agent, Delegation, Todo } from "./store.ts";
 import {
@@ -34,7 +34,7 @@ export async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
 
   if (url.pathname === "/api/sessions" && req.method === "GET") {
-    const [sessions, running, meta, tickets, agents, delegations, todos, board, todoBoard] = await Promise.all([
+    const [sessions, running, meta, tickets, agents, delegations, todos, board, todoBoard, projectBoards] = await Promise.all([
       scanAllSessions(),
       loadRunning(),
       loadMeta(),
@@ -44,6 +44,7 @@ export async function handleRequest(req: Request): Promise<Response> {
       loadTodos(),
       loadBoard(),
       loadTodoBoard(),
+      loadProjectBoards(),
     ]);
     // bridge /clear: the CLI starts a brand-new transcript id for the same running terminal
     // instead of resetting the old one in place, so carry the old id's name/board/etc. over.
@@ -54,7 +55,7 @@ export async function handleRequest(req: Request): Promise<Response> {
       running: running[s.id] ?? null,
       meta: reconciledMeta[s.id] ?? {},
     }));
-    return json({ sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, todos: Object.values(todos), board, todoBoard });
+    return json({ sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, todos: Object.values(todos), board, todoBoard, projectBoards });
   }
 
   // ---------- board columns (server-side, shared across browsers) ----------
@@ -78,6 +79,23 @@ export async function handleRequest(req: Request): Promise<Response> {
       .filter((c: any) => c && typeof c.id === "string" && typeof c.title === "string")
       .map((c: any) => ({ id: c.id.slice(0, 60), title: c.title.slice(0, 80) }));
     await saveTodoBoard(clean);
+    return json({ ok: true, columns: clean });
+  }
+
+  // per-project board columns — each project (keyed by its raw cwd) gets its own
+  // independent column set, fully separate from the shared main board above.
+  if (url.pathname === "/api/project-board" && req.method === "PUT") {
+    const body = await req.json().catch(() => ({}));
+    const cwd = String(body?.cwd ?? "").trim().slice(0, 500);
+    if (!cwd) return json({ error: "cwd required" }, { status: 400 });
+    const cols = Array.isArray(body?.columns) ? body.columns : null;
+    if (!cols) return json({ error: "columns array required" }, { status: 400 });
+    const clean = cols
+      .filter((c: any) => c && typeof c.id === "string" && typeof c.title === "string")
+      .map((c: any) => ({ id: c.id.slice(0, 60), title: c.title.slice(0, 80) }));
+    const all = await loadProjectBoards();
+    all[cwd] = clean;
+    await saveProjectBoards(all);
     return json({ ok: true, columns: clean });
   }
 
