@@ -4,6 +4,7 @@
 export let sessions = [];
 export let agents = [];
 export let delegations = [];
+export let quickPrompts = []; // QuickPromptJob[] — bundled into /api/sessions, same as delegations
 export let todos = [];
 export let currentTab = localStorage.getItem("currentTab") || "sessions";
 export let collapsedProjects = new Set(JSON.parse(localStorage.getItem("collapsedProjects") || "[]"));
@@ -45,6 +46,7 @@ export let delegationPoll = null;
 export function setSessions(v) { sessions = v; }
 export function setAgents(v) { agents = v; }
 export function setDelegations(v) { delegations = v; }
+export function setQuickPrompts(v) { quickPrompts = v; }
 export function setTodos(v) { todos = v; }
 export function setCurrentTab(v) { currentTab = v; }
 export function setExpandedCards(v) { expandedCards = v; }

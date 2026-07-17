@@ -1,12 +1,14 @@
 // Card action wiring shared by renderBoardView (main/per-project boards) and any other place a
 // board-card's markup gets inserted — click actions, double-click-to-resume, and the 3-dot menu.
 import { sessions } from "../../state.js";
-import { resumeSession, deleteSession, summarizeSession, patchMeta } from "../../api/sessionsApi.js";
+import { resumeSession, deleteSession, summarizeSession, patchMeta, loadSessions } from "../../api/sessionsApi.js";
 import { openReviewModal } from "../modals/reviewModal.js";
 import { openExtractModal } from "../modals/extractModal.js";
 import { openRenameModal } from "../modals/renameModal.js";
 import { convertTicketToSession } from "../modals/columnTaskModal.js";
 import { openPromptModal } from "../../ui/promptModal.js";
+import { openQuickPromptModal } from "../modals/quickPromptModal.js";
+import { dismissQuickPrompt } from "../../api/quickPromptsApi.js";
 
 export function wireBoardCards(app) {
   app.querySelectorAll("[data-action]").forEach((el) => {
@@ -23,6 +25,8 @@ export function wireBoardCards(app) {
       if (action === "summarize") summarizeSession(id);
       if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? null : "done" });
       if (action === "ticket-convert") convertTicketToSession(id);
+      if (action === "quickprompt") openQuickPromptModal(id);
+      if (action === "quickjob-dismiss") { await dismissQuickPrompt(id); await loadSessions(); }
       if (action === "rename") {
         openRenameModal(id, s?.meta?.name, s?.isTicket ? "Rename ticket" : "Rename session");
       }

@@ -6,6 +6,7 @@ import { handleBoardRoutes } from "./board.ts";
 import { handleSavedViewsRoutes } from "./savedViews.ts";
 import { handleAgentsRoutes } from "./agents.ts";
 import { handleDelegationsRoutes } from "./delegations.ts";
+import { handleQuickPromptRoutes } from "./quickPrompts.ts";
 import { handleTicketsRoutes } from "./tickets.ts";
 import { handleProjectsRoutes } from "./projects.ts";
 import { handleSearchRoutes } from "./search.ts";
@@ -21,6 +22,7 @@ const ROUTE_HANDLERS = [
   handleSavedViewsRoutes,
   handleAgentsRoutes,
   handleDelegationsRoutes,
+  handleQuickPromptRoutes,
   handleTicketsRoutes,
   handleProjectsRoutes,
   handleSearchRoutes,

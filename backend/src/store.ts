@@ -6,7 +6,8 @@ import { join } from "node:path";
 import {
   META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, BOARD_PATH, TODO_BOARD_PATH, PROJECT_BOARDS_PATH,
   SAVED_VIEWS_PATH, BOARD_SETTINGS_PATH,
-  REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, RUNNING_DIR, PID_LINKS_PATH,
+  REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, QUICKPROMPTS_DIR, RUNNING_DIR, PID_LINKS_PATH,
+  QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS,
 } from "./config.ts";
 
 // ---------- board columns (server-side so they're shared across browsers/tabs) ----------
@@ -108,6 +109,7 @@ export type Meta = {
   board?: string;
   lastReviewId?: string;
   lastContextId?: string;
+  promptHistory?: { text: string; count: number }[]; // Quick Prompt's per-session recency/frequency chips
 };
 
 export async function loadMeta(): Promise<Record<string, Meta>> {
@@ -440,4 +442,69 @@ function reconcileDelegation(d: Delegation): Delegation {
     return fixed;
   }
   return d;
+}
+
+// ---------- quick prompts (ad-hoc background tasks against a session, no agent/digest) ----------
+
+export type QuickPromptJob = {
+  id: string;
+  sessionId: string;
+  cwd: string;
+  prompt: string;
+  status: "running" | "done" | "error";
+  createdAt: number;
+  finishedAt: number | null;
+  result: string | null;
+  error: string | null;
+  pid: number | null;
+  progress: string[];
+};
+
+export async function saveQuickPromptJob(j: QuickPromptJob) {
+  await Bun.write(join(QUICKPROMPTS_DIR, `${j.id}.json`), JSON.stringify(j, null, 2));
+}
+
+export async function loadQuickPromptJob(id: string): Promise<QuickPromptJob | null> {
+  try {
+    const j: QuickPromptJob = JSON.parse(await readFile(join(QUICKPROMPTS_DIR, `${id}.json`), "utf-8"));
+    return reconcileQuickPromptJob(j);
+  } catch {
+    return null;
+  }
+}
+
+export async function loadAllQuickPromptJobs(): Promise<QuickPromptJob[]> {
+  let files: string[] = [];
+  try {
+    files = (await readdir(QUICKPROMPTS_DIR)).filter((f) => f.endsWith(".json"));
+  } catch {
+    return [];
+  }
+  const out = await Promise.all(files.map((f) => loadQuickPromptJob(f.replace(/\.json$/, ""))));
+  return out.filter((j): j is QuickPromptJob => !!j).sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export async function deleteQuickPromptJob(id: string) {
+  try {
+    await unlink(join(QUICKPROMPTS_DIR, `${id}.json`));
+  } catch {
+    // already gone
+  }
+}
+
+function reconcileQuickPromptJob(j: QuickPromptJob): QuickPromptJob {
+  if (j.status === "running" && j.pid != null && !pidAlive(j.pid)) {
+    const fixed: QuickPromptJob = { ...j, status: "error", error: "process ended without result", finishedAt: Date.now() };
+    saveQuickPromptJob(fixed); // fire-and-forget; next read sees the corrected record
+    return fixed;
+  }
+  // a pid-less job (delivered into an already-open terminal — watched by polling the transcript
+  // file, not a subprocess) left "running" past its own wait window means the server most likely
+  // restarted mid-wait, losing that in-memory watch loop — flag it rather than spin forever
+  if (j.status === "running" && j.pid == null && Date.now() - j.createdAt > QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS) {
+    const fixed: QuickPromptJob = { ...j, status: "error", error: "stopped watching for a response (server restarted?) — check the terminal directly", finishedAt: Date.now() };
+    saveQuickPromptJob(fixed);
+    return fixed;
+  }
+  return j;
 }

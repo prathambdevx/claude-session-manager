@@ -4,7 +4,7 @@ import {
   sessions, setSessions, agents, setAgents, delegations, setDelegations, todos, setTodos,
   boardMode, activeProjectCwd, boardColumns, projectBoards, setBoardColumns, setProjectBoards,
   currentProjectColumns, setCurrentProjectColumns, summarizingIds, setContentMatchIds, currentTab,
-  DEFAULT_COLUMNS, setSavedViews,
+  DEFAULT_COLUMNS, setSavedViews, setQuickPrompts,
 } from "../state.js";
 import { migrateColumns, mergeInProjectColumns, carryTransientColumnFlags } from "../routing/boardRouting.js";
 import { toast } from "../ui/toast.js";
@@ -93,6 +93,7 @@ export async function loadSessions() {
 
   setSavedViews(Array.isArray(data.savedViews) ? data.savedViews : []);
   applyBoardSettings(data.boardSettings);
+  setQuickPrompts(Array.isArray(data.quickPrompts) ? data.quickPrompts : []);
 
   render();
   if (currentTab === "todos") renderTodoBoard();

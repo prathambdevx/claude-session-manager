@@ -5,6 +5,7 @@ import { PROJECTS_DIR } from "../config.ts";
 import {
   loadMeta, saveMeta, loadTickets, loadRunning, loadAgents, loadAllDelegations, loadTodos,
   loadBoard, loadTodoBoard, loadProjectBoards, loadSavedViews, loadBoardSettings,
+  loadAllQuickPromptJobs,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
 import { scanAllSessions, summarizeSession as summarizeSessionTranscript } from "../sessions.ts";
@@ -18,13 +19,14 @@ import { reconcileNow } from "./reconcile.ts";
 
 export async function handleSessionsRoutes(req: Request, url: URL): Promise<Response | null> {
   if (url.pathname === "/api/sessions" && req.method === "GET") {
-    const [sessions, running, reconciledMeta, tickets, agents, delegations, todos, board, todoBoard, projectBoards, savedViews, boardSettings] = await Promise.all([
+    const [sessions, running, reconciledMeta, tickets, agents, delegations, quickPrompts, todos, board, todoBoard, projectBoards, savedViews, boardSettings] = await Promise.all([
       scanAllSessions(),
       loadRunning(),
       reconcileNow(),
       loadTickets(),
       loadAgents(),
       loadAllDelegations(),
+      loadAllQuickPromptJobs(),
       loadTodos(),
       loadBoard(),
       loadTodoBoard(),
@@ -38,7 +40,7 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       meta: reconciledMeta[s.id] ?? {},
     }));
     return json({
-      sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations,
+      sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, quickPrompts,
       todos: Object.values(todos), board, todoBoard, projectBoards, savedViews, boardSettings,
     });
   }
