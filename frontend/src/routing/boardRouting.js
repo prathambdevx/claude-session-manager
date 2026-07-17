@@ -147,20 +147,41 @@ export function wirePopstate() {
   });
 }
 
+// Keeps the home column ("All sessions") first, then every project column, then every custom
+// (plain-tag) column — the order "Regroup by project" is named for. Relative order within each
+// group is preserved so this never reshuffles columns the user has deliberately arranged.
+function reorderProjectColumnsFirst(cols) {
+  if (cols.length <= 1) return cols;
+  const [home, ...rest] = cols;
+  const projectCols = rest.filter((c) => c.cwd);
+  const customCols = rest.filter((c) => !c.cwd);
+  return [home, ...projectCols, ...customCols];
+}
+
+function sameOrder(a, b) {
+  return a.length === b.length && a.every((c, i) => c.id === b[i].id);
+}
+
 // ---------- "Regroup by project" — repeatable, not just the one-time first-load migration
 // (mergeInProjectColumns above) that's gated behind localStorage. Callable any time a project's
 // column has drifted missing (e.g. a brand-new project cwd shows up after that gate has already
-// fired once for this browser) ----------
+// fired once for this browser), and also whenever columns need re-sorting back to
+// projects-then-custom order ----------
 export async function ensureAllProjectColumns() {
   const merged = mergeInProjectColumns(boardColumns, sessions);
-  if (!merged.changed) {
-    toast("Every project already has a column");
+  const reordered = reorderProjectColumnsFirst(merged.columns);
+  const addedCount = merged.columns.length - boardColumns.length;
+
+  if (!merged.changed && sameOrder(reordered, boardColumns)) {
+    toast("Every project already has a column, in order");
     return;
   }
-  const addedCount = merged.columns.length - boardColumns.length;
-  setBoardColumns(merged.columns);
+
+  setBoardColumns(reordered);
   await import("../api/sessionsApi.js").then((m) => m.saveBoardColumns());
-  toast(`Added ${addedCount} column${addedCount === 1 ? "" : "s"} for project${addedCount === 1 ? "" : "s"} without one`);
+  toast(addedCount > 0
+    ? `Added ${addedCount} column${addedCount === 1 ? "" : "s"} for project${addedCount === 1 ? "" : "s"} without one`
+    : "Reordered — project columns first");
   await import("../pages/sessionsPage.js").then((m) => m.render());
 }
 

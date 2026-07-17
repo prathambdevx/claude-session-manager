@@ -4,6 +4,8 @@ import { saveBoardColumns } from "../../api/sessionsApi.js";
 import { openTodoCreateModal, openTodoEditModal, openTodoAssignModal } from "../modals/todoModals.js";
 import { patchTodo } from "./patchTodo.js";
 import { renderTodoBoard } from "./renderTodoBoard.js";
+import { openPromptModal } from "../../ui/promptModal.js";
+import { openConfirmModal } from "../../ui/confirmModal.js";
 
 export function wireTodoBoard(app) {
   // card three-dot menu
@@ -38,7 +40,8 @@ export function wireTodoBoard(app) {
       if (action === "done") await patchTodo(id, { status: "done" });
       if (action === "reopen") await patchTodo(id, { status: "todo" });
       if (action === "delete") {
-        if (!confirm(`Delete "${t?.title}"?`)) return;
+        const ok = await openConfirmModal({ title: `Delete "${t?.title}"?`, confirmLabel: "Delete", danger: true });
+        if (!ok) return;
         await fetch(`/api/todos/${id}`, { method: "DELETE" });
         setTodos(todos.filter((x) => x.id !== id));
         renderTodoBoard();
@@ -68,20 +71,21 @@ export function wireTodoBoard(app) {
 
   // column actions
   app.querySelectorAll("[data-todo-col-action]").forEach((el) => {
-    el.addEventListener("click", (e) => {
+    el.addEventListener("click", async (e) => {
       e.stopPropagation();
       const action = el.dataset.todoColAction;
       const colId = el.dataset.col;
       if (action === "add") openTodoCreateModal(colId);
       if (action === "rename") {
         const col = boardColumns.find((c) => c.id === colId);
-        const next = prompt("Rename column:", col?.title || "");
+        const next = await openPromptModal({ title: "Rename column", value: col?.title || "" });
         if (next && next.trim()) { col.title = next.trim(); saveBoardColumns(); renderTodoBoard(); }
       }
       if (action === "remove") {
         const col = boardColumns.find((c) => c.id === colId);
         if (boardColumns.length <= 1) { toast("Need at least one column"); return; }
-        if (!confirm(`Remove column "${col?.title}"?`)) return;
+        const ok = await openConfirmModal({ title: `Remove column "${col?.title}"?`, confirmLabel: "Remove", danger: true });
+        if (!ok) return;
         // move todos to first column
         todos.forEach((t) => { if (t.board === colId) patchTodo(t.id, { board: boardColumns[0].id }); });
         setBoardColumns(boardColumns.filter((c) => c.id !== colId));
@@ -92,8 +96,8 @@ export function wireTodoBoard(app) {
   });
 
   // add column
-  document.getElementById("addTodoColBtn")?.addEventListener("click", () => {
-    const title = prompt("New column name:");
+  document.getElementById("addTodoColBtn")?.addEventListener("click", async () => {
+    const title = await openPromptModal({ title: "New column", label: "Column name" });
     if (!title?.trim()) return;
     const id = title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     if (boardColumns.some((c) => c.id === id)) { toast("Column already exists"); return; }

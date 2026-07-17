@@ -4,6 +4,7 @@ import { escapeHtml, escapeAttr } from "../../ui/format.js";
 import { modelSelectHtml } from "../../ui/formFragments.js";
 import { toast } from "../../ui/toast.js";
 import { loadSessions } from "../../api/sessionsApi.js";
+import { openConfirmModal } from "../../ui/confirmModal.js";
 
 export function openAgentModal(agentId) {
   const a = agentId ? agents.find((x) => x.id === agentId) : null;
@@ -52,7 +53,8 @@ The agent already inherits your shell auth (gh, npm login, etc.), so it can usua
   document.getElementById("agCancel").addEventListener("click", closeReviewModal);
   if (editing) {
     document.getElementById("agDelete").addEventListener("click", async () => {
-      if (!confirm(`Delete agent "${a.name}"?`)) return;
+      const ok = await openConfirmModal({ title: `Delete agent "${a.name}"?`, confirmLabel: "Delete", danger: true });
+      if (!ok) { openAgentModal(agentId); return; } // confirm modal replaced this one — restore it
       await fetch(`/api/agents/${agentId}`, { method: "DELETE" });
       closeReviewModal();
       loadSessions();

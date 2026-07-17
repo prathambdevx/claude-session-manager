@@ -16,6 +16,19 @@ export function closeManageColumnsMenu() {
   menuOpen = false;
 }
 
+// Unlike the card ⋮ menus (a JS-positioned `.open` class closed by a single shared listener in
+// main.js), this dropdown is conditionally rendered rather than class-toggled (see
+// manageColumnsDropdownHtml below), so it needs its own outside-click close — registered once here
+// at module load, not per-render, so it never accumulates listeners across the app's 15s polling.
+document.addEventListener("click", (e) => {
+  if (!menuOpen) return;
+  const wrap = document.querySelector(".manage-columns-dropdown");
+  const toggle = document.querySelector("[data-manage-columns-toggle]");
+  if (wrap?.contains(e.target) || toggle?.contains(e.target)) return;
+  menuOpen = false;
+  import("../../pages/sessionsPage.js").then((m) => m.render());
+});
+
 export function manageColumnsButtonHtml() {
   return `
     <div class="bc-menu-wrap">

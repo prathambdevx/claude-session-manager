@@ -10,6 +10,8 @@ import { toast } from "../../ui/toast.js";
 import { pushHistory, hasHistoryFor, undoLast } from "./boardUndo.js";
 import { manageColumnsButtonHtml, wireManageColumnsPanel, isManageColumnsMenuOpen, closeManageColumnsMenu } from "./manageColumnsPanel.js";
 import { createSavedView } from "../../api/savedViewsApi.js";
+import { openPromptModal } from "../../ui/promptModal.js";
+import { openConfirmModal } from "../../ui/confirmModal.js";
 
 // A column's members are computed, not just bucketed once per card — a session can belong to
 // several columns at the same time. The home column (cols[0], "All sessions") always shows
@@ -42,10 +44,20 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   const drift = missingProjectCount(ctx);
 
+  // Every render fully replaces .board's innerHTML (new session data, a column edit, a 15s poll,
+  // …) — without this, the browser resets scrollLeft to 0 each time, which reads as the board
+  // "jerking back to start" mid-scroll. Same for each column's own vertical scroll.
+  const prevScrollLeft = app.querySelector(".board")?.scrollLeft || 0;
+  const prevColScrollTops = new Map();
+  app.querySelectorAll(".board-col-body[data-col-drop]").forEach((el) => {
+    prevColScrollTops.set(el.dataset.colDrop, el.scrollTop);
+  });
+
   app.innerHTML = `
     ${breadcrumbHtml}
     ${agentsDockHtml()}
     <div class="board-actions">
+      <button class="btn ghost" id="addColBtn">+ Add column</button>
       <span style="flex:1"></span>
       ${ctx.kind === "main" ? `
         <button class="btn accent" id="regroupBtn" title="${drift ? `${drift} project${drift === 1 ? "" : "s"} would get a column` : "Every project already has a column"}">
@@ -80,9 +92,15 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
       `;
       }).join("")}
       ${hiddenCount && !isManageColumnsMenuOpen() ? `<div class="board-col hidden-chip">${hiddenCount} hidden column${hiddenCount === 1 ? "" : "s"} — ⋮ Manage columns to reopen</div>` : ""}
-      <button class="add-col-btn" id="addColBtn">+ Add column</button>
     </div>
   `;
+
+  const boardEl = app.querySelector(".board");
+  if (boardEl) boardEl.scrollLeft = prevScrollLeft;
+  app.querySelectorAll(".board-col-body[data-col-drop]").forEach((el) => {
+    const prev = prevColScrollTops.get(el.dataset.colDrop);
+    if (prev) el.scrollTop = prev;
+  });
 
   if (breadcrumbHtml) {
     app.querySelector("[data-back-to-main]")?.addEventListener("click", () => setBoardMode("main"));
@@ -94,8 +112,8 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   document.getElementById("regroupBtn")?.addEventListener("click", () => ensureAllProjectColumns());
   document.getElementById("boardUndoBtn")?.addEventListener("click", () => undoLast(ctx));
-  document.getElementById("saveViewBtn")?.addEventListener("click", () => {
-    const title = prompt("Name this view:");
+  document.getElementById("saveViewBtn")?.addEventListener("click", async () => {
+    const title = await openPromptModal({ title: "Save as view", label: "View name" });
     if (title && title.trim()) createSavedView(title.trim());
   });
 
@@ -225,11 +243,17 @@ function reorderColumns(ctx, fromId, toId, rerender) {
   rerender();
 }
 
-function removeColumn(ctx, id, rerender) {
+async function removeColumn(ctx, id, rerender) {
   if (ctx.cols.length <= 1) { toast("Need at least one column"); return; }
   const col = ctx.cols.find((c) => c.id === id);
   const home = ctx.cols.find((c) => c.id !== id) || ctx.cols[0];
-  if (!confirm(`Remove column "${col?.title}"? Sessions tagged into it move back to "${home.title}".`)) return;
+  const ok = await openConfirmModal({
+    title: `Remove column "${col?.title}"?`,
+    message: `Sessions tagged into it move back to "${home.title}".`,
+    confirmLabel: "Remove",
+    danger: true,
+  });
+  if (!ok) return;
   pushHistory(ctx);
   for (const s of sessions) {
     if (s.meta?.board === id) patchMeta(s.id, { board: null });

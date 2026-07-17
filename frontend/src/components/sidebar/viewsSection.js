@@ -8,6 +8,8 @@ import { escapeHtml } from "../../ui/format.js";
 import { toast } from "../../ui/toast.js";
 import { renameSavedView, deleteSavedView } from "../../api/savedViewsApi.js";
 import { saveDefaultViewId } from "../../api/boardSettingsApi.js";
+import { openPromptModal } from "../../ui/promptModal.js";
+import { openConfirmModal } from "../../ui/confirmModal.js";
 
 export async function switchToView(view) {
   if (boardMode !== "main") await setBoardMode("main");
@@ -76,13 +78,14 @@ export function wireViewsSection(root) {
   });
 
   root.querySelectorAll("[data-rename-view]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const id = btn.dataset.renameView;
       const view = savedViews.find((v) => v.id === id);
-      const next = prompt("Rename view:", view?.title || "");
+      const next = await openPromptModal({ title: "Rename view", label: "Title", value: view?.title || "" });
       if (next === null || !next.trim()) return;
-      renameSavedView(id, next.trim()).then(() => import("./renderSidebar.js").then((m) => m.renderSidebar()));
+      await renameSavedView(id, next.trim());
+      await import("./renderSidebar.js").then((m) => m.renderSidebar());
     });
   });
 
@@ -91,7 +94,13 @@ export function wireViewsSection(root) {
       e.stopPropagation();
       const id = btn.dataset.deleteView;
       const view = savedViews.find((v) => v.id === id);
-      if (!confirm(`Delete "${view?.title}"? This only removes the saved layout — it doesn't touch Main board or any sessions.`)) return;
+      const ok = await openConfirmModal({
+        title: `Delete "${view?.title}"?`,
+        message: "This only removes the saved layout — it doesn't touch Main board or any sessions.",
+        confirmLabel: "Delete",
+        danger: true,
+      });
+      if (!ok) return;
       if (activeView === `saved:${id}`) setActiveView("main");
       await deleteSavedView(id);
       await import("./renderSidebar.js").then((m) => m.renderSidebar());

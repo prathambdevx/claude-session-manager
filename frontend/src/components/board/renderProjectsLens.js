@@ -18,6 +18,9 @@ export function renderProjectsLens(filtered) {
     return;
   }
 
+  // preserve horizontal scroll position across re-renders (polling, search) — see renderBoardView.js
+  const prevScrollLeft = app.querySelector(".board")?.scrollLeft || 0;
+
   app.innerHTML = `
     <div class="board">
       ${cwds.map((cwd) => {
@@ -38,6 +41,9 @@ export function renderProjectsLens(filtered) {
       }).join("")}
     </div>
   `;
+
+  const boardEl = app.querySelector(".board");
+  if (boardEl) boardEl.scrollLeft = prevScrollLeft;
 
   wireBoardCards(app);
   app.querySelectorAll("[data-open-project]").forEach((el) => {

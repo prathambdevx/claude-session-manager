@@ -13,6 +13,7 @@ import { render } from "../pages/sessionsPage.js";
 import { renderTodoBoard } from "../components/todoBoard/renderTodoBoard.js";
 import { escapeHtml, escapeAttr } from "../ui/format.js";
 import { applyBoardSettings } from "./boardSettingsApi.js";
+import { openConfirmModal } from "../ui/confirmModal.js";
 
 // ---------- project filter dropdown ----------
 // Launching lives entirely in the per-column "+" New Task modal; this dropdown scopes the
@@ -174,14 +175,21 @@ export function copyCommand(id, fork) {
 export async function deleteSession(id, title) {
   const s = sessions.find((x) => x.id === id);
   if (s?.isTicket) {
-    if (!confirm(`Delete ticket "${title || id}"?`)) return;
+    const ok = await openConfirmModal({ title: `Delete ticket "${title || id}"?`, confirmLabel: "Delete", danger: true });
+    if (!ok) return;
     await fetch(`/api/tickets/${id}`, { method: "DELETE" });
     setSessions(sessions.filter((x) => x.id !== id));
     render();
     toast("Ticket deleted");
     return;
   }
-  if (!confirm(`Delete session "${title || id}"? This deletes the transcript permanently — cannot be undone.`)) return;
+  const ok = await openConfirmModal({
+    title: `Delete session "${title || id}"?`,
+    message: "This deletes the transcript permanently — cannot be undone.",
+    confirmLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
   await fetch(`/api/sessions/${id}`, { method: "DELETE" });
   setSessions(sessions.filter((x) => x.id !== id));
   render();

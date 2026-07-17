@@ -6,10 +6,11 @@ import { openReviewModal } from "../modals/reviewModal.js";
 import { openExtractModal } from "../modals/extractModal.js";
 import { openRenameModal } from "../modals/renameModal.js";
 import { convertTicketToSession } from "../modals/columnTaskModal.js";
+import { openPromptModal } from "../../ui/promptModal.js";
 
 export function wireBoardCards(app) {
   app.querySelectorAll("[data-action]").forEach((el) => {
-    el.addEventListener("click", (e) => {
+    el.addEventListener("click", async (e) => {
       e.stopPropagation();
       const { action, id } = el.dataset;
       const s = sessions.find((x) => x.id === id);
@@ -26,7 +27,7 @@ export function wireBoardCards(app) {
         openRenameModal(id, s?.meta?.name, s?.isTicket ? "Rename ticket" : "Rename session");
       }
       if (action === "editDesc") {
-        const next = prompt("Edit description:", s?.meta?.description || "");
+        const next = await openPromptModal({ title: "Edit description", value: s?.meta?.description || "" });
         if (next !== null) patchMeta(id, { description: next.trim() || undefined, descriptionSource: next.trim() ? "manual" : undefined });
       }
     });
