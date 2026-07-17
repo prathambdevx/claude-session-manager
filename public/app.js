@@ -2197,5 +2197,15 @@ document.getElementById("tabTodos").addEventListener("click", () => setTab("todo
 loadSessions();
 loadProjects();
 setInterval(loadSessions, 15000);
+// Refresh immediately whenever you come back to this tab/window — otherwise a card's embedded
+// session id can be up to 15s stale. That staleness is exactly what let a real bug through: open a
+// session, /clear it (server-side reconciliation swaps which id owns that card), close the
+// terminal, then immediately re-click the SAME still-stale card before the next scheduled poll —
+// resuming the OLD pre-clear id instead of the one that actually now lives there. Since closing a
+// terminal and clicking back into the browser is exactly a focus/visibility change, catch it here.
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") loadSessions();
+});
+window.addEventListener("focus", loadSessions);
 // apply initial tab
 if (currentTab === "todos") setTimeout(() => setTab("todos"), 0);
