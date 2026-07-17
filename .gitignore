@@ -10,3 +10,6 @@ node_modules/
 
 # macOS
 .DS_Store
+
+# Playwright MCP scratch screenshots/traces
+.playwright-mcp/

@@ -1669,6 +1669,33 @@ document.getElementById("refreshBtn").addEventListener("click", loadSessions);
 document.getElementById("groupByProjectBtn").addEventListener("click", () => setBoardMode("projects"));
 document.getElementById("globalSearchBtn").addEventListener("click", openGlobalSearchModal);
 
+// ---------- dark / light mode toggle ----------
+// `data-theme` on <html> (set inline in index.html's <head>, before first paint) overrides the
+// CSS's default OS-driven `prefers-color-scheme`; absence of the attribute means "follow the OS".
+function currentTheme() {
+  const override = document.documentElement.getAttribute("data-theme");
+  if (override) return override;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function updateThemeIcon() {
+  const btn = document.getElementById("themeToggleBtn");
+  if (!btn) return;
+  const dark = currentTheme() === "dark";
+  btn.textContent = dark ? "☀️" : "🌙";
+  btn.title = dark ? "Switch to light mode" : "Switch to dark mode";
+}
+document.getElementById("themeToggleBtn").addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("theme", next);
+  updateThemeIcon();
+});
+// if the user hasn't explicitly chosen a theme, keep the icon in sync with OS changes
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (!localStorage.getItem("theme")) updateThemeIcon();
+});
+updateThemeIcon();
+
 // close card menus on outside click
 document.addEventListener("click", () => {
   document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));

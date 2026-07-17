@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Claude Sessions</title>
 <link rel="icon" type="image/webp" href="/favicon.webp" />
+<script>
+  // applied before the stylesheet loads so there's no flash of the wrong theme on load
+  (function () {
+    var t = localStorage.getItem("theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
 <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -37,6 +44,7 @@
     <!-- <button id="refreshBtn">↻ Refresh</button> -->
     <button id="groupByProjectBtn" title="Browse a separate, independent kanban board per project">📂 Group by project</button>
     <button onclick="window.open('/reviews','_blank')" title="See all past review reports">📋 All reviews</button>
+    <button id="themeToggleBtn" title="Toggle dark / light mode">🌙</button>
     <!-- <label class="dangerous-label" style="font-size:12px; display:flex; align-items:center; gap:4px;" title="Default for every launch (new / resume / fork / fix). Per-launch modals still let you override.">
       <input type="checkbox" id="globalDangerous" /> ⚠ Run dangerously
     </label> -->

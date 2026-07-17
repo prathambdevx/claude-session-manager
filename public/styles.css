@@ -27,6 +27,29 @@
       --ticket-ink: #d8b25a;
     }
   }
+  /* explicit toggle overrides the OS preference above, regardless of which one the system is in */
+  :root[data-theme="light"] {
+    --bg: #f5f5f4;
+    --panel: #ffffff;
+    --ink: #151515;
+    --dim: #6b6b6b;
+    --line: #e2e2e0;
+    --chip-bg: #efefee;
+    --ticket-bg: #fdf6e6;
+    --ticket-border: #e6d3a0;
+    --ticket-ink: #8a6410;
+  }
+  :root[data-theme="dark"] {
+    --bg: #111110;
+    --panel: #1a1a19;
+    --ink: #f0f0ee;
+    --dim: #9a9a96;
+    --line: #2c2c2a;
+    --chip-bg: #262624;
+    --ticket-bg: #2a2113;
+    --ticket-border: #4a3c1e;
+    --ticket-ink: #d8b25a;
+  }
   * { box-sizing: border-box; }
   body {
     margin: 0;
