@@ -1684,11 +1684,18 @@ function updateThemeIcon() {
   btn.textContent = dark ? "☀️" : "🌙";
   btn.title = dark ? "Switch to light mode" : "Switch to dark mode";
 }
+const themeSound = new Audio("/assets/theme-click.mp3");
+themeSound.preload = "auto";
+function playThemeSound() {
+  themeSound.currentTime = 0;
+  themeSound.play().catch(() => {}); // ignore autoplay-policy rejections — never block the toggle
+}
 document.getElementById("themeToggleBtn").addEventListener("click", () => {
   const next = currentTheme() === "dark" ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem("theme", next);
   updateThemeIcon();
+  playThemeSound();
 });
 // if the user hasn't explicitly chosen a theme, keep the icon in sync with OS changes
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
