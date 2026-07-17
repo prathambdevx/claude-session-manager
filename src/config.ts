@@ -17,6 +17,7 @@ export const TODOS_PATH = join(DATA_DIR, "todos.json");
 export const AGENTS_PATH = join(DATA_DIR, "agents.json");
 export const BOARD_PATH = join(DATA_DIR, "board.json");
 export const TODO_BOARD_PATH = join(DATA_DIR, "todo-board.json");
+export const PID_LINKS_PATH = join(DATA_DIR, "pid-links.json");
 export const REVIEWS_DIR = join(DATA_DIR, "reviews");
 export const CONTEXTS_DIR = join(DATA_DIR, "contexts");
 export const DELEGATIONS_DIR = join(DATA_DIR, "delegations");

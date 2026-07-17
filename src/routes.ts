@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PROJECTS_DIR, REVIEWS_DIR, PUBLIC_DIR, KNOWN_MODELS, LAUNCH_MODES, EFFORT_FLAG, DANGEROUS_FLAG } from "./config.ts";
 import {
-  loadMeta, saveMeta, loadTickets, saveTickets, loadRunning,
+  loadMeta, saveMeta, loadTickets, saveTickets, loadRunning, reconcileClearedSessions,
   saveReview, loadReview, saveContext, loadContext,
   loadAgents, saveAgents, saveDelegation, loadDelegation, loadAllDelegations, deleteDelegation,
   loadTodos, saveTodos,
@@ -45,10 +45,14 @@ export async function handleRequest(req: Request): Promise<Response> {
       loadBoard(),
       loadTodoBoard(),
     ]);
+    // bridge /clear: the CLI starts a brand-new transcript id for the same running terminal
+    // instead of resetting the old one in place, so carry the old id's name/board/etc. over.
+    const { meta: reconciledMeta, changed } = await reconcileClearedSessions(running, meta);
+    if (changed) await saveMeta(reconciledMeta);
     const enriched = sessions.map((s) => ({
       ...s,
       running: running[s.id] ?? null,
-      meta: meta[s.id] ?? {},
+      meta: reconciledMeta[s.id] ?? {},
     }));
     return json({ sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, todos: Object.values(todos), board, todoBoard });
   }
@@ -259,6 +263,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     if (typeof patch.notes === "string") allowed.notes = patch.notes.slice(0, 2000) || undefined;
     if (typeof patch.board === "string") allowed.board = patch.board || undefined;
     if (typeof patch.done === "boolean") allowed.done = patch.done;
+    if (typeof patch.startedSessionId === "string") allowed.startedSessionId = patch.startedSessionId || undefined;
     tickets[id] = { ...tickets[id], ...allowed };
     await saveTickets(tickets);
     return json({ ok: true, ticket: tickets[id] });

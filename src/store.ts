@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, BOARD_PATH, TODO_BOARD_PATH,
-  REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, RUNNING_DIR,
+  REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, RUNNING_DIR, PID_LINKS_PATH,
 } from "./config.ts";
 
 // ---------- board columns (server-side so they're shared across browsers/tabs) ----------
@@ -75,6 +75,7 @@ export type Ticket = {
   cwd?: string;
   board?: string;
   done?: boolean;
+  startedSessionId?: string;
   createdAt: number;
 };
 
@@ -201,6 +202,66 @@ export async function loadRunning(): Promise<Record<string, RunningInfo>> {
     }
   }
   return out;
+}
+
+// ---------- pid → session continuity (bridges /clear, which makes the CLI start a brand-new,
+// empty transcript id for the same running terminal instead of editing the old one in place) ----------
+
+export type PidLinks = Record<string, string>; // pid (as string) -> last-seen sessionId
+
+export async function loadPidLinks(): Promise<PidLinks> {
+  try {
+    return JSON.parse(await readFile(PID_LINKS_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+export async function savePidLinks(links: PidLinks) {
+  await Bun.write(PID_LINKS_PATH, JSON.stringify(links, null, 2));
+}
+
+const CARRIED_META_FIELDS = ["name", "description", "descriptionSource", "tags", "notes", "status", "pinned", "board"] as const;
+
+// Called on every /api/sessions poll. If a PID we've seen before is now reporting a different live
+// session id (i.e. /clear just fired in that terminal), the new id inherits the old session's
+// identity/board slot — so the user sees the same named card just reset to a fresh context %. The
+// old (now-frozen) transcript isn't deleted or hidden: it's relabeled "<name> (before clear)" and
+// dropped out of its board column (so it defaults to the "All sessions" column) instead of leaving
+// a stale duplicate sitting where the live card used to be.
+export async function reconcileClearedSessions(
+  running: Record<string, RunningInfo>,
+  meta: Record<string, Meta>
+): Promise<{ meta: Record<string, Meta>; changed: boolean }> {
+  const links = await loadPidLinks();
+  const nextLinks: PidLinks = {};
+  let changed = false;
+
+  for (const [sessionId, info] of Object.entries(running)) {
+    const pidKey = String(info.pid);
+    const prevSessionId = links[pidKey];
+    if (prevSessionId && prevSessionId !== sessionId && meta[prevSessionId] && !meta[sessionId]) {
+      const prevMeta = meta[prevSessionId];
+      const carried: Meta = {};
+      for (const field of CARRIED_META_FIELDS) {
+        const value = prevMeta[field];
+        if (value !== undefined) (carried as Record<string, unknown>)[field] = value;
+      }
+      if (Object.keys(carried).length) {
+        meta[sessionId] = carried; // new session inherits the name + board slot
+        meta[prevSessionId] = {
+          ...prevMeta,
+          name: prevMeta.name ? `${prevMeta.name} (before clear)` : "(before clear)",
+          board: undefined, // falls back to the first column ("All sessions") instead of its old slot
+        };
+        changed = true;
+      }
+    }
+    nextLinks[pidKey] = sessionId;
+  }
+
+  await savePidLinks(nextLinks);
+  return { meta, changed };
 }
 
 // ---------- agents (reusable delegation profiles) ----------
