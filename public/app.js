@@ -267,6 +267,7 @@ function matchesSearch(s, q) {
 
 function render() {
   const q = document.getElementById("search").value.trim();
+  document.getElementById("groupByProjectBtn")?.classList.toggle("active", boardMode !== "main");
 
   if (boardMode === "projects") {
     renderProjectPicker(q);

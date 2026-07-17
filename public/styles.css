@@ -65,6 +65,7 @@
   }
   button:hover { border-color: var(--accent); }
   button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  #groupByProjectBtn.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   button.danger:hover { border-color: var(--danger); color: var(--danger); }
   .stat { font-size: 12px; color: var(--dim); padding: 8px 24px 0; }
   main { padding: 16px 24px 60px; max-width: 1100px; margin: 0 auto; }
