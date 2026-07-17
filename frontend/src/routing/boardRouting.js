@@ -14,6 +14,7 @@ import {
 } from "../state.js";
 import { escapeHtml, projectName } from "../ui/format.js";
 import { toast } from "../ui/toast.js";
+import { pushHistory } from "../components/board/boardUndo.js";
 
 export function migrateColumns(cols) {
   if (cols.map((c) => c.id).join(",") === OLD_DEFAULT_ORDER.join(",")) return DEFAULT_COLUMNS.slice();
@@ -194,6 +195,7 @@ export async function ensureAllProjectColumns() {
     return;
   }
 
+  pushHistory(mainBoardCtx()); // so the global Undo button can revert this too
   setBoardColumns(reordered);
   await import("../api/sessionsApi.js").then((m) => m.saveBoardColumns());
   toast(addedCount > 0
