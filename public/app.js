@@ -40,8 +40,20 @@ async function saveBoardColumns() {
 
 // ---------- per-project boards: "Group by project" browses INTO a separate, independently
 // persisted board per project instead of ever touching the main board's columns ----------
-let boardMode = localStorage.getItem("boardMode") || "main"; // "main" | "projects" | "project"
-let activeProjectCwd = localStorage.getItem("activeProjectCwd") || null;
+// The URL is the source of truth for which view is showing (not localStorage), so a hard
+// reload or a shared link lands back on the same page: "/" = main board, "/projects" = the
+// project picker, "/projects/<encoded-cwd>" = a drilled-in project's own board. The server
+// (src/routes.ts) serves index.html for all three so a direct/reloaded request works too.
+function boardModeFromLocation() {
+  const path = location.pathname;
+  if (path === "/projects") return { mode: "projects", cwd: null };
+  const m = path.match(/^\/projects\/(.+)$/);
+  if (m) return { mode: "project", cwd: decodeURIComponent(m[1]) };
+  return { mode: "main", cwd: null };
+}
+const initialBoardState = boardModeFromLocation();
+let boardMode = initialBoardState.mode; // "main" | "projects" | "project"
+let activeProjectCwd = initialBoardState.cwd;
 let projectBoards = {};           // Record<cwd, BoardColumn[]> — mirrors server's project-boards.json
 let currentProjectColumns = null; // BoardColumn[] for whichever project is currently drilled into
 
@@ -72,21 +84,39 @@ function projectBoardCtx(cwd) {
   };
 }
 
-function setBoardMode(mode) {
+function pathForBoardMode(mode, cwd) {
+  if (mode === "projects") return "/projects";
+  if (mode === "project") return "/projects/" + encodeURIComponent(cwd);
+  return "/";
+}
+
+function setBoardMode(mode, { skipPush = false } = {}) {
   boardMode = mode;
-  localStorage.setItem("boardMode", mode);
+  if (mode !== "project") activeProjectCwd = null;
+  if (!skipPush) history.pushState({ boardMode, activeProjectCwd }, "", pathForBoardMode(boardMode, activeProjectCwd));
   render();
 }
 
 async function enterProjectBoard(cwd) {
   activeProjectCwd = cwd;
-  localStorage.setItem("activeProjectCwd", cwd);
   const isFirstVisit = !projectBoards[cwd];
   if (isFirstVisit) projectBoards[cwd] = DEFAULT_COLUMNS.slice(); // same defaults as the main board
   currentProjectColumns = projectBoards[cwd];
   if (isFirstVisit) await saveProjectBoardColumns(cwd);
   setBoardMode("project");
 }
+
+// browser back/forward — re-derive state from the URL bar rather than trusting popstate's
+// event.state (works even if the user typed/edited the URL directly, not just navigated via it)
+window.addEventListener("popstate", () => {
+  const { mode, cwd } = boardModeFromLocation();
+  boardMode = mode;
+  activeProjectCwd = cwd;
+  if (mode === "project" && cwd) {
+    currentProjectColumns = projectBoards[cwd] || DEFAULT_COLUMNS.slice();
+  }
+  render();
+});
 
 
 function toast(msg) {

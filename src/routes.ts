@@ -724,9 +724,14 @@ export async function handleRequest(req: Request): Promise<Response> {
     }
   }
 
+  // client-routed pages (SPA): "/", "/projects", and "/projects/<encoded-cwd>" all serve the
+  // same index.html so the board-mode/per-project drill-in views survive a hard reload/deep link.
+  if (req.method === "GET" && /^\/(projects(\/.*)?)?$/.test(url.pathname)) {
+    return new Response(Bun.file(join(PUBLIC_DIR, "index.html")));
+  }
+
   // static files
-  const filePath = url.pathname === "/" ? "/index.html" : url.pathname;
-  const file = Bun.file(join(PUBLIC_DIR, filePath));
+  const file = Bun.file(join(PUBLIC_DIR, url.pathname));
   if (await file.exists()) return new Response(file);
 
   return new Response("Not found", { status: 404 });
