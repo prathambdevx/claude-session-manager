@@ -58,16 +58,22 @@ function usingGhostty(): boolean {
   return existsSync(GHOSTTY_APP);
 }
 
-// Tag used both to force-title a Ghostty window at launch (via its `--title` config flag) and to
-// search for that same window later (see focusExistingGhosttyWindow) — this is how a resume can
-// find and refocus a session's already-open Ghostty window instead of spawning a duplicate,
-// without any AppleScript/Automation permission (Ghostty's own window list is readable with a
-// plain "tell application" query; only *manipulating other apps' UI* needs that permission).
-// `--title` specifically forces the title and ignores any title-change escape sequences the
-// running program (e.g. claude itself) sends — an OSC escape alone gets clobbered the moment
-// claude sets its own title, so the tag wouldn't survive without this flag.
+// Short marker (first 8 hex chars of the session id — effectively collision-free for a personal
+// session count) embedded as a bracketed suffix in the window title, e.g. "Bugs v1 [a738]". This
+// lets focusExistingGhosttyWindow substring-match the right window later without showing the full
+// UUID in the title bar — see ghosttyWindowTitle for the human-facing title this is embedded in.
 export function ghosttyWindowTag(sessionId: string): string {
-  return `csm-${sessionId}`;
+  return `csm-${sessionId.slice(0, 8)}`;
+}
+
+// The actual title forced onto a resumed session's Ghostty window: a human-readable label (the
+// session's name/first-message, same as shown in the UI) with the short match tag appended.
+// `--title` forces this and ignores any title-change escape sequences the running program (e.g.
+// claude itself) sends afterward — an OSC escape alone gets clobbered the moment claude sets its
+// own title, so the tag wouldn't survive without this flag.
+export function ghosttyWindowTitle(label: string, sessionId: string): string {
+  const clean = (label || "Claude session").replace(/[\r\n]/g, " ").trim().slice(0, 60);
+  return `${clean}  [${ghosttyWindowTag(sessionId)}]`;
 }
 
 export async function openTerminalRunning(cwd: string, command: string, opts: { ghosttyTitle?: string } = {}) {
@@ -143,19 +149,22 @@ function focusExistingTerminalTab(tty: string): Promise<boolean> {
 
 // Ghostty has no custom AppleScript dictionary for tabs/ttys like Terminal.app, but it does expose
 // its own window list via the standard Cocoa scripting suite (no Automation permission needed for
-// a read-only "get name of every window" — that's the same class of query System Preferences
-// itself uses to list open windows). Since every Ghostty window we launch is titled with
-// ghosttyWindowTag(sessionId) via an OSC escape, finding "is a window named <tag> currently open"
-// tells us this session already has a window, and `activate` (also permission-free — the same verb
-// `open -na` already performs) brings Ghostty to the front so the user lands on it directly instead
-// of getting a duplicate/broken second `claude --resume` process.
+// a read-only "get name of every window" query — that's the same class of query System Preferences
+// itself uses to list open windows). Every Ghostty window we launch is titled with
+// ghosttyWindowTitle(...), which embeds ghosttyWindowTag(sessionId) as a bracketed suffix — so
+// finding a window whose name *contains* that tag tells us this session already has a window open,
+// and `activate` (also permission-free — the same verb `open -na` already performs) brings Ghostty
+// to the front so the user lands on it directly instead of getting a duplicate/broken second
+// `claude --resume` process.
 function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
   const script = `
     tell application "Ghostty"
-      if (name of every window) contains "${tag}" then
-        activate
-        return true
-      end if
+      repeat with w in windows
+        if (name of w) contains "${tag}" then
+          activate
+          return true
+        end if
+      end repeat
       return false
     end tell
   `;
@@ -167,7 +176,6 @@ function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
     child.on("error", () => resolve(false));
   });
 }
-
 // If this session has a live process, try to bring its existing terminal window to front instead
 // of spawning a duplicate. Returns true if an existing window was found and focused.
 export async function tryFocusRunningSession(pid: number, ghosttyTag?: string): Promise<boolean> {

@@ -18,7 +18,7 @@ import {
 import type { Session } from "./sessions.ts";
 import {
   runClaudeHeadless, runClaudeHeadlessDetached, buildDelegationPrompt,
-  openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, modelAliasWithContext, shellQuote,
+  openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, ghosttyWindowTitle, modelAliasWithContext, shellQuote,
   buildLaunchScript, buildFileReviewPrompt, buildFixPrompt, buildContextExtractionPrompt, buildContinuationPrompt,
 } from "./claude.ts";
 import { escapeHtmlServer, reviewsIndexHtml, markdownToHtml, delegationsIndexHtml } from "./html.ts";
@@ -607,7 +607,10 @@ export async function handleRequest(req: Request): Promise<Response> {
     }
 
     const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${fork ? " --fork-session" : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
-    await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitle: ghosttyWindowTag(id) });
+    // same display label the card itself uses, so the Ghostty window title reads like the UI
+    const meta = await loadMeta();
+    const label = meta[id]?.name || s.firstMessage || id.slice(0, 8);
+    await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitle: ghosttyWindowTitle(label, id) });
     return json({ ok: true, command: cmd, cwd: s.cwd });
   }
 
