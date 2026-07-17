@@ -49,8 +49,15 @@ export async function handleRequest(req: Request): Promise<Response> {
     ]);
     // bridge /clear: the CLI starts a brand-new transcript id for the same running terminal
     // instead of resetting the old one in place, so carry the old id's name/board/etc. over.
-    const { meta: reconciledMeta, changed } = await reconcileClearedSessions(running, meta);
+    const { meta: reconciledMeta, changed, reconciled } = await reconcileClearedSessions(running, meta);
     if (changed) await saveMeta(reconciledMeta);
+    // the terminal window itself didn't restart — it's still reading its ORIGINAL (pre-clear)
+    // title file — so keep writing to that same file, just with the carried-over name and the
+    // NEW session id's tag, so the still-open window's title (and future resume-focus matching,
+    // which now targets the new id) both stay correct across the clear.
+    for (const { oldId, newId, carriedName } of reconciled) {
+      await writeGhosttyTitle(oldId, ghosttyWindowTitle(carriedName || newId.slice(0, 8), newId));
+    }
     const enriched = sessions.map((s) => ({
       ...s,
       running: running[s.id] ?? null,

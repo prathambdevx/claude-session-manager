@@ -247,13 +247,16 @@ const CARRIED_META_FIELDS = ["name", "description", "descriptionSource", "tags",
 // old (now-frozen) transcript isn't deleted or hidden: it's relabeled "<name> (before clear)" and
 // dropped out of its board column (so it defaults to the "All sessions" column) instead of leaving
 // a stale duplicate sitting where the live card used to be.
+export type ClearedReconciliation = { oldId: string; newId: string; carriedName?: string };
+
 export async function reconcileClearedSessions(
   running: Record<string, RunningInfo>,
   meta: Record<string, Meta>
-): Promise<{ meta: Record<string, Meta>; changed: boolean }> {
+): Promise<{ meta: Record<string, Meta>; changed: boolean; reconciled: ClearedReconciliation[] }> {
   const links = await loadPidLinks();
   const nextLinks: PidLinks = {};
   let changed = false;
+  const reconciled: ClearedReconciliation[] = [];
 
   for (const [sessionId, info] of Object.entries(running)) {
     const pidKey = String(info.pid);
@@ -273,13 +276,16 @@ export async function reconcileClearedSessions(
           board: undefined, // falls back to the first column ("All sessions") instead of its old slot
         };
         changed = true;
+        // the still-running terminal (same pid) needs to know its identity moved on too — its
+        // caller (routes.ts) uses this to keep an already-open Ghostty window's title/tag in sync
+        reconciled.push({ oldId: prevSessionId, newId: sessionId, carriedName: carried.name });
       }
     }
     nextLinks[pidKey] = sessionId;
   }
 
   await savePidLinks(nextLinks);
-  return { meta, changed };
+  return { meta, changed, reconciled };
 }
 
 // ---------- agents (reusable delegation profiles) ----------

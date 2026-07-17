@@ -85,6 +85,10 @@ test("reconcileClearedSessions carries a running session's name/board to its new
   // old id is relabeled and dropped out of its board column (falls back to "All sessions")
   expect(second.meta["old-session-id"].name).toBe("Bugs v1 (before clear)");
   expect(second.meta["old-session-id"].board).toBeUndefined();
+  // reports which pid moved from which id to which, so callers (routes.ts) can keep an
+  // already-open Ghostty window's title/tag in sync with the new id despite the window itself
+  // still reading its original (pre-clear) title file
+  expect(second.reconciled).toEqual([{ oldId: "old-session-id", newId: "new-session-id", carriedName: "Bugs v1" }]);
 });
 
 test("reconcileClearedSessions is idempotent — polling again with the same pid->session mapping changes nothing", async () => {
