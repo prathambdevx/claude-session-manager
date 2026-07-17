@@ -313,6 +313,10 @@ function projectBreadcrumbHtml() {
   `;
 }
 
+// "Group by project" — one column per project, populated with that project's real session
+// cards (running-first, then most recent), computed fresh on every render rather than ever
+// being written back to the main board.json — so the main board's own columns are never
+// touched. Clicking a column's header drills into that project's own independent board.
 function renderProjectPicker(q) {
   const app = document.getElementById("app");
   const byCwd = new Map();
@@ -322,7 +326,9 @@ function renderProjectPicker(q) {
     if (!byCwd.has(s.cwd)) byCwd.set(s.cwd, []);
     byCwd.get(s.cwd).push(s);
   }
+  const byRecency = (a, b) => (b.running ? 1 : 0) - (a.running ? 1 : 0) || b.lastActive - a.lastActive;
   const entries = [...byCwd.entries()].sort((a, b) => projectName(a[0]).localeCompare(projectName(b[0])));
+  for (const [, list] of entries) list.sort(byRecency);
 
   document.getElementById("statLine").textContent = `${entries.length} project${entries.length === 1 ? "" : "s"}`;
 
@@ -330,12 +336,16 @@ function renderProjectPicker(q) {
     <div class="board-breadcrumb">
       <button data-back-to-main>← Back to board</button>
     </div>
-    <div class="project-picker">
+    <div class="board">
       ${entries.length ? entries.map(([cwd, list]) => `
-        <div class="project-picker-entry" data-project-cwd="${escapeAttr(cwd)}">
-          <div class="ppe-name">${escapeHtml(projectName(cwd))}</div>
-          <div class="ppe-cwd">${escapeHtml(cwd)}</div>
-          <div class="ppe-count">${list.length} session${list.length === 1 ? "" : "s"}</div>
+        <div class="board-col">
+          <div class="board-col-header project-col-header" data-project-cwd="${escapeAttr(cwd)}" title="Open ${escapeAttr(projectName(cwd))}'s own board">
+            <span style="flex:1; min-width:0; overflow-wrap:anywhere;">${escapeHtml(projectName(cwd))}</span>
+            <span class="board-count">${list.length}</span>
+          </div>
+          <div class="board-col-body">
+            ${list.map(boardCardHtml).join("") || '<div class="empty" style="padding:16px 0;">No sessions</div>'}
+          </div>
         </div>
       `).join("") : '<div class="empty">No sessions with a project yet.</div>'}
     </div>
@@ -345,6 +355,8 @@ function renderProjectPicker(q) {
   app.querySelectorAll("[data-project-cwd]").forEach((el) => {
     el.addEventListener("click", () => enterProjectBoard(el.dataset.projectCwd));
   });
+
+  wireBoardCards(app);
 }
 
 function renderListView(filtered, sortMode) {
@@ -525,52 +537,9 @@ function ticketCardHtml(s) {
   `;
 }
 
-function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
-  const app = document.getElementById("app");
-  const byColumn = new Map(ctx.cols.map((c) => [c.id, []]));
-  for (const s of filtered) {
-    const col = s.meta?.board && byColumn.has(s.meta.board) ? s.meta.board : ctx.cols[0]?.id;
-    if (col && byColumn.has(col)) byColumn.get(col).push(s);
-  }
-  // running-first, then most recent — same rule as list view so a session you just touched floats up
-  const byRecency = (a, b) => (b.running ? 1 : 0) - (a.running ? 1 : 0) || b.lastActive - a.lastActive;
-  for (const arr of byColumn.values()) arr.sort(byRecency);
-
-  app.innerHTML = `
-    ${breadcrumbHtml}
-    ${agentsDockHtml()}
-    <div class="board">
-      ${ctx.cols.map((c) => `
-        <div class="board-col" data-col-id="${c.id}">
-          <div class="board-col-header" draggable="true" data-col-drag="${c.id}" title="Drag to reorder columns">
-            <span class="drag-handle">⠿</span>
-            <span>${escapeHtml(c.title)}</span>
-            <span class="board-count">${(byColumn.get(c.id) || []).length}</span>
-            <div class="col-header-actions" style="margin-left:auto; display:flex; align-items:center; gap:2px;">
-            <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
-            <div class="bc-menu-wrap">
-              <button class="bc-menu-btn" data-col-menu-toggle="${c.id}" title="Column options">⋮</button>
-              <div class="bc-dropdown" id="col-menu-${c.id}">
-                <button data-rename-col="${c.id}">✎ Rename</button>
-                <button class="danger" data-remove-col="${c.id}">✕ Remove</button>
-              </div>
-            </div>
-            </div>
-          </div>
-          <div class="board-col-body" data-col-drop="${c.id}">
-            ${(byColumn.get(c.id) || []).map(boardCardHtml).join("") || '<div class="empty" style="padding:16px 0;">Drop here</div>'}
-          </div>
-        </div>
-      `).join("")}
-      <button class="add-col-btn" id="addColBtn">+ Add column</button>
-    </div>
-  `;
-
-  if (breadcrumbHtml) {
-    app.querySelector("[data-back-to-projects]")?.addEventListener("click", () => setBoardMode("projects"));
-    app.querySelector("[data-back-to-main]")?.addEventListener("click", () => setBoardMode("main"));
-  }
-
+// Card action wiring shared by renderBoardView (main/per-project boards) and the "Group by
+// project" columns view — click actions, double-click-to-resume, and the three-dot menu.
+function wireBoardCards(app) {
   app.querySelectorAll("[data-action]").forEach((el) => {
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -631,6 +600,55 @@ function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
       }
     });
   });
+}
+
+function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
+  const app = document.getElementById("app");
+  const byColumn = new Map(ctx.cols.map((c) => [c.id, []]));
+  for (const s of filtered) {
+    const col = s.meta?.board && byColumn.has(s.meta.board) ? s.meta.board : ctx.cols[0]?.id;
+    if (col && byColumn.has(col)) byColumn.get(col).push(s);
+  }
+  // running-first, then most recent — same rule as list view so a session you just touched floats up
+  const byRecency = (a, b) => (b.running ? 1 : 0) - (a.running ? 1 : 0) || b.lastActive - a.lastActive;
+  for (const arr of byColumn.values()) arr.sort(byRecency);
+
+  app.innerHTML = `
+    ${breadcrumbHtml}
+    ${agentsDockHtml()}
+    <div class="board">
+      ${ctx.cols.map((c) => `
+        <div class="board-col" data-col-id="${c.id}">
+          <div class="board-col-header" draggable="true" data-col-drag="${c.id}" title="Drag to reorder columns">
+            <span class="drag-handle">⠿</span>
+            <span>${escapeHtml(c.title)}</span>
+            <span class="board-count">${(byColumn.get(c.id) || []).length}</span>
+            <div class="col-header-actions" style="margin-left:auto; display:flex; align-items:center; gap:2px;">
+            <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
+            <div class="bc-menu-wrap">
+              <button class="bc-menu-btn" data-col-menu-toggle="${c.id}" title="Column options">⋮</button>
+              <div class="bc-dropdown" id="col-menu-${c.id}">
+                <button data-rename-col="${c.id}">✎ Rename</button>
+                <button class="danger" data-remove-col="${c.id}">✕ Remove</button>
+              </div>
+            </div>
+            </div>
+          </div>
+          <div class="board-col-body" data-col-drop="${c.id}">
+            ${(byColumn.get(c.id) || []).map(boardCardHtml).join("") || '<div class="empty" style="padding:16px 0;">Drop here</div>'}
+          </div>
+        </div>
+      `).join("")}
+      <button class="add-col-btn" id="addColBtn">+ Add column</button>
+    </div>
+  `;
+
+  if (breadcrumbHtml) {
+    app.querySelector("[data-back-to-projects]")?.addEventListener("click", () => setBoardMode("projects"));
+    app.querySelector("[data-back-to-main]")?.addEventListener("click", () => setBoardMode("main"));
+  }
+
+  wireBoardCards(app);
 
   // column three-dot menu toggle
   app.querySelectorAll("[data-col-menu-toggle]").forEach((btn) => {
