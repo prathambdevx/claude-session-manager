@@ -24,12 +24,18 @@ export const PID_LINKS_PATH = join(DATA_DIR, "pid-links.json");
 export const REVIEWS_DIR = join(DATA_DIR, "reviews");
 export const CONTEXTS_DIR = join(DATA_DIR, "contexts");
 export const DELEGATIONS_DIR = join(DATA_DIR, "delegations");
+// One small text file per resumed session, read by a polling loop inside its Ghostty window (see
+// ghosttyTitleFilePath in claude.ts) so a rename in the UI can update an already-open window's
+// title live — Ghostty's window "name" is read-only via AppleScript, so this file is the only way
+// to push a title change into a window that's already running.
+export const GHOSTTY_TITLES_DIR = join(DATA_DIR, "ghostty-titles");
 export const PUBLIC_DIR = join(ROOT_DIR, "public");
 export const ROOT = ROOT_DIR;
 
 await mkdir(REVIEWS_DIR, { recursive: true });
 await mkdir(CONTEXTS_DIR, { recursive: true });
 await mkdir(DELEGATIONS_DIR, { recursive: true });
+await mkdir(GHOSTTY_TITLES_DIR, { recursive: true });
 
 // Optional local overrides in data/settings.json (gitignored, per-machine). Every field is
 // optional; anything absent falls back to the safe defaults below. This is what makes a fresh

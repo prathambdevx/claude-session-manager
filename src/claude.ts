@@ -1,12 +1,12 @@
 // Everything that shells out to the `claude` CLI or the macOS Terminal: headless one-shot calls,
 // launching interactive sessions in a new Terminal window, reusing an existing tab, and the prompt
 // builders for the launcher / reviewer / context-extraction / continuation flows.
-import { chmod } from "node:fs/promises";
+import { chmod, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
-import { HOME, CLAUDE_BIN, KNOWN_MODELS, DANGEROUS_FLAG, EFFORT_FLAG, EXTENDED_CONTEXT } from "./config.ts";
+import { HOME, CLAUDE_BIN, KNOWN_MODELS, DANGEROUS_FLAG, EFFORT_FLAG, EXTENDED_CONTEXT, GHOSTTY_TITLES_DIR } from "./config.ts";
 import { pidAlive } from "./store.ts";
 import type { ReviewRecord, ContextRecord, Agent } from "./store.ts";
 
@@ -66,17 +66,30 @@ export function ghosttyWindowTag(sessionId: string): string {
   return `csm-${sessionId.slice(0, 8)}`;
 }
 
-// The actual title forced onto a resumed session's Ghostty window: a human-readable label (the
-// session's name/first-message, same as shown in the UI) with the short match tag appended.
-// `--title` forces this and ignores any title-change escape sequences the running program (e.g.
-// claude itself) sends afterward — an OSC escape alone gets clobbered the moment claude sets its
-// own title, so the tag wouldn't survive without this flag.
+// The human-facing title for a resumed session's Ghostty window: its display label (name /
+// first-message, same as the UI shows) with the short match tag appended.
 export function ghosttyWindowTitle(label: string, sessionId: string): string {
   const clean = (label || "Claude session").replace(/[\r\n]/g, " ").trim().slice(0, 60);
   return `${clean}  [${ghosttyWindowTag(sessionId)}]`;
 }
 
-export async function openTerminalRunning(cwd: string, command: string, opts: { ghosttyTitle?: string } = {}) {
+// One small text file per session holding its current desired Ghostty title. Ghostty's window
+// "name" is read-only via AppleScript (confirmed: attempting `set name of window` errors), so a
+// rename in the UI can't be pushed into an already-open window directly. Instead, the window
+// itself runs a background loop (see openTerminalRunning) that re-reads this file every second and
+// re-asserts the title via an OSC escape — renaming a session just rewrites this file, and the
+// open window picks it up within ~1s.
+export function ghosttyTitleFilePath(sessionId: string): string {
+  return join(GHOSTTY_TITLES_DIR, `${sessionId}.txt`);
+}
+export async function writeGhosttyTitle(sessionId: string, title: string): Promise<void> {
+  await Bun.write(ghosttyTitleFilePath(sessionId), title);
+}
+export async function deleteGhosttyTitle(sessionId: string): Promise<void> {
+  await unlink(ghosttyTitleFilePath(sessionId)).catch(() => {}); // fine if it was never created
+}
+
+export async function openTerminalRunning(cwd: string, command: string, opts: { ghosttyTitleFile?: string } = {}) {
   // Ghostty: pass the command as real CLI args (`ghostty -e zsh -c "<command>"`) instead of
   // writing + executing a .command script file. Executing a script file makes Ghostty show its
   // own "Allow Ghostty to execute ...command" confirmation dialog every single launch; running a
@@ -84,10 +97,16 @@ export async function openTerminalRunning(cwd: string, command: string, opts: { 
   // --args ...` is required (rather than `open -a`) to actually forward args on macOS — `open -na`
   // still just uses Launch Services, so still no Automation/permission prompt either.
   if (usingGhostty()) {
-    const titleArgs = opts.ghosttyTitle ? [`--title=${opts.ghosttyTitle}`] : [];
+    // A background loop re-reads the title file every second and re-asserts it via OSC — this is
+    // what lets a rename in the UI update an already-open window's title live. It's wrapped in a
+    // subshell + EXIT trap so the loop is killed the moment the main command exits (verified live:
+    // no orphaned loop process left behind once the terminal's job finishes).
+    const wrapped = opts.ghosttyTitleFile
+      ? `( while true; do printf '\\033]0;%s\\007' "$(cat ${shellQuote(opts.ghosttyTitleFile)} 2>/dev/null || echo 'Claude session')"; sleep 1; done & ); __csm_title_pid=$!; trap "kill $__csm_title_pid 2>/dev/null" EXIT; ${command}`
+      : command;
     spawn(
       "open",
-      ["-na", GHOSTTY_APP, "--args", `--working-directory=${cwd}`, ...titleArgs, "-e", "zsh", "-c", command],
+      ["-na", GHOSTTY_APP, "--args", `--working-directory=${cwd}`, "-e", "zsh", "-c", wrapped],
       { stdio: "ignore", detached: true }
     ).unref();
     return;

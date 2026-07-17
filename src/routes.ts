@@ -18,7 +18,8 @@ import {
 import type { Session } from "./sessions.ts";
 import {
   runClaudeHeadless, runClaudeHeadlessDetached, buildDelegationPrompt,
-  openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, ghosttyWindowTitle, modelAliasWithContext, shellQuote,
+  openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, ghosttyWindowTitle,
+  writeGhosttyTitle, deleteGhosttyTitle, ghosttyTitleFilePath, modelAliasWithContext, shellQuote,
   buildLaunchScript, buildFileReviewPrompt, buildFixPrompt, buildContextExtractionPrompt, buildContinuationPrompt,
 } from "./claude.ts";
 import { escapeHtmlServer, reviewsIndexHtml, markdownToHtml, delegationsIndexHtml } from "./html.ts";
@@ -301,6 +302,11 @@ export async function handleRequest(req: Request): Promise<Response> {
     const meta = await loadMeta();
     meta[id] = { ...meta[id], ...patch };
     await saveMeta(meta);
+    // keep an already-open Ghostty window's title in sync with a rename (harmless no-op if the
+    // session isn't currently open — its window-title-polling loop just isn't there to read it)
+    if (typeof patch.name === "string" && patch.name.trim()) {
+      await writeGhosttyTitle(id, ghosttyWindowTitle(patch.name.trim(), id));
+    }
     return json({ ok: true, meta: meta[id] });
   }
 
@@ -607,10 +613,12 @@ export async function handleRequest(req: Request): Promise<Response> {
     }
 
     const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${fork ? " --fork-session" : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
-    // same display label the card itself uses, so the Ghostty window title reads like the UI
+    // same display label the card itself uses, so the Ghostty window title reads like the UI —
+    // written to a file *before* launch so the window's title-polling loop has it from frame one
     const meta = await loadMeta();
     const label = meta[id]?.name || s.firstMessage || id.slice(0, 8);
-    await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitle: ghosttyWindowTitle(label, id) });
+    if (!fork) await writeGhosttyTitle(id, ghosttyWindowTitle(label, id));
+    await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitleFile: ghosttyTitleFilePath(id) });
     return json({ ok: true, command: cmd, cwd: s.cwd });
   }
 
@@ -630,6 +638,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     const meta = await loadMeta();
     delete meta[id];
     await saveMeta(meta);
+    await deleteGhosttyTitle(id);
     return json({ ok: deleted });
   }
 
