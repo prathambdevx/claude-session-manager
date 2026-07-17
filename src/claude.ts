@@ -53,13 +53,20 @@ export function shellQuote(s: string): string {
 // when running as a launchd background job with no way to prompt for that permission. Opening a
 // .command file via `open` instead just uses Launch Services (same as double-clicking one in
 // Finder), which doesn't need Automation access at all.
+const GHOSTTY_APP = "/Applications/Ghostty.app";
+function usingGhostty(): boolean {
+  return existsSync(GHOSTTY_APP);
+}
+
 export async function openTerminalRunning(cwd: string, command: string) {
   const script = `#!/bin/zsh\ncd ${shellQuote(cwd)}\n${command}\n`;
   const path = join(tmpdir(), `claude-sessions-launch-${crypto.randomUUID()}.command`);
   await Bun.write(path, script);
   await chmod(path, 0o755);
-  // prefer Ghostty if installed, fall back to Apple Terminal
-  if (existsSync("/Applications/Ghostty.app")) {
+  // prefer Ghostty if installed, fall back to Apple Terminal. `open -a` uses Launch Services (same
+  // as double-clicking in Finder) — no permission prompt, and if the app is already running it
+  // opens a new window in that same running instance rather than launching a second one.
+  if (usingGhostty()) {
     spawn("open", ["-a", "Ghostty", path], { stdio: "ignore", detached: true }).unref();
   } else {
     spawn("open", ["-a", "Terminal", path], { stdio: "ignore", detached: true }).unref();
@@ -112,6 +119,11 @@ function focusExistingTerminalTab(tty: string): Promise<boolean> {
 // If this session has a live process, try to bring its existing Terminal tab to front instead of
 // spawning a duplicate. Returns true if an existing tab was found and focused.
 export async function tryFocusRunningSession(pid: number): Promise<boolean> {
+  // Ghostty has no AppleScript scripting dictionary to enumerate/focus a specific tab, and a
+  // session launched via Ghostty was never running inside Terminal.app anyway — so skip this
+  // entirely rather than firing useless "tell application Terminal" AppleScript, which is exactly
+  // what triggers macOS's Automation permission prompt on every resume.
+  if (usingGhostty()) return false;
   if (!pidAlive(pid)) return false;
   const tty = await getTtyForPid(pid);
   if (!tty) return false;
