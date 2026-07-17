@@ -473,8 +473,7 @@ function renderListView(filtered, sortMode) {
       if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? undefined : "done" });
       if (action === "ticket-convert") convertTicketToSession(id);
       if (action === "rename") {
-        const next = prompt("Rename ticket:", s?.meta?.name || "");
-        if (next !== null) patchMeta(id, { name: next.trim() || undefined });
+        openRenameModal(id, s?.meta?.name, "Rename ticket");
       }
       if (action === "rename-focus") {
         const input = app.querySelector(`input[data-name-edit="${id}"]`);
@@ -517,6 +516,7 @@ function boardCardHtml(s) {
       <div class="bc-title">
         <span class="dot ${isLive ? "live" : "idle"}" style="margin-top:0"></span>
         <span style="flex:1; min-width:0; overflow-wrap:anywhere;">${escapeHtml(title)}</span>
+        <span class="rename-pencil" data-action="rename" data-id="${s.id}" title="Rename">✎</span>
         <div class="bc-menu-wrap">
           <button class="bc-menu-btn" data-menu-toggle="${s.id}" title="Options">⋮</button>
           <div class="bc-dropdown" id="menu-${s.id}">
@@ -524,7 +524,6 @@ function boardCardHtml(s) {
             <button data-action="fork" data-id="${s.id}">⑂ Fork</button>
             <button data-action="review" data-id="${s.id}">🔎 Review</button>
             <button data-action="extract" data-id="${s.id}">🧠 Extract</button>
-            <button data-action="rename" data-id="${s.id}">✎ Rename</button>
             <button data-action="editDesc" data-id="${s.id}">✐ Edit description</button>
             <button class="danger" data-action="delete" data-id="${s.id}">🗑 Delete</button>
           </div>
@@ -553,13 +552,13 @@ function ticketCardHtml(s) {
       <div class="bc-title">
         <span class="ticket-tag">TICKET</span>
         <span style="flex:1; min-width:0; overflow-wrap:anywhere; ${done ? "text-decoration:line-through; opacity:0.6;" : ""}">${escapeHtml(title)}</span>
+        <span class="rename-pencil" data-action="rename" data-id="${s.id}" title="Rename">✎</span>
         <div class="bc-menu-wrap">
           <button class="bc-menu-btn" data-menu-toggle="${s.id}" title="Options">⋮</button>
           <div class="bc-dropdown" id="menu-${s.id}">
             ${s.startedSessionId
               ? `<button data-action="resume" data-id="${s.startedSessionId}">▶ Resume</button>`
               : `<button data-action="ticket-convert" data-id="${s.id}">▶ Start session</button>`}
-            <button data-action="rename" data-id="${s.id}">✎ Rename</button>
             <button class="danger" data-action="delete" data-id="${s.id}">🗑 Delete</button>
           </div>
         </div>
@@ -590,8 +589,7 @@ function wireBoardCards(app) {
       if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? undefined : "done" });
       if (action === "ticket-convert") convertTicketToSession(id);
       if (action === "rename") {
-        const next = prompt(s?.isTicket ? "Rename ticket:" : "Rename session:", s?.meta?.name || "");
-        if (next !== null) patchMeta(id, { name: next.trim() || undefined });
+        openRenameModal(id, s?.meta?.name, s?.isTicket ? "Rename ticket" : "Rename session");
       }
       if (action === "editDesc") {
         const next = prompt("Edit description:", s?.meta?.description || "");
@@ -1074,6 +1072,31 @@ function modalShell(inner, width) {
   root.innerHTML = `<div class="modal-overlay" id="modalOverlay"><div class="modal"${widthStyle}>${inner}</div></div>`;
   document.getElementById("modalOverlay").addEventListener("click", (e) => {
     if (e.target.id === "modalOverlay") closeReviewModal();
+  });
+}
+
+function openRenameModal(id, currentName, label) {
+  modalShell(`
+    <h3>✎ ${escapeHtml(label)}</h3>
+    <div class="modal-row">
+      <input type="text" id="renameInput" value="${escapeAttr(currentName || "")}" placeholder="Untitled" />
+    </div>
+    <div class="modal-actions">
+      <button id="renameCancel">Cancel</button>
+      <button class="primary" id="renameSave">Save</button>
+    </div>
+  `, 380);
+  const input = document.getElementById("renameInput");
+  input.focus();
+  input.select();
+  const save = () => {
+    patchMeta(id, { name: input.value.trim() || undefined });
+    closeReviewModal();
+  };
+  document.getElementById("renameCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("renameSave").addEventListener("click", save);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); save(); }
   });
 }
 
