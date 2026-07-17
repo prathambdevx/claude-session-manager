@@ -55,7 +55,11 @@ const initialBoardState = boardModeFromLocation();
 let boardMode = initialBoardState.mode; // "main" | "projects" | "project"
 let activeProjectCwd = initialBoardState.cwd;
 let projectBoards = {};           // Record<cwd, BoardColumn[]> — mirrors server's project-boards.json
-let currentProjectColumns = null; // BoardColumn[] for whichever project is currently drilled into
+// BoardColumn[] for whichever project is currently drilled into. Seeded synchronously with
+// DEFAULT_COLUMNS (mirroring how `boardColumns` itself defaults synchronously) so a hard reload
+// straight into /projects/<cwd> has something non-null to render with before loadSessions()'s
+// fetch resolves and replaces this with the project's real saved columns (or these same defaults).
+let currentProjectColumns = boardMode === "project" ? DEFAULT_COLUMNS.slice() : null;
 
 async function saveProjectBoardColumns(cwd) {
   await fetch("/api/project-board", {
