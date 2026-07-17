@@ -12,7 +12,7 @@ import {
 
 // ---------- board columns (server-side so they're shared across browsers/tabs) ----------
 
-export type BoardColumn = { id: string; title: string; cwd?: string; hidden?: boolean };
+export type BoardColumn = { id: string; title: string; cwd?: string; hidden?: boolean; collapsed?: boolean };
 
 export async function loadBoard(): Promise<BoardColumn[] | null> {
   try {

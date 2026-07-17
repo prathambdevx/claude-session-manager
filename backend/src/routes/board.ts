@@ -14,6 +14,7 @@ export async function handleBoardRoutes(req: Request, url: URL): Promise<Respons
         id: c.id.slice(0, 60), title: c.title.slice(0, 80),
         ...(c.cwd ? { cwd: String(c.cwd).slice(0, 500) } : {}),
         ...(c.hidden ? { hidden: true } : {}),
+        ...(c.collapsed ? { collapsed: true } : {}),
       }));
     await saveBoard(clean);
     return json({ ok: true, columns: clean });
@@ -38,7 +39,11 @@ export async function handleBoardRoutes(req: Request, url: URL): Promise<Respons
     if (!cols) return json({ error: "columns array required" }, { status: 400 });
     const clean = cols
       .filter((c: any) => c && typeof c.id === "string" && typeof c.title === "string")
-      .map((c: any) => ({ id: c.id.slice(0, 60), title: c.title.slice(0, 80), ...(c.hidden ? { hidden: true } : {}) }));
+      .map((c: any) => ({
+        id: c.id.slice(0, 60), title: c.title.slice(0, 80),
+        ...(c.hidden ? { hidden: true } : {}),
+        ...(c.collapsed ? { collapsed: true } : {}),
+      }));
     const all = await loadProjectBoards();
     all[cwd] = clean;
     await saveProjectBoards(all);

@@ -30,6 +30,27 @@ function missingProjectCount(ctx) {
   return new Set(sessions.filter((s) => !s.isTicket && !existing.has(s.cwd)).map((s) => s.cwd)).size;
 }
 
+// Deterministic, no config needed, and never duplicated between two columns that currently exist
+// together: each column's palette slot comes from its rank in ctx.cols sorted by `id` (excluding
+// the home column) — a fixed, order-independent ranking, so dragging columns around never
+// reassigns colors (the live array ORDER changes, but this sort doesn't depend on it). Since it's
+// a straight assignment of "1st alphabetically -> slot 0, 2nd -> slot 1, ..." with a palette sized
+// to comfortably cover a normal board, no two simultaneously-visible columns ever collide — that
+// only becomes possible past PALETTE_SIZE columns, an edge case not worth a bigger palette for.
+// Kept desaturated so none of these fight the gold accent used everywhere else in the app. The
+// home column stays neutral since it isn't really a "status" the way the others are.
+const PILL_PALETTE_SIZE = 9;
+function pillColorClass(ctx, c) {
+  const homeId = ctx.cols[0]?.id;
+  if (c.id === homeId) return "col-pill-neutral";
+  const rank = [...ctx.cols]
+    .filter((x) => x.id !== homeId)
+    .map((x) => x.id)
+    .sort()
+    .indexOf(c.id);
+  return `col-pill-${(rank % PILL_PALETTE_SIZE) + 1}`;
+}
+
 export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   const app = document.getElementById("app");
   const homeId = ctx.cols[0]?.id;
@@ -47,6 +68,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     return true;
   });
   const hiddenCount = ctx.cols.filter((c) => c.hidden).length;
+  const anyExpanded = visibleCols.some((c) => !c.collapsed);
 
   const drift = missingProjectCount(ctx);
 
@@ -72,6 +94,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
       ${ctx.kind === "main" ? `
         <button class="btn ghost" id="saveViewBtn" title="Save this column layout as a reusable view">＋ Save as view</button>` : ""}
       <button class="btn ghost" id="boardUndoBtn" ${hasHistoryFor(ctx) ? "" : "disabled"} title="Undo the last change to this board">↩ Undo</button>
+      <button class="btn ghost" id="collapseAllBtn" title="${anyExpanded ? "Collapse every column" : "Expand every column"}">${anyExpanded ? "« Collapse all" : "» Expand all"}</button>
       ${manageColumnsButtonHtml()}
     </div>
     <div class="board">
@@ -84,13 +107,36 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
           : c.cwd
             ? `<span class="col-title-link" data-col-title="${c.id}" title="Open ${escapeAttr(projectName(c.cwd))}'s own board">${escapeHtml(c.title)}</span>`
             : `<span>${escapeHtml(c.title)}</span>`;
+
+        // Both the full header/body AND the collapsed pill are always in the DOM at once — only a
+        // `.collapsed` class on the outer element decides which one shows (via CSS). This is what
+        // lets collapsing/expanding actually animate: a full rerender() replaces this whole block
+        // of markup from scratch every time (new poll, new SSE push, any board change), so there's
+        // no continuously-existing element for a CSS transition to interpolate between if the two
+        // states were two entirely different template branches — the toggle click handler below
+        // flips the class directly on the existing DOM node instead of forcing an immediate
+        // rerender, so the transition actually has something to animate.
         return `
-        <div class="board-col${c.hidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}" data-col-id="${c.id}">
+        <div class="board-col${c.hidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c)}" data-col-id="${c.id}">
           <div class="board-col-header" draggable="${!c.renaming}" data-col-drag="${c.id}" title="${c.cwd ? "Drag to reorder" : "Drag to reorder columns"}">
             <span class="drag-handle">⠿</span>
             ${titleHtml}
             <span class="board-count">${items.length}</span>
-            <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
+            <div class="col-header-actions">
+              <button class="collapse-toggle" data-collapse-col="${c.id}" title="Collapse group">◀</button>
+              <div class="bc-menu-wrap">
+                <button class="bc-menu-btn" data-menu-toggle="col-${c.id}" title="Options">⋯</button>
+                <div class="bc-dropdown" id="menu-col-${c.id}">
+                  <button data-rename-col-menu="${c.id}">✎ Rename</button>
+                  <button data-collapse-col="${c.id}">◀ Collapse group</button>
+                </div>
+              </div>
+              <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
+            </div>
+          </div>
+          <div class="collapsed-pill" draggable="true" data-col-drag="${c.id}" data-expand-col="${c.id}" title="Expand &quot;${escapeAttr(c.title)}&quot;">
+            <div class="pill-badge">${escapeHtml(c.title)}</div>
+            <div class="pill-count">${items.length}</div>
           </div>
           <div class="board-col-body" data-col-drop="${c.id}">
             ${items.map(boardCardHtml).join("") || '<div class="empty" style="padding:16px 0;">Drop here</div>'}
@@ -151,6 +197,46 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   wireInlineRename(app, ctx, rerender);
 
+  // collapse/expand a single column — the hover-revealed header arrow and its equivalent ⋯ menu
+  // item both just toggle the same flag; clicking the collapsed pill itself expands it back.
+  // The class is toggled directly on the EXISTING .board-col element rather than going through
+  // rerender() right away — rerender() replaces this element's whole subtree from scratch, which
+  // would cut the CSS transition off before it has a chance to play (nothing to interpolate from
+  // once the old node is gone). Persisting still happens immediately; the next natural render
+  // (next SSE push/poll, or any other board interaction) picks up the saved state for free.
+  function setColumnCollapsed(id, collapsed) {
+    const c = ctx.cols.find((x) => x.id === id);
+    if (!c) return;
+    pushHistory(ctx);
+    if (collapsed) c.collapsed = true;
+    else delete c.collapsed;
+    ctx.save();
+    app.querySelector(`.board-col[data-col-id="${id}"]`)?.classList.toggle("collapsed", collapsed);
+  }
+  app.querySelectorAll("[data-collapse-col]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      setColumnCollapsed(el.dataset.collapseCol, true);
+    });
+  });
+  app.querySelectorAll("[data-expand-col]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      setColumnCollapsed(el.dataset.expandCol, false);
+    });
+  });
+  app.querySelectorAll("[data-rename-col-menu]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      startColumnRename(ctx, el.dataset.renameColMenu, rerender);
+    });
+  });
+  document.getElementById("collapseAllBtn")?.addEventListener("click", () => {
+    visibleCols.forEach((c) => setColumnCollapsed(c.id, anyExpanded));
+  });
+
   document.getElementById("addColBtn")?.addEventListener("click", async () => {
     const title = await openPromptModal({ title: "Add column", label: "Column name", placeholder: "e.g. Blocked" });
     if (!title || !title.trim()) return;
@@ -180,7 +266,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   app.querySelectorAll("[data-col-drag]").forEach((handle) => {
     handle.addEventListener("dragstart", (e) => {
-      if (e.target.closest("[data-add-col-task], [data-rename-col-input]")) { e.preventDefault(); return; }
+      if (e.target.closest("[data-add-col-task], [data-rename-col-input], [data-collapse-col], .bc-menu-wrap")) { e.preventDefault(); return; }
       e.stopPropagation();
       e.dataTransfer.setData("text/plain", "col:" + handle.dataset.colDrag);
       e.dataTransfer.effectAllowed = "move";

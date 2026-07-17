@@ -288,10 +288,13 @@
     background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
     flex: 0 0 320px; min-width: 270px; max-width: 360px; display: flex; flex-direction: column;
     height: calc(100vh - 160px);
+    position: relative; overflow: hidden;
+    transition: flex-basis 220ms cubic-bezier(.4,0,.2,1), min-width 220ms cubic-bezier(.4,0,.2,1),
+                max-width 220ms cubic-bezier(.4,0,.2,1), background 220ms ease, border-color 220ms ease;
   }
   .board-col.dragover { border-color: var(--accent); background: var(--chip-bg); }
   .board-col-header {
-    display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--line);
     font-size: 13px; font-weight: 600; cursor: grab;
   }
   .board-col-header:active { cursor: grabbing; }
@@ -299,6 +302,69 @@
   .board-col-header .board-count { font-weight: 400; color: var(--dim); }
   .board-col-header .remove-col { color: var(--dim); cursor: pointer; font-size: 13px; }
   .board-col-header .remove-col:hover { color: var(--danger); }
+
+  /* ---------- per-column header actions: collapse arrow (hover-revealed), ⋯ menu, + add-task ----------
+     Uses the native `title` attribute for its tooltip (like every other icon button in this app)
+     rather than a custom CSS-positioned one — a custom tooltip positioned above the button would
+     need to escape .board-col-header/.board's own box to render fully, but .board sets
+     `overflow-x: auto`, and per the CSS spec that silently forces overflow-y to a non-visible
+     value too (browsers don't allow only one axis to scroll) — so anything trying to render
+     outside that box gets clipped. The native tooltip has no such issue since it's not part of
+     this document's layout/paint at all. */
+  .col-header-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; margin-left: auto; }
+  .collapse-toggle {
+    opacity: 0; pointer-events: none; background: none; border: none; color: var(--danger);
+    cursor: pointer; font-size: 12px; line-height: 1; padding: 5px 6px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 140ms ease, background 120ms, color 120ms;
+  }
+  .board-col-header:hover .collapse-toggle { opacity: 1; pointer-events: auto; }
+  .collapse-toggle:hover { background: rgba(192,57,43,0.14); }
+
+  /* ---------- collapsed column: a short colored pill, not a full-height strip ----------
+     The header/body and the pill are BOTH always in the DOM (see renderBoardView.js) — only this
+     class decides which's visible, so the SAME .board-col element persists across the toggle and
+     the transitions below actually have something to animate between (a full rerender destroying
+     and recreating two different template branches would leave nothing to interpolate).
+
+     Height is deliberately NEVER changed between states — animating to/from `height: auto` can't
+     be interpolated by CSS at all (it just snaps), which was the main source of the choppiness.
+     Both states keep the column's normal fixed height; the collapsed look comes entirely from
+     making the box itself transparent/borderless (a plain narrow lane) with the pill centered in
+     it, not from actually shrinking the box's height.
+
+     Content doesn't toggle `display` either (also non-animatable — an instant swap while the
+     container was still mid-resize was the other source of choppiness). Instead the header/body
+     fade out via opacity while `overflow: hidden` on .board-col clips them as the column narrows,
+     and the pill is absolutely positioned over the same area, cross-fading in via its own opacity
+     transition — both fades run in parallel with the width/color transitions above. */
+  .board-col.collapsed { flex: 0 0 46px; min-width: 46px; max-width: 46px; background: transparent; border-color: transparent; }
+  .board-col-header, .board-col-body { transition: opacity 200ms ease; }
+  .board-col.collapsed .board-col-header, .board-col.collapsed .board-col-body { opacity: 0; pointer-events: none; }
+  .collapsed-pill {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-start; padding-top: 12px; gap: 8px; cursor: pointer;
+    opacity: 0; pointer-events: none; transition: opacity 200ms ease;
+  }
+  .board-col.collapsed .collapsed-pill { opacity: 1; pointer-events: auto; }
+  .pill-badge {
+    writing-mode: vertical-rl; display: flex; align-items: center; justify-content: center;
+    padding: 10px 7px; border-radius: 999px; font-size: 11.5px; font-weight: 700;
+    letter-spacing: 0.02em; color: #fff; white-space: nowrap; max-height: 220px; overflow: hidden;
+  }
+  .pill-count { font-size: 12px; font-weight: 600; color: var(--dim); }
+  /* Muted, low-key palette cycled by column position — deterministic, no per-column config. Kept
+     desaturated so none of these fight the gold accent used everywhere else in the app. */
+  .col-pill-neutral .pill-badge { background: #5b6470; }
+  .col-pill-1 .pill-badge { background: var(--accent); }
+  .col-pill-2 .pill-badge { background: #5b7a9e; }
+  .col-pill-3 .pill-badge { background: #5a9e7a; }
+  .col-pill-4 .pill-badge { background: #b4695a; }
+  .col-pill-5 .pill-badge { background: #8570b0; }
+  .col-pill-6 .pill-badge { background: #a8607a; }
+  .col-pill-7 .pill-badge { background: #4f9a9a; }
+  .col-pill-8 .pill-badge { background: #9a8a4a; }
+  .col-pill-9 .pill-badge { background: #5f6bb0; }
   .ticket-done-btn {
     font-size: 11px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 6px;
     background: var(--panel); color: var(--ink); cursor: pointer;
