@@ -2,11 +2,11 @@
 // 1) synchronously derive board routing state from the URL (must happen before the first
 //    render()/loadSessions() call), 2) wire every remaining top-level DOM control, 3) run the
 // original end-of-file init sequence (load data, start polling, restore the active tab).
-import { currentTab, contentSearchTimer, setContentSearchTimer, currentView, boardColumns, defaultViewId, setActiveView } from "./state.js";
+import { currentTab, contentSearchTimer, setContentSearchTimer, boardColumns, defaultViewId, setActiveView } from "./state.js";
 import { initBoardStateFromLocation, wirePopstate } from "./routing/boardRouting.js";
 import { loadSessions, loadProjects, fetchContentMatches } from "./api/sessionsApi.js";
 import { dangerousDefault } from "./ui/formFragments.js";
-import { render, setView } from "./pages/sessionsPage.js";
+import { render } from "./pages/sessionsPage.js";
 import { setTab, wireTabs } from "./pages/todosPage.js";
 import { renderTodoBoard } from "./components/todoBoard/renderTodoBoard.js";
 import { openGlobalSearchModal } from "./components/modals/globalSearchModal.js";
@@ -27,11 +27,6 @@ document.getElementById("search").addEventListener("input", (e) => {
   setContentSearchTimer(setTimeout(() => fetchContentMatches(e.target.value), 350));
 });
 
-document.getElementById("sort").value = localStorage.getItem("sortMode") || "recent";
-document.getElementById("sort").addEventListener("change", (e) => {
-  localStorage.setItem("sortMode", e.target.value);
-  render();
-});
 document.getElementById("filterDate").addEventListener("change", render);
 document.getElementById("filterProject").addEventListener("change", render);
 
@@ -75,25 +70,27 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-document.getElementById("viewList").addEventListener("click", () => setView("list"));
-document.getElementById("viewBoard").addEventListener("click", () => setView("board"));
-setView(currentView);
+document.getElementById("app").classList.add("board-mode"); // board is the only sessions view now
+render();
 
 wireTabs();
 
 loadSessions().then(() => {
   // Apply the saved "default view" star exactly once at boot, and only when landing on the bare
   // Main board URL — never on a direct/reloaded link into a specific project's own board, and
-  // never on the later 15s polls (those must never yank the user back to a different view mid-use).
+  // never on later polls (those must never yank the user back to a different view mid-use).
   if (boardMode === "main" && defaultViewId && defaultViewId !== "main") {
     setActiveView(defaultViewId);
     render();
   }
 });
 loadProjects();
-setInterval(loadSessions, 15000);
+// Short enough that a session's busy/idle/waiting status (and its live-activity chip) feels as
+// immediate as Quick Prompt's own send-triggered refresh — cheap even at this cadence since
+// scanTranscript's StatCache turns an unchanged transcript into a plain stat() call, not a re-parse.
+setInterval(loadSessions, 3000);
 // Refresh immediately whenever you come back to this tab/window — otherwise a card's embedded
-// session id can be up to 15s stale. That staleness is exactly what let a real bug through: open a
+// session id can be stale until the next poll. That staleness is exactly what let a real bug through: open a
 // session, /clear it (server-side reconciliation swaps which id owns that card), close the
 // terminal, then immediately re-click the SAME still-stale card before the next scheduled poll —
 // resuming the OLD pre-clear id instead of the one that actually now lives there. Since closing a

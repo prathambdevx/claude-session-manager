@@ -1,11 +1,10 @@
-// Top-level dispatcher: decides main-board vs. drilled-in-project-board vs. list view, and holds
-// the toolbar-driven filtering (search/sort/date/project) that every one of those views shares.
+// Top-level dispatcher: decides main-board vs. drilled-in-project-board, and holds the
+// toolbar-driven filtering (search/date/project) that every one of those views shares.
 import {
-  sessions, boardMode, activeProjectCwd, currentView, setCurrentView, contentMatchIds, activeView, savedViews,
+  sessions, boardMode, activeProjectCwd, contentMatchIds, activeView, savedViews,
 } from "../state.js";
 import { mainBoardCtx, projectBoardCtx, savedViewCtx, projectBreadcrumbHtml } from "../routing/boardRouting.js";
 import { renderBoardView } from "../components/board/renderBoardView.js";
-import { renderListView } from "../components/listView/renderListView.js";
 import { renderProjectsLens } from "../components/board/renderProjectsLens.js";
 import { renderSidebar } from "../components/sidebar/renderSidebar.js";
 
@@ -30,7 +29,6 @@ export function render() {
     return;
   }
 
-  const sortMode = document.getElementById("sort").value;
   const dateFilter = document.getElementById("filterDate").value;
   const projectFilter = document.getElementById("filterProject").value;
   const dateCutoff = dateFilter ? Date.now() - Number(dateFilter) * 86400000 : null;
@@ -44,24 +42,10 @@ export function render() {
   document.getElementById("statLine").textContent =
     `${filtered.length} session${filtered.length === 1 ? "" : "s"} shown · ${sessions.filter(s => s.running).length} currently running`;
 
-  if (currentView === "board") {
-    if (activeView === "group") { renderProjectsLens(filtered); return; }
-    if (activeView.startsWith("saved:")) {
-      const view = savedViews.find((v) => v.id === activeView.slice(6));
-      if (view) { renderBoardView(filtered, savedViewCtx(view)); return; }
-    }
-    renderBoardView(filtered, mainBoardCtx());
-    return;
+  if (activeView === "group") { renderProjectsLens(filtered); return; }
+  if (activeView.startsWith("saved:")) {
+    const view = savedViews.find((v) => v.id === activeView.slice(6));
+    if (view) { renderBoardView(filtered, savedViewCtx(view)); return; }
   }
-  renderListView(filtered, sortMode);
-}
-
-export function setView(v) {
-  setCurrentView(v);
-  localStorage.setItem("currentView", v);
-  document.getElementById("viewList").classList.toggle("active", v === "list");
-  document.getElementById("viewBoard").classList.toggle("active", v === "board");
-  document.getElementById("sort").style.display = v === "board" ? "none" : "";
-  document.getElementById("app").classList.toggle("board-mode", v === "board");
-  render();
+  renderBoardView(filtered, mainBoardCtx());
 }

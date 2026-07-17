@@ -10,7 +10,6 @@ export let currentTab = localStorage.getItem("currentTab") || "sessions";
 export let collapsedProjects = new Set(JSON.parse(localStorage.getItem("collapsedProjects") || "[]"));
 export let expandedCards = new Set();
 export let summarizingIds = new Set();
-export let currentView = "board";
 
 export const DEFAULT_COLUMNS = [
   { id: "todo", title: "All sessions" },
@@ -50,7 +49,6 @@ export function setQuickPrompts(v) { quickPrompts = v; }
 export function setTodos(v) { todos = v; }
 export function setCurrentTab(v) { currentTab = v; }
 export function setExpandedCards(v) { expandedCards = v; }
-export function setCurrentView(v) { currentView = v; }
 export function setBoardColumns(v) { boardColumns = v; }
 export function setBoardModeState(v) { boardMode = v; }
 export function setActiveProjectCwd(v) { activeProjectCwd = v; }
