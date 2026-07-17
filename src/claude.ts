@@ -58,7 +58,19 @@ function usingGhostty(): boolean {
   return existsSync(GHOSTTY_APP);
 }
 
-export async function openTerminalRunning(cwd: string, command: string) {
+// Tag used both to force-title a Ghostty window at launch (via its `--title` config flag) and to
+// search for that same window later (see focusExistingGhosttyWindow) — this is how a resume can
+// find and refocus a session's already-open Ghostty window instead of spawning a duplicate,
+// without any AppleScript/Automation permission (Ghostty's own window list is readable with a
+// plain "tell application" query; only *manipulating other apps' UI* needs that permission).
+// `--title` specifically forces the title and ignores any title-change escape sequences the
+// running program (e.g. claude itself) sends — an OSC escape alone gets clobbered the moment
+// claude sets its own title, so the tag wouldn't survive without this flag.
+export function ghosttyWindowTag(sessionId: string): string {
+  return `csm-${sessionId}`;
+}
+
+export async function openTerminalRunning(cwd: string, command: string, opts: { ghosttyTitle?: string } = {}) {
   // Ghostty: pass the command as real CLI args (`ghostty -e zsh -c "<command>"`) instead of
   // writing + executing a .command script file. Executing a script file makes Ghostty show its
   // own "Allow Ghostty to execute ...command" confirmation dialog every single launch; running a
@@ -66,10 +78,12 @@ export async function openTerminalRunning(cwd: string, command: string) {
   // --args ...` is required (rather than `open -a`) to actually forward args on macOS — `open -na`
   // still just uses Launch Services, so still no Automation/permission prompt either.
   if (usingGhostty()) {
-    spawn("open", ["-na", GHOSTTY_APP, "--args", `--working-directory=${cwd}`, "-e", "zsh", "-c", command], {
-      stdio: "ignore",
-      detached: true,
-    }).unref();
+    const titleArgs = opts.ghosttyTitle ? [`--title=${opts.ghosttyTitle}`] : [];
+    spawn(
+      "open",
+      ["-na", GHOSTTY_APP, "--args", `--working-directory=${cwd}`, ...titleArgs, "-e", "zsh", "-c", command],
+      { stdio: "ignore", detached: true }
+    ).unref();
     return;
   }
 
@@ -127,15 +141,40 @@ function focusExistingTerminalTab(tty: string): Promise<boolean> {
   });
 }
 
-// If this session has a live process, try to bring its existing Terminal tab to front instead of
-// spawning a duplicate. Returns true if an existing tab was found and focused.
-export async function tryFocusRunningSession(pid: number): Promise<boolean> {
-  // Ghostty has no AppleScript scripting dictionary to enumerate/focus a specific tab, and a
-  // session launched via Ghostty was never running inside Terminal.app anyway — so skip this
-  // entirely rather than firing useless "tell application Terminal" AppleScript, which is exactly
-  // what triggers macOS's Automation permission prompt on every resume.
-  if (usingGhostty()) return false;
+// Ghostty has no custom AppleScript dictionary for tabs/ttys like Terminal.app, but it does expose
+// its own window list via the standard Cocoa scripting suite (no Automation permission needed for
+// a read-only "get name of every window" — that's the same class of query System Preferences
+// itself uses to list open windows). Since every Ghostty window we launch is titled with
+// ghosttyWindowTag(sessionId) via an OSC escape, finding "is a window named <tag> currently open"
+// tells us this session already has a window, and `activate` (also permission-free — the same verb
+// `open -na` already performs) brings Ghostty to the front so the user lands on it directly instead
+// of getting a duplicate/broken second `claude --resume` process.
+function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
+  const script = `
+    tell application "Ghostty"
+      if (name of every window) contains "${tag}" then
+        activate
+        return true
+      end if
+      return false
+    end tell
+  `;
+  return new Promise((resolve) => {
+    const child = spawn("osascript", ["-e", script], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    child.stdout.on("data", (d) => (out += d.toString()));
+    child.on("close", () => resolve(out.trim() === "true"));
+    child.on("error", () => resolve(false));
+  });
+}
+
+// If this session has a live process, try to bring its existing terminal window to front instead
+// of spawning a duplicate. Returns true if an existing window was found and focused.
+export async function tryFocusRunningSession(pid: number, ghosttyTag?: string): Promise<boolean> {
   if (!pidAlive(pid)) return false;
+  if (usingGhostty()) {
+    return ghosttyTag ? focusExistingGhosttyWindow(ghosttyTag) : false;
+  }
   const tty = await getTtyForPid(pid);
   if (!tty) return false;
   return focusExistingTerminalTab(tty);

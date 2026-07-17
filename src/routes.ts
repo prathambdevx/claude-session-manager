@@ -18,7 +18,7 @@ import {
 import type { Session } from "./sessions.ts";
 import {
   runClaudeHeadless, runClaudeHeadlessDetached, buildDelegationPrompt,
-  openTerminalRunning, tryFocusRunningSession, modelAliasWithContext, shellQuote,
+  openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, modelAliasWithContext, shellQuote,
   buildLaunchScript, buildFileReviewPrompt, buildFixPrompt, buildContextExtractionPrompt, buildContinuationPrompt,
 } from "./claude.ts";
 import { escapeHtmlServer, reviewsIndexHtml, markdownToHtml, delegationsIndexHtml } from "./html.ts";
@@ -597,17 +597,17 @@ export async function handleRequest(req: Request): Promise<Response> {
     const s = sessions.find((x) => x.id === id);
     if (!s) return json({ error: "session not found" }, { status: 404 });
 
-    // fork always creates a new session, so there's never an existing tab to reuse for it
+    // fork always creates a new session, so there's never an existing window to reuse for it
     if (!fork) {
       const running = await loadRunning();
       const info = running[id];
-      if (info && (await tryFocusRunningSession(info.pid))) {
+      if (info && (await tryFocusRunningSession(info.pid, ghosttyWindowTag(id)))) {
         return json({ ok: true, focused: true, cwd: s.cwd });
       }
     }
 
     const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${fork ? " --fork-session" : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
-    await openTerminalRunning(s.cwd, cmd);
+    await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitle: ghosttyWindowTag(id) });
     return json({ ok: true, command: cmd, cwd: s.cwd });
   }
 
