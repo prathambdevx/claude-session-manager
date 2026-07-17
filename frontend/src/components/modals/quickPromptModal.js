@@ -33,7 +33,12 @@ export function openQuickPromptModal(id) {
     <div class="qp-hint">Delivered straight into this session — its own open terminal if one's running, otherwise resumed in the background. No new terminal window either way.</div>
     <div class="qp-presets">
       ${chips.length
-        ? chips.map((p, i) => `<button type="button" class="qp-chip" data-fill="${i}" title="${escapeAttr(p.text)}">${escapeHtml(chipLabel(p.text))}${p.count > 1 ? ` <span class="qp-chip-n">×${p.count}</span>` : ""}</button>`).join("")
+        ? chips.map((p, i) => `
+          <span class="qp-chip">
+            <button type="button" class="qp-chip-fill" data-fill="${i}" title="${escapeAttr(p.text)}">${escapeHtml(chipLabel(p.text))}${p.count > 1 ? ` <span class="qp-chip-n">×${p.count}</span>` : ""}</button>
+            <button type="button" class="qp-chip-del" data-del="${i}" title="Remove this prompt">✕</button>
+          </span>
+        `).join("")
         : '<span class="qp-presets-empty">Prompts you send will show up here to reuse next time</span>'}
     </div>
     <div class="modal-row">
@@ -53,6 +58,17 @@ export function openQuickPromptModal(id) {
     btn.addEventListener("click", () => {
       textEl.value = chips[Number(btn.dataset.fill)].text;
       textEl.focus();
+    });
+  });
+
+  document.querySelectorAll("[data-del]").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const removed = chips[Number(btn.dataset.del)];
+      const nextHistory = (s.meta?.promptHistory || []).filter((p) => p.text !== removed.text);
+      await patchMeta(id, { promptHistory: nextHistory });
+      closeReviewModal();
+      openQuickPromptModal(id); // reopen fresh so the chip row reflects the removal
     });
   });
 

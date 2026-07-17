@@ -427,11 +427,21 @@
   .qp-presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .qp-presets-empty { font-size: 10.5px; color: var(--dim); font-style: italic; }
   .qp-chip {
-    font-size: 10.5px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line);
-    background: var(--chip-bg); color: var(--dim); cursor: pointer; font-family: inherit;
+    display: flex; align-items: center; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--chip-bg); overflow: hidden;
   }
-  .qp-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .qp-chip:hover { border-color: var(--accent); }
+  .qp-chip-fill {
+    font-size: 10.5px; padding: 4px 3px 4px 10px; border: none; background: none;
+    color: var(--dim); cursor: pointer; font-family: inherit;
+  }
+  .qp-chip-fill:hover { color: var(--accent); }
   .qp-chip-n { opacity: 0.7; }
+  .qp-chip-del {
+    font-size: 9.5px; padding: 4px 8px 4px 4px; border: none; background: none;
+    color: var(--dim); cursor: pointer;
+  }
+  .qp-chip-del:hover { color: var(--danger); }
   .modal-row textarea.qp-text { min-height: 150px; }
 
   /* ---------- Layout shell: sidebar + main content ---------- */
