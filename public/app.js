@@ -29,6 +29,31 @@ function migrateColumns(cols) {
   if (todo && todo.title === "To Do") todo.title = "All sessions";
   return cols;
 }
+
+function projectColumnId(cwd) {
+  return "proj-" + projectName(cwd).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+}
+
+// Appends a column for any project cwd not already represented (matched by BoardColumn.cwd),
+// leaving every existing column — custom or otherwise — untouched. Idempotent: safe to call
+// even when nothing needs to change. This is what makes the main board default to "one column
+// per project" on a fresh install while never disturbing an existing install's own columns —
+// it just fills in whatever project columns are missing, wherever the board currently stands.
+function mergeInProjectColumns(cols, sessionList) {
+  const existingCwds = new Set(cols.filter((c) => c.cwd).map((c) => c.cwd));
+  const cwds = [...new Set(sessionList.filter((s) => s.cwd && !existingCwds.has(s.cwd)).map((s) => s.cwd))]
+    .sort((a, b) => projectName(a).localeCompare(projectName(b)));
+  if (!cwds.length) return { columns: cols, changed: false };
+  const seenIds = new Set(cols.map((c) => c.id));
+  const added = cwds.map((cwd) => {
+    let id = projectColumnId(cwd);
+    let n = 2;
+    while (seenIds.has(id)) id = `${projectColumnId(cwd)}-${n++}`; // dedupe two dirs sharing a basename
+    seenIds.add(id);
+    return { id, title: projectName(cwd), cwd };
+  });
+  return { columns: [...cols, ...added], changed: true };
+}
 let boardColumns = DEFAULT_COLUMNS.slice();
 async function saveBoardColumns() {
   await fetch("/api/board", {
@@ -38,21 +63,22 @@ async function saveBoardColumns() {
   });
 }
 
-// ---------- per-project boards: "Group by project" browses INTO a separate, independently
-// persisted board per project instead of ever touching the main board's columns ----------
+// ---------- per-project boards: clicking a project column on the main board drills INTO that
+// project's own, independently persisted board (its own columns, separate from the main board's)
+// ----------
 // The URL is the source of truth for which view is showing (not localStorage), so a hard
-// reload or a shared link lands back on the same page: "/" = main board, "/projects" = the
-// project picker, "/projects/<encoded-cwd>" = a drilled-in project's own board. The server
-// (src/routes.ts) serves index.html for all three so a direct/reloaded request works too.
+// reload or a shared link lands back on the same page: "/" = main board, "/projects/<encoded-cwd>"
+// = a drilled-in project's own board. The server (src/routes.ts) serves index.html for both so a
+// direct/reloaded request works too. A bare "/projects" (old bookmark from before the project
+// picker was merged into the main board) harmlessly falls through to "main" below.
 function boardModeFromLocation() {
   const path = location.pathname;
-  if (path === "/projects") return { mode: "projects", cwd: null };
   const m = path.match(/^\/projects\/(.+)$/);
   if (m) return { mode: "project", cwd: decodeURIComponent(m[1]) };
   return { mode: "main", cwd: null };
 }
 const initialBoardState = boardModeFromLocation();
-let boardMode = initialBoardState.mode; // "main" | "projects" | "project"
+let boardMode = initialBoardState.mode; // "main" | "project"
 let activeProjectCwd = initialBoardState.cwd;
 let projectBoards = {};           // Record<cwd, BoardColumn[]> — mirrors server's project-boards.json
 // BoardColumn[] for whichever project is currently drilled into. Seeded synchronously with
@@ -89,7 +115,6 @@ function projectBoardCtx(cwd) {
 }
 
 function pathForBoardMode(mode, cwd) {
-  if (mode === "projects") return "/projects";
   if (mode === "project") return "/projects/" + encodeURIComponent(cwd);
   return "/";
 }
@@ -158,8 +183,23 @@ async function loadSessions() {
     boardColumns = migrateColumns(data.board);
   } else {
     const legacy = JSON.parse(localStorage.getItem("boardColumns") || "null");
-    boardColumns = migrateColumns(legacy && legacy.length ? legacy : DEFAULT_COLUMNS.slice());
+    boardColumns = migrateColumns(legacy && legacy.length ? legacy : [{ id: "todo", title: "All sessions" }]);
     saveBoardColumns();
+  }
+
+  // One-time (per browser): ensure every project currently in use has its own column, without
+  // ever touching existing columns — a fresh install starts from just "All sessions" above, so
+  // this fills it out to "All sessions" + one column per project; an existing install's own
+  // Priority/In Progress/etc columns are preserved exactly and project columns are appended
+  // alongside them. Gated on a flag so a later deliberate removal of a project's column isn't
+  // resurrected on the next poll.
+  if (!localStorage.getItem("projectColumnsMigrated")) {
+    const merged = mergeInProjectColumns(boardColumns, data.sessions || []);
+    if (merged.changed) {
+      boardColumns = merged.columns;
+      saveBoardColumns();
+    }
+    localStorage.setItem("projectColumnsMigrated", "1");
   }
 
   projectBoards = (data.projectBoards && typeof data.projectBoards === "object") ? data.projectBoards : {};
@@ -301,12 +341,7 @@ function matchesSearch(s, q) {
 
 function render() {
   const q = document.getElementById("search").value.trim();
-  document.getElementById("groupByProjectBtn")?.classList.toggle("active", boardMode !== "main");
 
-  if (boardMode === "projects") {
-    renderProjectPicker(q);
-    return;
-  }
   if (boardMode === "project") {
     const filtered = sessions.filter((s) => s.cwd === activeProjectCwd && matchesSearch(s, q));
     document.getElementById("statLine").textContent = `${filtered.length} session${filtered.length === 1 ? "" : "s"} shown`;
@@ -335,63 +370,15 @@ function render() {
   renderListView(filtered, sortMode);
 }
 
-// ---------- per-project board browsing: a picker listing every project, and a breadcrumb
-// header shown atop a drilled-in project's board ----------
+// ---------- breadcrumb header shown atop a drilled-in project's board ----------
 
 function projectBreadcrumbHtml() {
   return `
     <div class="board-breadcrumb">
-      <button data-back-to-projects>← All projects</button>
       <button data-back-to-main>← Back to board</button>
       <h2>${escapeHtml(projectName(activeProjectCwd))}</h2>
     </div>
   `;
-}
-
-// "Group by project" — one column per project, populated with that project's real session
-// cards (running-first, then most recent), computed fresh on every render rather than ever
-// being written back to the main board.json — so the main board's own columns are never
-// touched. Clicking a column's header drills into that project's own independent board.
-function renderProjectPicker(q) {
-  const app = document.getElementById("app");
-  const byCwd = new Map();
-  for (const s of sessions) {
-    if (s.isTicket || !s.cwd) continue;
-    if (q && !matchesSearch(s, q)) continue;
-    if (!byCwd.has(s.cwd)) byCwd.set(s.cwd, []);
-    byCwd.get(s.cwd).push(s);
-  }
-  const byRecency = (a, b) => (b.running ? 1 : 0) - (a.running ? 1 : 0) || b.lastActive - a.lastActive;
-  const entries = [...byCwd.entries()].sort((a, b) => projectName(a[0]).localeCompare(projectName(b[0])));
-  for (const [, list] of entries) list.sort(byRecency);
-
-  document.getElementById("statLine").textContent = `${entries.length} project${entries.length === 1 ? "" : "s"}`;
-
-  app.innerHTML = `
-    <div class="board-breadcrumb">
-      <button data-back-to-main>← Back to board</button>
-    </div>
-    <div class="board">
-      ${entries.length ? entries.map(([cwd, list]) => `
-        <div class="board-col">
-          <div class="board-col-header project-col-header" data-project-cwd="${escapeAttr(cwd)}" title="Open ${escapeAttr(projectName(cwd))}'s own board">
-            <span style="flex:1; min-width:0; overflow-wrap:anywhere;">${escapeHtml(projectName(cwd))}</span>
-            <span class="board-count">${list.length}</span>
-          </div>
-          <div class="board-col-body">
-            ${list.map(boardCardHtml).join("") || '<div class="empty" style="padding:16px 0;">No sessions</div>'}
-          </div>
-        </div>
-      `).join("") : '<div class="empty">No sessions with a project yet.</div>'}
-    </div>
-  `;
-
-  app.querySelector("[data-back-to-main]").addEventListener("click", () => setBoardMode("main"));
-  app.querySelectorAll("[data-project-cwd]").forEach((el) => {
-    el.addEventListener("click", () => enterProjectBoard(el.dataset.projectCwd));
-  });
-
-  wireBoardCards(app);
 }
 
 function renderListView(filtered, sortMode) {
@@ -652,9 +639,9 @@ function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     <div class="board">
       ${ctx.cols.map((c) => `
         <div class="board-col" data-col-id="${c.id}">
-          <div class="board-col-header" draggable="true" data-col-drag="${c.id}" title="Drag to reorder columns">
+          <div class="board-col-header" draggable="true" data-col-drag="${c.id}" title="${c.cwd ? `Drag to reorder · click to open ${escapeAttr(projectName(c.cwd))}'s board` : "Drag to reorder columns"}">
             <span class="drag-handle">⠿</span>
-            <span>${escapeHtml(c.title)}</span>
+            <span class="${c.cwd ? "col-title-link" : ""}" data-col-title="${c.cwd ? c.id : ""}">${escapeHtml(c.title)}</span>
             <span class="board-count">${(byColumn.get(c.id) || []).length}</span>
             <div class="col-header-actions" style="margin-left:auto; display:flex; align-items:center; gap:2px;">
             <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
@@ -677,11 +664,21 @@ function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   `;
 
   if (breadcrumbHtml) {
-    app.querySelector("[data-back-to-projects]")?.addEventListener("click", () => setBoardMode("projects"));
     app.querySelector("[data-back-to-main]")?.addEventListener("click", () => setBoardMode("main"));
   }
 
   wireBoardCards(app);
+
+  // clicking a project column's title drills into that project's own board (plain custom
+  // columns have no cwd, so this is a no-op for them — see the empty data-col-title guard)
+  app.querySelectorAll("[data-col-title]").forEach((el) => {
+    if (!el.dataset.colTitle) return;
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const col = ctx.cols.find((c) => c.id === el.dataset.colTitle);
+      if (col?.cwd) enterProjectBoard(col.cwd);
+    });
+  });
 
   // column three-dot menu toggle
   app.querySelectorAll("[data-col-menu-toggle]").forEach((btn) => {
@@ -1689,7 +1686,6 @@ globalDangerousBox.addEventListener("change", (e) => {
   localStorage.setItem("globalDangerous", e.target.checked ? "1" : "0");
 });
 document.getElementById("refreshBtn").addEventListener("click", loadSessions);
-document.getElementById("groupByProjectBtn").addEventListener("click", () => setBoardMode("projects"));
 document.getElementById("globalSearchBtn").addEventListener("click", openGlobalSearchModal);
 
 // ---------- dark / light mode toggle ----------
@@ -1744,7 +1740,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     document.getElementById("search").focus();
   } else if (e.key === "n") {
-    if (boardMode !== "main") return; // global shortcut only targets the main board, not whatever project/picker is showing
+    if (boardMode !== "main") return; // global shortcut only targets the main board, not a drilled-in project board
     e.preventDefault();
     openColumnTaskModal(boardColumns[0]?.id, mainBoardCtx()); // same New Task modal the column "+" opens
   }

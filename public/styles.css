@@ -289,8 +289,8 @@
   }
   .board-breadcrumb button:hover { border-color: var(--accent); color: var(--accent); }
   .board-breadcrumb h2 { font-size: 14px; margin: 0 0 0 4px; color: var(--dim); font-weight: 600; }
-  .project-col-header { cursor: pointer; }
-  .project-col-header:hover { color: var(--accent); }
+  .col-title-link { cursor: pointer; }
+  .col-title-link:hover { color: var(--accent); }
   .board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 20px; align-items: flex-start; width: 100%; }
   .board-col {
     background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
