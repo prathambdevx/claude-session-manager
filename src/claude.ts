@@ -59,18 +59,29 @@ function usingGhostty(): boolean {
 }
 
 export async function openTerminalRunning(cwd: string, command: string) {
+  // Ghostty: pass the command as real CLI args (`ghostty -e zsh -c "<command>"`) instead of
+  // writing + executing a .command script file. Executing a script file makes Ghostty show its
+  // own "Allow Ghostty to execute ...command" confirmation dialog every single launch; running a
+  // command via -e is a normal CLI invocation and never triggers that prompt. `open -na <app>
+  // --args ...` is required (rather than `open -a`) to actually forward args on macOS — `open -na`
+  // still just uses Launch Services, so still no Automation/permission prompt either.
+  if (usingGhostty()) {
+    spawn("open", ["-na", GHOSTTY_APP, "--args", `--working-directory=${cwd}`, "-e", "zsh", "-c", command], {
+      stdio: "ignore",
+      detached: true,
+    }).unref();
+    return;
+  }
+
+  // Apple Terminal has no equivalent "-e" flag, so fall back to writing a .command file and
+  // opening it via Launch Services (same as double-clicking one in Finder) — no permission
+  // needed. (AppleScript "tell application Terminal" would need TCC Automation permission and is
+  // silently denied when this server runs as a launchd background job with no way to prompt.)
   const script = `#!/bin/zsh\ncd ${shellQuote(cwd)}\n${command}\n`;
   const path = join(tmpdir(), `claude-sessions-launch-${crypto.randomUUID()}.command`);
   await Bun.write(path, script);
   await chmod(path, 0o755);
-  // prefer Ghostty if installed, fall back to Apple Terminal. `open -a` uses Launch Services (same
-  // as double-clicking in Finder) — no permission prompt, and if the app is already running it
-  // opens a new window in that same running instance rather than launching a second one.
-  if (usingGhostty()) {
-    spawn("open", ["-a", "Ghostty", path], { stdio: "ignore", detached: true }).unref();
-  } else {
-    spawn("open", ["-a", "Terminal", path], { stdio: "ignore", detached: true }).unref();
-  }
+  spawn("open", ["-a", "Terminal", path], { stdio: "ignore", detached: true }).unref();
 }
 
 // ---------- reuse an already-open Terminal tab instead of spawning a new one ----------
