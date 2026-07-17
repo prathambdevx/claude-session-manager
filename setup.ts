@@ -14,6 +14,32 @@ const ROOT = import.meta.dir; // this repo's folder
 const AGENTS_DIR = join(HOME, "Library", "LaunchAgents");
 const PLIST_PATH = join(AGENTS_DIR, `${LABEL}.plist`);
 const LOG_PATH = join(ROOT, "launchd.log");
+const GHOSTTY_APP = "/Applications/Ghostty.app";
+
+// Sessions launch in Ghostty when it's installed (src/claude.ts prefers it over Apple Terminal), so
+// setup installs it via Homebrew if it isn't already there. Best-effort: if Homebrew is missing or
+// the install fails, launches just fall back to Apple Terminal — never blocks the rest of setup.
+async function ensureGhostty() {
+  if (existsSync(GHOSTTY_APP)) {
+    console.log("✓ Ghostty already installed — sessions will launch in it.");
+    return;
+  }
+  const brew = spawnSync("which", ["brew"], { encoding: "utf-8" });
+  if (brew.status !== 0 || !brew.stdout.trim()) {
+    console.log(
+      "⚠ Ghostty isn't installed and Homebrew isn't available — skipping. " +
+        "Install it yourself (https://ghostty.org) to get sessions launching in it; falling back to Apple Terminal for now."
+    );
+    return;
+  }
+  console.log("Installing Ghostty (brew install --cask ghostty)...");
+  const install = spawnSync("brew", ["install", "--cask", "ghostty"], { stdio: "inherit" });
+  if (install.status !== 0 || !existsSync(GHOSTTY_APP)) {
+    console.log("⚠ Ghostty install failed — falling back to Apple Terminal. Retry later with: brew install --cask ghostty");
+    return;
+  }
+  console.log("✓ Ghostty installed — sessions will now launch in it.");
+}
 
 function bootout(label: string, path: string) {
   // works across macOS versions; ignore errors when the agent isn't loaded
@@ -28,6 +54,8 @@ async function uninstall() {
 }
 
 async function install() {
+  await ensureGhostty();
+
   // resolve the bun binary running this script; fall back to `which bun`
   let bun = process.execPath;
   if (!bun || !bun.includes("bun")) {
