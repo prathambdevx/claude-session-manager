@@ -21,14 +21,17 @@ export function wireBoardCards(app) {
       if (action === "review") openReviewModal(id);
       if (action === "extract") openExtractModal(id);
       if (action === "summarize") summarizeSession(id);
-      if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? undefined : "done" });
+      if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? null : "done" });
       if (action === "ticket-convert") convertTicketToSession(id);
       if (action === "rename") {
         openRenameModal(id, s?.meta?.name, s?.isTicket ? "Rename ticket" : "Rename session");
       }
       if (action === "editDesc") {
         const next = await openPromptModal({ title: "Edit description", value: s?.meta?.description || "" });
-        if (next !== null) patchMeta(id, { description: next.trim() || undefined, descriptionSource: next.trim() ? "manual" : undefined });
+        // `undefined` is silently dropped by JSON.stringify — sending it here would leave the old
+        // description untouched server-side (the merge in the meta route just wouldn't see the
+        // key), so clearing it back to "no description" must send an explicit `null` instead.
+        if (next !== null) patchMeta(id, { description: next.trim() || null, descriptionSource: next.trim() ? "manual" : null });
       }
     });
   });

@@ -91,7 +91,7 @@ export function renderListView(filtered, sortMode) {
       if (action === "summarize") summarizeSession(id);
       if (action === "review") openReviewModal(id);
       if (action === "extract") openExtractModal(id);
-      if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? undefined : "done" });
+      if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? null : "done" });
       if (action === "ticket-convert") convertTicketToSession(id);
       if (action === "rename") {
         openRenameModal(id, s?.meta?.name, "Rename ticket");
@@ -103,14 +103,17 @@ export function renderListView(filtered, sortMode) {
     });
   });
 
+  // `undefined` is silently dropped by JSON.stringify — sending it for a cleared field would leave
+  // the old value untouched server-side (the meta-merge route never sees the key), so every "clear
+  // this back to empty" case below sends an explicit `null` instead.
   app.querySelectorAll("[data-name-edit]").forEach((el) => {
-    el.addEventListener("blur", () => patchMeta(el.dataset.nameEdit, { name: el.value.trim() || undefined }));
+    el.addEventListener("blur", () => patchMeta(el.dataset.nameEdit, { name: el.value.trim() || null }));
     el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
   });
   app.querySelectorAll("[data-description-edit]").forEach((el) => {
     el.addEventListener("blur", () => {
       const val = el.value.trim();
-      patchMeta(el.dataset.descriptionEdit, { description: val || undefined, descriptionSource: val ? "manual" : undefined });
+      patchMeta(el.dataset.descriptionEdit, { description: val || null, descriptionSource: val ? "manual" : null });
     });
     el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
   });
@@ -122,6 +125,6 @@ export function renderListView(filtered, sortMode) {
     el.addEventListener("keydown", (e) => { if (e.key === "Enter") el.blur(); });
   });
   app.querySelectorAll("[data-notes-edit]").forEach((el) => {
-    el.addEventListener("blur", () => patchMeta(el.dataset.notesEdit, { notes: el.value.trim() || undefined }));
+    el.addEventListener("blur", () => patchMeta(el.dataset.notesEdit, { notes: el.value.trim() || null }));
   });
 }

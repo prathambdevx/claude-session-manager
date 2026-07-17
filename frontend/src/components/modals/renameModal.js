@@ -17,7 +17,7 @@ export function openRenameModal(id, currentName, label) {
   input.focus();
   input.select();
   const save = () => {
-    patchMeta(id, { name: input.value.trim() || undefined });
+    patchMeta(id, { name: input.value.trim() || null });
     closeReviewModal();
   };
   document.getElementById("renameCancel").addEventListener("click", closeReviewModal);
