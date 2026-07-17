@@ -1,6 +1,8 @@
 // HTTP request routing: tries each resource's route module in turn (same effective order as the
 // original single-file router) and returns the first non-null Response.
 export { startClearReconciliationPoller } from "./reconcile.ts";
+export { startFsWatcher } from "../fsWatcher.ts";
+import { handleEventsRoutes } from "./events.ts";
 import { handleSessionsRoutes } from "./sessions.ts";
 import { handleBoardRoutes } from "./board.ts";
 import { handleSavedViewsRoutes } from "./savedViews.ts";
@@ -17,6 +19,7 @@ import { handleTodosRoutes } from "./todos.ts";
 import { handleStaticRoutes } from "./static.ts";
 
 const ROUTE_HANDLERS = [
+  handleEventsRoutes,
   handleSessionsRoutes,
   handleBoardRoutes,
   handleSavedViewsRoutes,

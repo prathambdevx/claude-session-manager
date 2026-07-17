@@ -5,6 +5,7 @@
 import { currentTab, contentSearchTimer, setContentSearchTimer, boardColumns, defaultViewId, setActiveView } from "./state.js";
 import { initBoardStateFromLocation, wirePopstate } from "./routing/boardRouting.js";
 import { loadSessions, loadProjects, fetchContentMatches } from "./api/sessionsApi.js";
+import { initLiveUpdates } from "./api/sse.js";
 import { dangerousDefault } from "./ui/formFragments.js";
 import { render } from "./pages/sessionsPage.js";
 import { setTab, wireTabs } from "./pages/todosPage.js";
@@ -85,10 +86,12 @@ loadSessions().then(() => {
   }
 });
 loadProjects();
-// Short enough that a session's busy/idle/waiting status (and its live-activity chip) feels as
-// immediate as Quick Prompt's own send-triggered refresh — cheap even at this cadence since
-// scanTranscript's StatCache turns an unchanged transcript into a plain stat() call, not a re-parse.
-setInterval(loadSessions, 3000);
+initLiveUpdates(); // pushes a refetch within tens of ms of a real change — see api/sse.js
+// Backstop only — SSE is the fast path now. This just covers the rare case where the live-update
+// connection is down (e.g. it's still reconnecting after a server restart) so the board doesn't go
+// stale indefinitely; cheap enough at this cadence regardless (pure local filesystem/JSON reads,
+// and StatCache turns an unchanged transcript into a plain stat() rather than a re-parse).
+setInterval(loadSessions, 1000);
 // Refresh immediately whenever you come back to this tab/window — otherwise a card's embedded
 // session id can be stale until the next poll. That staleness is exactly what let a real bug through: open a
 // session, /clear it (server-side reconciliation swaps which id owns that card), close the

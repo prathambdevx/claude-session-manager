@@ -4,14 +4,20 @@ import { summarizingIds, quickPrompts, sessions } from "../state.js";
 import { escapeHtml, timeAgo, projectName } from "../ui/format.js";
 import { ctxBadgeFullHtml } from "../ui/contextBadge.js";
 
-// Quick Prompt's job chip — persists on the card until clicked (never auto-hides), showing the
-// backend job's real running/done/error state. There's no true percent-complete for an open-ended
-// agentic task, so "running" gets an indeterminate sliding bar rather than a fabricated number;
-// done/error get a full, color-matched bar. The step label is the latest line of the job's own
-// live activity log (same field the backend already streams for Delegations).
+// Quick Prompt's job chip — persists on the card until clicked (never auto-hides) *as long as
+// nothing new has happened since*. Picks the MOST RECENT job for this session (not just the first
+// match — an old dismissed-pending done/error job and a freshly-sent one can coexist until the old
+// one is clicked away), and if that latest job has already finished but the session is active
+// again (a new prompt sent, or the user just typed straight into its terminal — either way,
+// s.activelyWorking is true), steps aside so the real current state (workingChipHtml/doneChipHtml)
+// shows instead of a stale green "Done" from a prompt that isn't the one running right now. A
+// still-*running* job always shows regardless, since it already reflects live progress itself.
 function jobChipHtml(s) {
-  const j = quickPrompts.find((x) => x.sessionId === s.id);
+  const j = quickPrompts
+    .filter((x) => x.sessionId === s.id)
+    .sort((a, b) => b.createdAt - a.createdAt)[0];
   if (!j) return "";
+  if (j.status !== "running" && s.activelyWorking) return "";
   const cls = j.status === "error" ? "job-error" : j.status === "done" ? "job-done" : "job-running";
   const icon = j.status === "error" ? '<span class="jc-icon">⚠</span>'
     : j.status === "done" ? '<span class="jc-icon">✓</span>'

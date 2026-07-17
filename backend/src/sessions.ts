@@ -25,6 +25,15 @@ export type Session = {
   lastActivity: string | null; // last tool-use/thinking/text line seen — "what is it doing" for a running session
 };
 
+// Shared with routes/sessions.ts's GET /api/sessions AND fsWatcher.ts's granular per-session SSE
+// push, so both compute "is this session actively working" identically: Claude Code's own status
+// file can get stuck reporting a stale "waiting" indefinitely on a long-running interactive
+// terminal (confirmed live), so a recent transcript write counts too, not just status === "busy".
+export const ACTIVITY_WINDOW_MS = 15_000;
+export function computeActivelyWorking(s: Session, running: { status?: string } | null | undefined): boolean {
+  return running?.status === "busy" || Date.now() - s.lastActive < ACTIVITY_WINDOW_MS;
+}
+
 const WRITE_TOOLS = new Set(["Edit", "Write", "NotebookEdit"]);
 const NOISE_PREFIX = /^<(local-command|command-name|command-message|command-stdout)/;
 // machine-generated user-role turns that aren't real human intent — task/tool notifications,

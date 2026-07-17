@@ -8,7 +8,7 @@ import {
   loadAllQuickPromptJobs,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
-import { scanAllSessions, summarizeSession as summarizeSessionTranscript } from "../sessions.ts";
+import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions.ts";
 import {
   ghosttyWindowTitle, writeGhosttyTitle, deleteGhosttyTitle, ghosttyTitleFilePath,
   openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, shellQuote,
@@ -34,22 +34,14 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       loadSavedViews(),
       loadBoardSettings(),
     ]);
-    // Claude Code's own status file (running.status) isn't reliable for this: a long-running
-    // interactive terminal can get stuck reporting a stale "waiting" (e.g. from an old permission
-    // prompt) for the rest of its life even while real work keeps happening — confirmed live, a
-    // session sat at status:"waiting"/updatedAt from an hour prior while its transcript kept
-    // getting fresh tool-use writes every few seconds. Quick Prompt's own terminal-delivery path
-    // already sidesteps this the same way (routes/quickPrompts.ts's watchTranscriptForCompletion):
-    // trust the transcript's own mtime, not the CLI's self-reported flag. `busy` still counts too,
-    // since a background/headless job (Delegations, Quick Prompt's non-terminal path) has no
-    // transcript writes of its own to watch until it's done.
-    const ACTIVITY_WINDOW_MS = 15_000;
+    // see computeActivelyWorking (sessions.ts) for why this doesn't just trust running.status —
+    // shared with fsWatcher.ts's granular per-session SSE push so both compute it identically.
     const enriched = sessions.map((s) => {
       const r = running[s.id] ?? null;
       return {
         ...s,
         running: r,
-        activelyWorking: r?.status === "busy" || Date.now() - s.lastActive < ACTIVITY_WINDOW_MS,
+        activelyWorking: computeActivelyWorking(s, r),
         meta: reconciledMeta[s.id] ?? {},
       };
     });

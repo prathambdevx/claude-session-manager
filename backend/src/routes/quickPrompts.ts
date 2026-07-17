@@ -21,9 +21,23 @@ import { saveQuickPromptJob, loadQuickPromptJob, deleteQuickPromptJob, loadRunni
 import type { QuickPromptJob } from "../store.ts";
 import { scanAllSessions } from "../sessions.ts";
 import { runClaudeHeadlessDetached, sendPromptToRunningTerminal, ghosttyWindowTag } from "../claude/index.ts";
+import { activityLine } from "../claude/activity.ts";
 import { json } from "./json.ts";
 
-const WATCH_POLL_MS = 3000;
+const WATCH_POLL_MS = 1000;
+
+function lastAssistantEntry(raw: string): any | null {
+  const lines = raw.split("\n").filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try {
+      const d = JSON.parse(lines[i]);
+      if (d?.type === "assistant") return d;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
 
 function lastAssistantText(raw: string): string | null {
   const lines = raw.split("\n").filter(Boolean);
@@ -43,17 +57,24 @@ function lastAssistantText(raw: string): string | null {
   return null;
 }
 
-// Polls the session's own transcript file for a new entry appended after `sinceMtimeMs` (the
-// moment we just typed the prompt in) — the only way to observe progress once the prompt has gone
-// into a real interactive terminal instead of a subprocess we control. Fire-and-forget; writes its
-// own conclusion to the job record when it detects a change or times out.
-function watchTranscriptForCompletion(record: QuickPromptJob, transcriptPath: string, sinceMtimeMs: number) {
-  const startedAt = Date.now();
+// Polls the session's own transcript file for changes after `sinceMtimeMs` (the moment we just
+// typed the prompt in) — the only way to observe progress once the prompt has gone into a real
+// interactive terminal instead of a subprocess we control. Used to mark the job "done" at the
+// FIRST change of any kind — which meant a multi-step task (e.g. "commit and push this") flipped
+// to done the instant Claude's first tool call landed, long before the real work finished. Now
+// uses the same "is this actually done" signal the card's own done-chip uses (see
+// boardCard.js's doneChipHtml): the last assistant entry's first content block has to be plain
+// text (💭, activityLine()'s way of saying "a final response, no further tool call queued in this
+// message") — anything else (a tool call still running) keeps watching and streams that as
+// live progress instead. Fire-and-forget; writes its own conclusion when truly done or on timeout.
+function watchTranscriptForCompletion(
+  record: QuickPromptJob, transcriptPath: string, sinceMtimeMs: number, startedAt: number = Date.now()
+) {
   const tick = async () => {
     if (Date.now() - startedAt > QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS) {
       await saveQuickPromptJob({
         ...record, status: "error", finishedAt: Date.now(),
-        error: "No response seen in the terminal within the wait window — it may still be working; check there directly.",
+        error: "No final response seen in the terminal within the wait window — it may still be working; check there directly.",
       });
       return;
     }
@@ -69,13 +90,20 @@ function watchTranscriptForCompletion(record: QuickPromptJob, transcriptPath: st
       try {
         text = await readFile(transcriptPath, "utf-8");
       } catch {
-        // fall through with empty text — still counts as "something changed"
+        // fall through with empty text — treated as "still working", not a false "done"
       }
-      const msg = lastAssistantText(text);
-      await saveQuickPromptJob({
-        ...record, status: "done", finishedAt: Date.now(),
-        result: msg || "(sent — check the terminal for its response)",
-      });
+      const entry = lastAssistantEntry(text);
+      const line = entry ? activityLine(entry) : null;
+      if (line?.startsWith("💭")) {
+        await saveQuickPromptJob({
+          ...record, status: "done", finishedAt: Date.now(),
+          result: lastAssistantText(text) || "(sent — check the terminal for its response)",
+        });
+        return;
+      }
+      record.progress = [...record.progress, line || "Working…"];
+      await saveQuickPromptJob(record);
+      setTimeout(() => watchTranscriptForCompletion(record, transcriptPath, mtimeMs, startedAt), WATCH_POLL_MS);
       return;
     }
     setTimeout(tick, WATCH_POLL_MS);
