@@ -10,7 +10,7 @@ import { loadRunning, loadMeta, saveMeta, reconcileClearedSessions } from "../st
 import type { Meta } from "../store.ts";
 import { scanAllSessions } from "../sessions.ts";
 import type { Session } from "../sessions.ts";
-import { writeGhosttyTitle, ghosttyWindowTitle } from "../claude.ts";
+import { writeGhosttyTitle, ghosttyWindowTitle } from "../claude/index.ts";
 
 export async function reconcileNow(): Promise<Record<string, Meta>> {
   const [running, meta] = await Promise.all([loadRunning(), loadMeta()]);

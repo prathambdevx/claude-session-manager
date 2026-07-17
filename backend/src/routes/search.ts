@@ -3,7 +3,7 @@ import { PROJECTS_DIR } from "../config.ts";
 import { loadMeta } from "../store.ts";
 import { scanAllSessions, keywordSearchScores, queryNeedles, matchSnippets, projectNameFromCwd } from "../sessions.ts";
 import type { Session } from "../sessions.ts";
-import { runClaudeHeadless } from "../claude.ts";
+import { runClaudeHeadless } from "../claude/index.ts";
 import { json } from "./json.ts";
 
 export async function handleSearchRoutes(req: Request, url: URL): Promise<Response | null> {

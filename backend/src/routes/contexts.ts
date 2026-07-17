@@ -3,7 +3,7 @@ import { PROJECTS_DIR, KNOWN_MODELS } from "../config.ts";
 import { loadMeta, saveMeta, saveContext, loadContext } from "../store.ts";
 import type { ContextRecord } from "../store.ts";
 import { scanAllSessions, buildTranscriptDigest } from "../sessions.ts";
-import { runClaudeHeadless, buildContextExtractionPrompt, buildContinuationPrompt, buildLaunchScript, openTerminalRunning } from "../claude.ts";
+import { runClaudeHeadless, buildContextExtractionPrompt, buildContinuationPrompt, buildLaunchScript, openTerminalRunning } from "../claude/index.ts";
 import { markdownToHtml } from "../html.ts";
 import { json } from "./json.ts";
 

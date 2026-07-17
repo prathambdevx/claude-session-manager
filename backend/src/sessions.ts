@@ -4,7 +4,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { PROJECTS_DIR, CONTEXT_WINDOW_TOKENS } from "./config.ts";
-import { runClaudeHeadless } from "./claude.ts";
+import { runClaudeHeadless } from "./claude/index.ts";
 import { StatCache } from "./cache.ts";
 
 export type Session = {

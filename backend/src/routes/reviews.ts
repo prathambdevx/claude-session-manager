@@ -3,7 +3,7 @@ import { REVIEWS_DIR, KNOWN_MODELS, CLAUDE_BIN, EFFORT_FLAG, DANGEROUS_FLAG } fr
 import { loadMeta, saveMeta, saveReview, loadReview } from "../store.ts";
 import type { ReviewRecord } from "../store.ts";
 import { scanAllSessions, projectNameFromCwd } from "../sessions.ts";
-import { runClaudeHeadless, buildFileReviewPrompt, buildFixPrompt, modelAliasWithContext, shellQuote, openTerminalRunning } from "../claude.ts";
+import { runClaudeHeadless, buildFileReviewPrompt, buildFixPrompt, modelAliasWithContext, shellQuote, openTerminalRunning } from "../claude/index.ts";
 import { escapeHtmlServer, reviewsIndexHtml, markdownToHtml } from "../html.ts";
 import { json } from "./json.ts";
 

@@ -20,7 +20,7 @@ import { PROJECTS_DIR, QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS } from "../config.t
 import { saveQuickPromptJob, loadQuickPromptJob, deleteQuickPromptJob, loadRunning } from "../store.ts";
 import type { QuickPromptJob } from "../store.ts";
 import { scanAllSessions } from "../sessions.ts";
-import { runClaudeHeadlessDetached, sendPromptToRunningTerminal, ghosttyWindowTag } from "../claude.ts";
+import { runClaudeHeadlessDetached, sendPromptToRunningTerminal, ghosttyWindowTag } from "../claude/index.ts";
 import { json } from "./json.ts";
 
 const WATCH_POLL_MS = 3000;

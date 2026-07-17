@@ -3,7 +3,7 @@ import { PROJECTS_DIR } from "../config.ts";
 import { loadAgents, loadMeta, saveDelegation, loadDelegation, loadAllDelegations, deleteDelegation } from "../store.ts";
 import type { Delegation } from "../store.ts";
 import { scanAllSessions, buildTranscriptDigest } from "../sessions.ts";
-import { runClaudeHeadlessDetached, buildDelegationPrompt } from "../claude.ts";
+import { runClaudeHeadlessDetached, buildDelegationPrompt } from "../claude/index.ts";
 import { escapeHtmlServer, markdownToHtml, delegationsIndexHtml } from "../html.ts";
 import { json } from "./json.ts";
 

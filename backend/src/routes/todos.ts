@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { KNOWN_MODELS, CLAUDE_BIN, DANGEROUS_FLAG } from "../config.ts";
 import { loadTodos, saveTodos, loadMeta, saveMeta } from "../store.ts";
 import { scanAllSessions } from "../sessions.ts";
-import { buildLaunchScript, openTerminalRunning, shellQuote } from "../claude.ts";
+import { buildLaunchScript, openTerminalRunning, shellQuote } from "../claude/index.ts";
 import { json } from "./json.ts";
 
 export async function handleTodosRoutes(req: Request, url: URL): Promise<Response | null> {

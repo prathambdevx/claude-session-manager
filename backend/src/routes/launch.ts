@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { KNOWN_MODELS, LAUNCH_MODES } from "../config.ts";
 import { loadMeta, saveMeta } from "../store.ts";
-import { buildLaunchScript, openTerminalRunning } from "../claude.ts";
+import { buildLaunchScript, openTerminalRunning } from "../claude/index.ts";
 import { json } from "./json.ts";
 
 export async function handleLaunchRoutes(req: Request, url: URL): Promise<Response | null> {

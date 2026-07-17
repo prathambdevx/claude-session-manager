@@ -12,7 +12,7 @@ import { scanAllSessions, summarizeSession as summarizeSessionTranscript } from 
 import {
   ghosttyWindowTitle, writeGhosttyTitle, deleteGhosttyTitle, ghosttyTitleFilePath,
   openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, shellQuote,
-} from "../claude.ts";
+} from "../claude/index.ts";
 import { CLAUDE_BIN, DANGEROUS_FLAG } from "../config.ts";
 import { json } from "./json.ts";
 import { reconcileNow } from "./reconcile.ts";
