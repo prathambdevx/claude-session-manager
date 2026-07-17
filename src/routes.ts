@@ -2,7 +2,7 @@
 import { readdir, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { PROJECTS_DIR, REVIEWS_DIR, PUBLIC_DIR, KNOWN_MODELS, LAUNCH_MODES, EFFORT_FLAG, DANGEROUS_FLAG } from "./config.ts";
+import { PROJECTS_DIR, REVIEWS_DIR, PUBLIC_DIR, KNOWN_MODELS, LAUNCH_MODES, EFFORT_FLAG, DANGEROUS_FLAG, CLAUDE_BIN } from "./config.ts";
 import {
   loadMeta, saveMeta, loadTickets, saveTickets, loadRunning, reconcileClearedSessions,
   saveReview, loadReview, saveContext, loadContext,
@@ -500,7 +500,7 @@ export async function handleRequest(req: Request): Promise<Response> {
     const dangerous = body?.dangerous !== false;
     const prompt = buildFixPrompt(review, selection, writeTests);
     const modelFlag = review.model ? ` --model ${modelAliasWithContext(review.model)}` : "";
-    const cmd = `claude${modelFlag}${EFFORT_FLAG}${dangerous ? DANGEROUS_FLAG : ""} ${shellQuote(prompt)}`;
+    const cmd = `${shellQuote(CLAUDE_BIN)}${modelFlag}${EFFORT_FLAG}${dangerous ? DANGEROUS_FLAG : ""} ${shellQuote(prompt)}`;
     await openTerminalRunning(review.cwd, cmd);
     return json({ ok: true, cwd: review.cwd, selection });
   }
@@ -606,7 +606,7 @@ export async function handleRequest(req: Request): Promise<Response> {
       }
     }
 
-    const cmd = `claude --resume ${id}${fork ? " --fork-session" : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
+    const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${fork ? " --fork-session" : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
     await openTerminalRunning(s.cwd, cmd);
     return json({ ok: true, command: cmd, cwd: s.cwd });
   }
@@ -699,7 +699,7 @@ export async function handleRequest(req: Request): Promise<Response> {
       const s = sessions.find((x) => x.id === existingSessionId);
       if (!s) return json({ error: "session not found" }, { status: 404 });
       const task = todo.description || todo.title;
-      const cmd = `claude --resume ${existingSessionId}${dangerous ? DANGEROUS_FLAG : ""} ${shellQuote(task)}`;
+      const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${existingSessionId}${dangerous ? DANGEROUS_FLAG : ""} ${shellQuote(task)}`;
       await openTerminalRunning(s.cwd, cmd);
       todo.assignedSessionId = existingSessionId;
       todo.status = "in-progress";

@@ -180,13 +180,13 @@ export function buildLaunchScript(
 
   if (mode === "research") {
     // still blocked from mutating files even in dangerous mode — --disallowedTools is enforced independently
-    return `claude${modelFlag}${EFFORT_FLAG}${sessionFlag}${dangerFlag} --disallowedTools "Edit,Write,NotebookEdit" ${shellQuote(researchPrompt(task))}`;
+    return `${shellQuote(CLAUDE_BIN)}${modelFlag}${EFFORT_FLAG}${sessionFlag}${dangerFlag} --disallowedTools "Edit,Write,NotebookEdit" ${shellQuote(researchPrompt(task))}`;
   }
 
-  const implementCmd = `claude${modelFlag}${EFFORT_FLAG}${sessionFlag}${dangerFlag} ${shellQuote(task)}`;
+  const implementCmd = `${shellQuote(CLAUDE_BIN)}${modelFlag}${EFFORT_FLAG}${sessionFlag}${dangerFlag} ${shellQuote(task)}`;
   if (mode === "implement-review") {
     // the reviewer pass continues the same session (--continue) so it has full context of what was just built
-    const reviewCmd = `claude${modelFlag}${EFFORT_FLAG}${dangerFlag} --continue ${shellQuote(REVIEW_PROMPT)}`;
+    const reviewCmd = `${shellQuote(CLAUDE_BIN)}${modelFlag}${EFFORT_FLAG}${dangerFlag} --continue ${shellQuote(REVIEW_PROMPT)}`;
     return `${implementCmd} && echo '--- implementation done, launching reviewer agent ---' && ${reviewCmd}`;
   }
   return implementCmd;
