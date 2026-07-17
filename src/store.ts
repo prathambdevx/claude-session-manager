@@ -251,7 +251,11 @@ export type ClearedReconciliation = { oldId: string; newId: string; carriedName?
 
 export async function reconcileClearedSessions(
   running: Record<string, RunningInfo>,
-  meta: Record<string, Meta>
+  meta: Record<string, Meta>,
+  // Sessions that were never manually renamed have no meta.name to relabel — this lets the caller
+  // (routes.ts, which can scan the transcript for a firstMessage-derived title) supply a fallback
+  // label so "(before clear)" isn't shown bare with nothing in front of it.
+  resolveFallbackLabel?: (sessionId: string) => Promise<string | undefined>
 ): Promise<{ meta: Record<string, Meta>; changed: boolean; reconciled: ClearedReconciliation[] }> {
   const links = await loadPidLinks();
   const nextLinks: PidLinks = {};
@@ -270,9 +274,10 @@ export async function reconcileClearedSessions(
       }
       if (Object.keys(carried).length) {
         meta[sessionId] = carried; // new session inherits the name + board slot
+        const baseLabel = prevMeta.name || (await resolveFallbackLabel?.(prevSessionId));
         meta[prevSessionId] = {
           ...prevMeta,
-          name: prevMeta.name ? `${prevMeta.name} (before clear)` : "(before clear)",
+          name: baseLabel ? `${baseLabel} (before clear)` : "(before clear)",
           board: undefined, // falls back to the first column ("All sessions") instead of its old slot
         };
         changed = true;

@@ -41,7 +41,13 @@ function json(data: unknown, init?: ResponseInit) {
 // card." Running this independently every couple seconds shrinks that window drastically.
 export async function reconcileNow(): Promise<Record<string, Meta>> {
   const [running, meta] = await Promise.all([loadRunning(), loadMeta()]);
-  const { meta: reconciledMeta, changed, reconciled } = await reconcileClearedSessions(running, meta);
+  // only scanned lazily, at most once per call, and only if a nameless carry-over actually needs it
+  let scannedSessions: Session[] | null = null;
+  const resolveFallbackLabel = async (sessionId: string) => {
+    if (!scannedSessions) scannedSessions = await scanAllSessions();
+    return scannedSessions.find((s) => s.id === sessionId)?.firstMessage?.slice(0, 60) || undefined;
+  };
+  const { meta: reconciledMeta, changed, reconciled } = await reconcileClearedSessions(running, meta, resolveFallbackLabel);
   if (changed) await saveMeta(reconciledMeta);
   // the terminal window itself didn't restart — it's still reading its ORIGINAL (pre-clear)
   // title file — so keep writing to that same file, just with the carried-over name and the

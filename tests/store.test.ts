@@ -91,6 +91,24 @@ test("reconcileClearedSessions carries a running session's name/board to its new
   expect(second.reconciled).toEqual([{ oldId: "old-session-id", newId: "new-session-id", carriedName: "Bugs v1" }]);
 });
 
+test("reconcileClearedSessions uses the fallback label when the old session was never manually named", async () => {
+  const meta: Record<string, import("../src/store.ts").Meta> = {
+    "unnamed-old": { board: "priority" }, // no `name` — only ever shown via firstMessage in the UI
+  };
+  const first = await store.reconcileClearedSessions({ "unnamed-old": { pid: 444 } }, meta);
+  expect(first.changed).toBe(false);
+
+  const resolveFallbackLabel = async (id: string) => (id === "unnamed-old" ? "list files then say done" : undefined);
+  const second = await store.reconcileClearedSessions(
+    { "unnamed-new": { pid: 444 } },
+    first.meta,
+    resolveFallbackLabel
+  );
+  expect(second.changed).toBe(true);
+  // NOT bare "(before clear)" — the transcript's firstMessage is used as the label in front of it
+  expect(second.meta["unnamed-old"].name).toBe("list files then say done (before clear)");
+});
+
 test("reconcileClearedSessions is idempotent — polling again with the same pid->session mapping changes nothing", async () => {
   const meta: Record<string, import("../src/store.ts").Meta> = {
     s1: { name: "Steady session", board: "done" },
