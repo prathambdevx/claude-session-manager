@@ -23,6 +23,7 @@ export const AGENTS_PATH = join(DATA_DIR, "agents.json");
 export const BOARD_PATH = join(DATA_DIR, "board.json");
 export const TODO_BOARD_PATH = join(DATA_DIR, "todo-board.json");
 export const PROJECT_BOARDS_PATH = join(DATA_DIR, "project-boards.json");
+export const GROUP_BOARD_PATH = join(DATA_DIR, "group-board.json");
 export const SAVED_VIEWS_PATH = join(DATA_DIR, "saved-views.json");
 export const BOARD_SETTINGS_PATH = join(DATA_DIR, "board-settings.json");
 export const PID_LINKS_PATH = join(DATA_DIR, "pid-links.json");

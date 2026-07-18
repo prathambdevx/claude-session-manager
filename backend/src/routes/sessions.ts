@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { PROJECTS_DIR } from "../constants.ts";
 import {
   loadMeta, saveMeta, loadTickets, loadRunning, loadAgents, loadAllDelegations, loadTodos,
-  loadBoard, loadTodoBoard, loadProjectBoards, loadSavedViews, loadBoardSettings,
+  loadBoard, loadTodoBoard, loadGroupBoard, loadProjectBoards, loadSavedViews, loadBoardSettings,
   loadAllQuickPromptJobs, pidAlive,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
@@ -19,7 +19,7 @@ import { reconcileNow } from "./reconcile.ts";
 
 export async function handleSessionsRoutes(req: Request, url: URL): Promise<Response | null> {
   if (url.pathname === "/api/sessions" && req.method === "GET") {
-    const [sessions, running, reconciledMeta, tickets, agents, delegations, quickPrompts, todos, board, todoBoard, projectBoards, savedViews, boardSettings] = await Promise.all([
+    const [sessions, running, reconciledMeta, tickets, agents, delegations, quickPrompts, todos, board, todoBoard, groupBoard, projectBoards, savedViews, boardSettings] = await Promise.all([
       scanAllSessions(),
       loadRunning(),
       reconcileNow(),
@@ -30,6 +30,7 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       loadTodos(),
       loadBoard(),
       loadTodoBoard(),
+      loadGroupBoard(),
       loadProjectBoards(),
       loadSavedViews(),
       loadBoardSettings(),
@@ -47,7 +48,7 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     });
     return json({
       sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, quickPrompts,
-      todos: Object.values(todos), board, todoBoard, projectBoards, savedViews, boardSettings,
+      todos: Object.values(todos), board, todoBoard, groupBoard, projectBoards, savedViews, boardSettings,
     });
   }
 
@@ -56,7 +57,11 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     const id = metaMatch[1];
     const patch = (await req.json()) as Meta;
     const meta = await loadMeta();
-    meta[id] = { ...meta[id], ...patch };
+    // a plain spread would replace the WHOLE boardTags map, clobbering every other board's own
+    // entry — each board/view's tag lives at its own key, so this merges key-by-key instead
+    const hasBoardTagsPatch = patch.boardTags && typeof patch.boardTags === "object";
+    const boardTags = hasBoardTagsPatch ? { ...meta[id]?.boardTags, ...patch.boardTags } : meta[id]?.boardTags;
+    meta[id] = { ...meta[id], ...patch, ...(boardTags ? { boardTags } : {}) };
     await saveMeta(meta);
     // keep an already-open Ghostty window's title in sync with a rename (harmless no-op if the
     // session isn't currently open — its window-title-polling loop just isn't there to read it)

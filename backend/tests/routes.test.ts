@@ -82,6 +82,17 @@ test("PUT /api/board persists column definitions", async () => {
   expect(data.columns).toEqual(columns);
 });
 
+test("PUT /api/group-board persists the Projects lens' column definitions", async () => {
+  const columns = [{ id: "proj-a", title: "proj-a", cwd: "/x/proj-a" }, { id: "bad" /* missing title, dropped */ }];
+  const res = await put("/api/group-board", { columns });
+  const data = await res.json();
+  expect(data.ok).toBe(true);
+  expect(data.columns).toEqual([{ id: "proj-a", title: "proj-a", cwd: "/x/proj-a" }]);
+
+  const { loadGroupBoard } = await import("../src/store.ts");
+  expect(await loadGroupBoard()).toEqual([{ id: "proj-a", title: "proj-a", cwd: "/x/proj-a" }]);
+});
+
 test("PUT /api/project-board requires cwd and a columns array", async () => {
   const noCwd = await put("/api/project-board", { columns: [] });
   expect(noCwd.status).toBe(400);
@@ -107,4 +118,34 @@ test("PUT /api/project-board sanitizes columns and keeps each project's board in
   const all = await loadProjectBoards();
   expect(all["/x/proj-a"]).toEqual([{ id: "todo", title: "All sessions" }]);
   expect(all["/x/proj-b"]).toEqual([{ id: "backlog", title: "Backlog" }]);
+});
+
+test("PUT /api/sessions/:id/meta merges boardTags key-by-key instead of replacing the whole map", async () => {
+  await put("/api/sessions/sess-1/meta", { boardTags: { main: "custom-1" } });
+  const res = await put("/api/sessions/sess-1/meta", { boardTags: { "saved:abc": "custom-2" } });
+  const data = await res.json();
+  expect(data.meta.boardTags).toEqual({ main: "custom-1", "saved:abc": "custom-2" });
+});
+
+test("PUT /api/tickets/:id merges boardTags key-by-key instead of replacing the whole map", async () => {
+  const created = await post("/api/tickets", { title: "t" });
+  const id = (await created.json()).ticket.id;
+  await put(`/api/tickets/${id}`, { boardTags: { main: "custom-1" } });
+  const res = await put(`/api/tickets/${id}`, { boardTags: { "saved:abc": "custom-2" } });
+  const data = await res.json();
+  expect(data.ticket.boardTags).toEqual({ main: "custom-1", "saved:abc": "custom-2" });
+});
+
+test("PUT /api/sessions/:id/meta boardTags: explicit null clears one key without touching others", async () => {
+  await put("/api/sessions/sess-2/meta", { boardTags: { main: "custom-1", "saved:x": "custom-2" } });
+  const res = await put("/api/sessions/sess-2/meta", { boardTags: { main: null } });
+  const data = await res.json();
+  expect(data.meta.boardTags).toEqual({ main: null, "saved:x": "custom-2" });
+});
+
+test("PUT /api/sessions/:id/meta ignores a malformed (non-object) boardTags instead of corrupting the map", async () => {
+  await put("/api/sessions/sess-3/meta", { boardTags: { main: "custom-1" } });
+  const res = await put("/api/sessions/sess-3/meta", { boardTags: "not-an-object" });
+  const data = await res.json();
+  expect(data.meta.boardTags).toEqual({ main: "custom-1" });
 });

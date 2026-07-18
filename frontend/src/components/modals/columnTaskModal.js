@@ -5,6 +5,7 @@ import { modelSelectHtml, dangerousCheckboxHtml } from "../../ui/formFragments.j
 import { toast } from "../../ui/toast.js";
 import { launchTask, patchMeta, loadSessions } from "../../api/sessionsApi.js";
 import { wireImagePaste } from "../../ui/pasteImage.js";
+import { setBoardTag } from "../../routing/boardRouting.js";
 
 export function openColumnTaskModal(colId, ctx) {
   const col = ctx.cols.find((c) => c.id === colId);
@@ -64,12 +65,15 @@ export function openColumnTaskModal(colId, ctx) {
       const res = await fetch("/api/tickets", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, notes: name ? desc : undefined, board: colId }),
+        body: JSON.stringify({ title, notes: name ? desc : undefined }),
       });
       const data = await res.json();
       closeReviewModal();
-      if (data.ok) { toast("Ticket created"); loadSessions(); }
-      else toast("Failed to create ticket: " + (data.error || "unknown error"));
+      if (data.ok) {
+        await setBoardTag(ctx, data.ticket.id, colId);
+        toast("Ticket created");
+        loadSessions();
+      } else toast("Failed to create ticket: " + (data.error || "unknown error"));
       return;
     }
 
@@ -80,7 +84,7 @@ export function openColumnTaskModal(colId, ctx) {
     const data = await launchTask({ cwd, task: resolvePromptText(desc), name, model, mode: "solo", dangerous });
     if (data?.ok) {
       closeReviewModal();
-      if (data.sessionId) patchMeta(data.sessionId, { board: colId }); // drop the new session straight into the column it was launched from
+      if (data.sessionId) setBoardTag(ctx, data.sessionId, colId); // drop the new session straight into the column it was launched from
     }
   });
 }

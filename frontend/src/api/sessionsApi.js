@@ -3,7 +3,8 @@
 import {
   sessions, setSessions, agents, setAgents, delegations, setDelegations, todos, setTodos,
   boardMode, activeProjectCwd, boardColumns, projectBoards, setBoardColumns, setProjectBoards,
-  currentProjectColumns, setCurrentProjectColumns, summarizingIds, setContentMatchIds, currentTab,
+  currentProjectColumns, setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns,
+  summarizingIds, setContentMatchIds, currentTab,
   DEFAULT_COLUMNS, setSavedViews, setQuickPrompts,
 } from "../state.js";
 import { migrateColumns, mergeInProjectColumns, carryTransientColumnFlags } from "../routing/boardRouting.js";
@@ -33,6 +34,14 @@ export async function saveBoardColumns() {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ columns: boardColumns }),
+  });
+}
+
+export async function saveGroupBoardColumns() {
+  await fetch("/api/group-board", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ columns: groupBoardColumns }),
   });
 }
 
@@ -81,6 +90,15 @@ export async function loadSessions(opts = {}) {
       await saveBoardColumns();
     }
     localStorage.setItem("projectColumnsMigrated", "1");
+  }
+
+  setGroupBoardColumns(Array.isArray(data.groupBoard) ? data.groupBoard : []);
+  // no manual "Regroup" button for this view — every project always gets a column, silently,
+  // on every load (existing order/hidden/collapsed state for already-present columns untouched)
+  const groupMerged = mergeInProjectColumns(groupBoardColumns, data.sessions || []);
+  if (groupMerged.changed) {
+    setGroupBoardColumns(groupMerged.columns);
+    await saveGroupBoardColumns();
   }
 
   setProjectBoards((data.projectBoards && typeof data.projectBoards === "object") ? data.projectBoards : {});

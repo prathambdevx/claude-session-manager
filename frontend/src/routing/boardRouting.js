@@ -3,7 +3,7 @@
 import {
   boardColumns, setBoardColumns, boardMode, setBoardModeState, activeProjectCwd,
   setActiveProjectCwd, projectBoards, setProjectBoards, currentProjectColumns,
-  setCurrentProjectColumns, DEFAULT_COLUMNS, OLD_DEFAULT_ORDER, sessions,
+  setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns, DEFAULT_COLUMNS, OLD_DEFAULT_ORDER, sessions,
 } from "../state.js";
 import { escapeHtml, projectName } from "../ui/format.js";
 import { toast } from "../ui/toast.js";
@@ -101,15 +101,52 @@ export function projectBoardCtx(cwd) {
   };
 }
 
+// The "Projects" sidebar view — auto-seeded with one column per project (see loadSessions), then
+// manageable exactly like Main board's own project columns: draggable, hideable, renameable.
+export function groupBoardCtx() {
+  return {
+    kind: "group",
+    get cols() { return groupBoardColumns; },
+    set cols(v) { setGroupBoardColumns(v); },
+    save: () => import("../api/sessionsApi.js").then((m) => m.saveGroupBoardColumns()),
+  };
+}
+
 // A saved view previews as its own board (same rules as kind:"main"), but edits persist to its own
-// column snapshot, never the live Main board.
+// column snapshot, never the live Main board. viewId is what lets ctxKey tell it apart from the
+// real Main board, since both share kind:"main" purely for rendering purposes.
 export function savedViewCtx(view) {
   return {
     kind: "main",
+    viewId: view.id,
     get cols() { return view.columns; },
     set cols(v) { view.columns = v; },
     save: () => import("../api/savedViewsApi.js").then((m) => m.saveSavedViewColumns(view.id, view.columns)),
   };
+}
+
+// Identifies which board a custom-column card placement belongs to — Main board, a saved view, or
+// a per-project board each get their own independent slot in a card's boardTags map.
+export function ctxKey(ctx) {
+  if (ctx.viewId) return `saved:${ctx.viewId}`;
+  if (ctx.kind === "group") return "group";
+  return ctx.kind === "main" ? "main" : `project:${ctx.cwd}`;
+}
+
+// board (the legacy flat field) is read as a fallback for EVERY context, not just "main" — every
+// board/view historically shared that one field indiscriminately, so a saved view or per-project
+// board that already had cards tagged before this change must keep seeing them. Once a card gets
+// tagged in a specific context going forward, its boardTags entry for that key takes over and this
+// fallback is no longer consulted for it.
+export function boardTagFor(ctx, s) {
+  const fromMap = s.meta?.boardTags?.[ctxKey(ctx)];
+  if (fromMap !== undefined) return fromMap;
+  return s.meta?.board ?? null;
+}
+
+export async function setBoardTag(ctx, cardId, colId) {
+  const { patchMeta } = await import("../api/sessionsApi.js");
+  await patchMeta(cardId, { boardTags: { [ctxKey(ctx)]: colId } });
 }
 
 export function pathForBoardMode(mode, cwd) {
@@ -163,20 +200,22 @@ function sameOrder(a, b) {
 }
 
 // "Regroup by project" — repeatable (unlike mergeInProjectColumns' one-time gated migration);
-// callable any time a project column has drifted missing.
-export async function ensureAllProjectColumns() {
-  const merged = mergeInProjectColumns(boardColumns, sessions);
-  const reordered = reorderProjectColumnsFirst(merged.columns);
-  const addedCount = merged.columns.length - boardColumns.length;
+// callable any time a project column has drifted missing. Generic over ctx so it also works for
+// the "Projects" group lens, which has no home column to keep pinned first (every column there
+// already has a .cwd), unlike Main board.
+export async function ensureAllProjectColumns(ctx = mainBoardCtx()) {
+  const merged = mergeInProjectColumns(ctx.cols, sessions);
+  const reordered = ctx.kind === "group" ? merged.columns : reorderProjectColumnsFirst(merged.columns);
+  const addedCount = merged.columns.length - ctx.cols.length;
 
-  if (!merged.changed && sameOrder(reordered, boardColumns)) {
+  if (!merged.changed && sameOrder(reordered, ctx.cols)) {
     toast("Every project already has a column, in order");
     return;
   }
 
-  pushHistory(mainBoardCtx()); // so the global Undo button can revert this too
-  setBoardColumns(reordered);
-  await import("../api/sessionsApi.js").then((m) => m.saveBoardColumns());
+  pushHistory(ctx); // so the global Undo button can revert this too
+  ctx.cols = reordered;
+  await ctx.save();
   toast(addedCount > 0
     ? `Added ${addedCount} column${addedCount === 1 ? "" : "s"} for project${addedCount === 1 ? "" : "s"} without one`
     : "Reordered — project columns first");
@@ -210,8 +249,7 @@ export async function assignCardToProjectColumn(cardId, cwd) {
   }
 
   const col = await ensureProjectColumnFor(cwd);
-  const { patchMeta } = await import("../api/sessionsApi.js");
-  await patchMeta(cardId, { board: col?.id });
+  await setBoardTag(mainBoardCtx(), cardId, col?.id ?? null);
   toast(`Moved onto "${projectName(cwd)}"`);
 }
 

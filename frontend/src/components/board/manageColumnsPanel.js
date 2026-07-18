@@ -1,7 +1,7 @@
 // The "⋮ Manage columns" dropdown — reuses the same .bc-menu-wrap/.bc-dropdown language the card ⋮
 // menus already use.
 import { autoHideEmpty } from "../../state.js";
-import { escapeHtml } from "../../ui/format.js";
+import { escapeHtml, escapeAttr } from "../../ui/format.js";
 import { toast } from "../../ui/toast.js";
 import { saveAutoHideEmpty } from "../../api/boardSettingsApi.js";
 import { pushHistory } from "./boardUndo.js";
@@ -47,7 +47,9 @@ function isAutoHidden(c, count, isHome) {
 
 // Rows are built and wired separately from the initial HTML string above since they depend on
 // `ctx.cols` at wiring time (columns can change between renders without a full board re-render).
-function columnRowHtml(c, count, isHome) {
+// `locked` (home column, or every column in the "Projects" group lens) shows 🔒 instead of a
+// delete button — separate from `isHome`, which only controls the auto-hide-empty exemption.
+function columnRowHtml(c, count, isHome, locked, lockedReason) {
   const autoHidden = isAutoHidden(c, count, isHome);
   const shown = !c.hidden && !autoHidden;
   return `
@@ -57,8 +59,8 @@ function columnRowHtml(c, count, isHome) {
       <span class="lbl">${escapeHtml(c.title)}</span>
       ${autoHidden ? '<span class="quiet">auto-hidden</span>' : ""}
       <span class="row-rename" data-rename-col="${c.id}" title="Rename &quot;${escapeHtml(c.title)}&quot;">✎</span>
-      ${isHome
-        ? `<span class="row-locked" title="The home column always shows every session — it can be hidden but never deleted">🔒</span>`
+      ${locked
+        ? `<span class="row-locked" title="${escapeAttr(lockedReason)}">🔒</span>`
         : `<button class="del-col" data-delete-col="${c.id}" title="Remove &quot;${escapeHtml(c.title)}&quot;">✕</button>`}
     </div>
   `;
@@ -93,9 +95,17 @@ export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDelete
     rerender();
   });
 
+  // In the "Projects" group lens every column is a real project — draggable/hideable/renameable,
+  // but never deletable (there's nothing to "add back" the way a plain custom column has).
+  const isGroupLens = ctx.kind === "group";
   ctx.cols.forEach((c, i) => {
+    const isHome = i === 0 && !isGroupLens;
+    const locked = isHome || isGroupLens;
+    const lockedReason = isGroupLens
+      ? "Project columns can be renamed, reordered, and hidden — but not deleted"
+      : "The home column always shows every session — it can be hidden but never deleted";
     const row = document.createElement("div");
-    row.innerHTML = columnRowHtml(c, countFor(c), i === 0);
+    row.innerHTML = columnRowHtml(c, countFor(c), isHome, locked, lockedReason);
     dropdown.appendChild(row.firstElementChild);
   });
 

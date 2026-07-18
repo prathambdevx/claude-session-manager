@@ -36,6 +36,11 @@ export async function handleTicketsRoutes(req: Request, url: URL): Promise<Respo
     if (typeof patch.cwd === "string" || patch.cwd === null) allowed.cwd = patch.cwd || undefined;
     if (typeof patch.done === "boolean") allowed.done = patch.done;
     if (typeof patch.startedSessionId === "string") allowed.startedSessionId = patch.startedSessionId || undefined;
+    // merge key-by-key, same reasoning as PUT /api/sessions/:id/meta — a plain spread would
+    // clobber every other board's own entry in this map
+    if (patch.boardTags && typeof patch.boardTags === "object") {
+      allowed.boardTags = { ...tickets[id].boardTags, ...patch.boardTags };
+    }
     tickets[id] = { ...tickets[id], ...allowed };
     await saveTickets(tickets);
     return json({ ok: true, ticket: tickets[id] });

@@ -3,9 +3,8 @@
 import {
   sessions, boardMode, activeProjectCwd, contentMatchIds, activeView, savedViews,
 } from "../state.js";
-import { mainBoardCtx, projectBoardCtx, savedViewCtx, projectBreadcrumbHtml } from "../routing/boardRouting.js";
+import { mainBoardCtx, projectBoardCtx, groupBoardCtx, savedViewCtx, projectBreadcrumbHtml } from "../routing/boardRouting.js";
 import { renderBoardView } from "../components/board/renderBoardView.js";
-import { renderProjectsLens } from "../components/board/renderProjectsLens.js";
 import { renderSidebar } from "../components/sidebar/renderSidebar.js";
 
 // True while an open ⋮ dropdown or inline column rename exists — background refreshers (SSE,
@@ -48,7 +47,7 @@ export function render() {
   document.getElementById("statLine").textContent =
     `${filtered.length} session${filtered.length === 1 ? "" : "s"} shown · ${sessions.filter(s => s.running).length} currently running`;
 
-  if (activeView === "group") { renderProjectsLens(filtered); return; }
+  if (activeView === "group") { renderBoardView(filtered.filter((s) => !s.isTicket), groupBoardCtx()); return; }
   if (activeView.startsWith("saved:")) {
     const view = savedViews.find((v) => v.id === activeView.slice(6));
     if (view) { renderBoardView(filtered, savedViewCtx(view)); return; }

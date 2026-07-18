@@ -1,24 +1,21 @@
-// Global undo for board-structure edits, scoped per board (ctx.kind + ctx.cwd) so undoing on Main
-// board never touches a project board's history.
+// Global undo for board-structure edits, scoped per board (ctxKey) so undoing on Main board never
+// touches a project board's or saved view's own history.
 import { sessions, boardHistory, setBoardHistory } from "../../state.js";
 import { toast } from "../../ui/toast.js";
+import { ctxKey, boardTagFor, setBoardTag } from "../../routing/boardRouting.js";
 
 const HISTORY_LIMIT = 30;
 
-function ctxKey(ctx) {
-  return ctx.kind === "main" ? "main" : `project:${ctx.cwd}`;
-}
-
 // Board tags live per-card server-side, not one shared blob — restoring a snapshot means replaying
-// a patchMeta call per card whose tag actually changed.
-function snapshotBoardTags() {
+// a setBoardTag call per card whose tag (in THIS board's own slot) actually changed.
+function snapshotBoardTags(ctx) {
   const tags = {};
-  for (const s of sessions) tags[s.id] = s.meta?.board;
+  for (const s of sessions) tags[s.id] = boardTagFor(ctx, s);
   return tags;
 }
 
 export function pushHistory(ctx) {
-  const entry = { key: ctxKey(ctx), columns: JSON.parse(JSON.stringify(ctx.cols)), tags: snapshotBoardTags() };
+  const entry = { key: ctxKey(ctx), columns: JSON.parse(JSON.stringify(ctx.cols)), tags: snapshotBoardTags(ctx) };
   const next = [...boardHistory, entry];
   if (next.length > HISTORY_LIMIT) next.shift();
   setBoardHistory(next);
@@ -39,11 +36,10 @@ export async function undoLast(ctx) {
   ctx.cols = entry.columns;
   await ctx.save();
 
-  const { patchMeta } = await import("../../api/sessionsApi.js");
   const jobs = [];
   for (const s of sessions) {
-    const wasBoard = entry.tags[s.id];
-    if ((s.meta?.board || undefined) !== (wasBoard || undefined)) jobs.push(patchMeta(s.id, { board: wasBoard || null }));
+    const wasTag = entry.tags[s.id] ?? null;
+    if (boardTagFor(ctx, s) !== wasTag) jobs.push(setBoardTag(ctx, s.id, wasTag));
   }
   await Promise.all(jobs);
 

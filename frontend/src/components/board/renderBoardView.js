@@ -1,7 +1,7 @@
 import { sessions, autoHideEmpty } from "../../state.js";
 import { escapeHtml, escapeAttr, projectName } from "../../ui/format.js";
 import { patchMeta } from "../../api/sessionsApi.js";
-import { setBoardMode, enterProjectBoard, ensureAllProjectColumns } from "../../routing/boardRouting.js";
+import { setBoardMode, enterProjectBoard, ensureAllProjectColumns, boardTagFor, setBoardTag } from "../../routing/boardRouting.js";
 import { boardCardHtml } from "../../subcomponents/boardCard.js";
 import { wireBoardCards } from "./wireBoardCards.js";
 import { agentsDockHtml, wireAgentsDock } from "../agentsDock/agentsDock.js";
@@ -14,11 +14,12 @@ import { openPromptModal } from "../../ui/promptModal.js";
 import { openConfirmModal } from "../../ui/confirmModal.js";
 
 // Membership is computed, not bucketed: home column shows everyone, a .cwd column shows matching
-// sessions permanently, everything else is a plain meta.board tag.
+// sessions permanently, everything else is a plain per-board tag (independent per board — see
+// boardTagFor in boardRouting.js).
 function cardsForColumn(c, ctx, filtered, homeId) {
   if (c.id === homeId) return filtered;
-  if (ctx.kind === "main" && c.cwd) return filtered.filter((s) => s.cwd === c.cwd);
-  return filtered.filter((s) => s.meta?.board === c.id);
+  if ((ctx.kind === "main" || ctx.kind === "group") && c.cwd) return filtered.filter((s) => s.cwd === c.cwd);
+  return filtered.filter((s) => boardTagFor(ctx, s) === c.id);
 }
 
 function missingProjectCount(ctx) {
@@ -31,7 +32,7 @@ function missingProjectCount(ctx) {
 // so dragging columns never reassigns colors.
 const PILL_PALETTE_SIZE = 9;
 function pillColorClass(ctx, c) {
-  const homeId = ctx.cols[0]?.id;
+  const homeId = ctx.kind === "group" ? null : ctx.cols[0]?.id;
   if (c.id === homeId) return "col-pill-neutral";
   const rank = [...ctx.cols]
     .filter((x) => x.id !== homeId)
@@ -43,7 +44,8 @@ function pillColorClass(ctx, c) {
 
 export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   const app = document.getElementById("app");
-  const homeId = ctx.cols[0]?.id;
+  // the "Projects" group lens has no home column — every one of its columns is a real project
+  const homeId = ctx.kind === "group" ? null : ctx.cols[0]?.id;
   const menuOpen = isManageColumnsMenuOpen();
   const visibleCols = ctx.cols.filter((c) => {
     if (menuOpen) return true;
@@ -74,15 +76,18 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     ${breadcrumbHtml}
     ${agentsDockHtml()}
     <div class="board-actions">
-      <button class="btn ghost" id="addColBtn">+ Add column</button>
-      ${ctx.kind === "main" ? `
-        <button class="btn accent" id="regroupBtn" title="${drift ? `${drift} project${drift === 1 ? "" : "s"} would get a column` : "Every project already has a column"}">
-          ↻ Regroup by project${drift ? ` <span class="badge">${drift}</span>` : ""}
-        </button>` : ""}
+      ${ctx.kind === "group" ? "" : `
+        <button class="btn ghost" id="addColBtn">+ Add column</button>
+        ${ctx.kind === "main" ? `
+          <button class="btn accent" id="regroupBtn" title="${drift ? `${drift} project${drift === 1 ? "" : "s"} would get a column` : "Every project already has a column"}">
+            ↻ Regroup by project${drift ? ` <span class="badge">${drift}</span>` : ""}
+          </button>` : ""}
+      `}
       <span style="flex:1"></span>
       ${ctx.kind === "main" ? `
         <button class="btn ghost" id="saveViewBtn" title="Save this column layout as a reusable view">＋ Save as view</button>` : ""}
-      <button class="btn ghost" id="boardUndoBtn" ${hasHistoryFor(ctx) ? "" : "disabled"} title="Undo the last change to this board">↩ Undo</button>
+      ${ctx.kind === "group" ? "" : `
+        <button class="btn ghost" id="boardUndoBtn" ${hasHistoryFor(ctx) ? "" : "disabled"} title="Undo the last change to this board">↩ Undo</button>`}
       <button class="btn ghost" id="collapseAllBtn" title="${anyExpanded ? "Collapse every column" : "Expand every column"}">${anyExpanded ? "« Collapse all" : "» Expand all"}</button>
       ${manageColumnsButtonHtml()}
     </div>
@@ -113,7 +118,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
                   <button data-rename-col-menu="${c.id}">✎ Rename</button>
                   <button data-collapse-col="${c.id}">◀ Collapse group</button>
                   <button data-hide-col-menu="${c.id}">🙈 Hide column</button>
-                  ${c.id === homeId ? "" : `<button data-delete-col-menu="${c.id}" class="danger">✕ Delete column</button>`}
+                  ${c.id === homeId || ctx.kind === "group" ? "" : `<button data-delete-col-menu="${c.id}" class="danger">✕ Delete column</button>`}
                 </div>
               </div>
               <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
@@ -148,7 +153,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   const rerender = () => import("../../pages/sessionsPage.js").then((m) => m.render());
 
-  document.getElementById("regroupBtn")?.addEventListener("click", () => ensureAllProjectColumns());
+  document.getElementById("regroupBtn")?.addEventListener("click", () => ensureAllProjectColumns(ctx));
   document.getElementById("boardUndoBtn")?.addEventListener("click", () => undoLast(ctx));
   document.getElementById("saveViewBtn")?.addEventListener("click", async () => {
     const title = await openPromptModal({ title: "Save as view", label: "View name" });
@@ -359,18 +364,16 @@ async function removeColumn(ctx, id, rerender) {
   if (id === ctx.cols[0]?.id) { toast(`"${ctx.cols[0].title}" can't be deleted — hide it instead`); return; }
   if (ctx.cols.length <= 1) { toast("Need at least one column"); return; }
   const col = ctx.cols.find((c) => c.id === id);
-  const home = ctx.cols.find((c) => c.id !== id) || ctx.cols[0];
   const ok = await openConfirmModal({
     title: `Remove column "${col?.title}"?`,
-    message: `Sessions tagged into it move back to "${home.title}".`,
+    message: "This only removes it from this board — its sessions keep their tag, so they'll still show up here if a saved view has this same column.",
     confirmLabel: "Remove",
     danger: true,
   });
   if (!ok) return;
   pushHistory(ctx);
-  for (const s of sessions) {
-    if (s.meta?.board === id) patchMeta(s.id, { board: null });
-  }
+  // deliberately NOT clearing meta.board on tagged sessions — that tag is what lets a saved view
+  // that still has this column keep showing them, even after it's gone from the live board
   ctx.cols = ctx.cols.filter((c) => c.id !== id);
   ctx.save();
   rerender();
@@ -385,10 +388,10 @@ async function handleCardDrop(ctx, cardId, colId, rerender) {
   // dropping onto the home column ("All sessions") isn't a move — it clears whatever custom tag
   // this card has, since home always shows everyone regardless of tag
   if (colId === homeId) {
-    if (!s.meta?.board) { toast('Already shown in "All sessions"'); return; }
+    if (boardTagFor(ctx, s) == null) { toast('Already shown in "All sessions"'); return; }
     pushHistory(ctx);
     rerender();
-    await patchMeta(cardId, { board: null });
+    await setBoardTag(ctx, cardId, null);
     return;
   }
 
@@ -400,10 +403,10 @@ async function handleCardDrop(ctx, cardId, colId, rerender) {
         toast(`Can't move — this session belongs to "${projectName(s.cwd)}", not "${projectName(targetCol.cwd)}"`);
         return;
       }
-      if (!s.meta?.board) { toast("Already shown on its own project column"); return; }
+      if (boardTagFor(ctx, s) == null) { toast("Already shown on its own project column"); return; }
       pushHistory(ctx);
       rerender();
-      await patchMeta(cardId, { board: null });
+      await setBoardTag(ctx, cardId, null);
       return;
     }
     // a ticket has no fixed project — dropping it on a project column adopts that project as its
@@ -411,13 +414,14 @@ async function handleCardDrop(ctx, cardId, colId, rerender) {
     pushHistory(ctx);
     s.cwd = targetCol.cwd;
     rerender();
-    await patchMeta(cardId, { cwd: targetCol.cwd, board: null });
+    await patchMeta(cardId, { cwd: targetCol.cwd });
+    await setBoardTag(ctx, cardId, null);
     return;
   }
 
   // a plain column (Priority/In Progress/Done/custom, on Main board or inside a project's own
-  // board): tag it here
+  // board): tag it here — independently per board, never a shared/global placement
   pushHistory(ctx);
   rerender();
-  await patchMeta(cardId, { board: colId });
+  await setBoardTag(ctx, cardId, colId);
 }

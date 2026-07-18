@@ -23,6 +23,7 @@ export let boardMode = "main"; // "main" | "project" — set for real by routing
 export let activeProjectCwd = null;
 export let projectBoards = {}; // Record<cwd, BoardColumn[]> — mirrors server's project-boards.json
 export let currentProjectColumns = null; // BoardColumn[] for whichever project is currently drilled into
+export let groupBoardColumns = []; // BoardColumn[] for the "Projects" sidebar view — mirrors server's group-board.json
 
 // Sidebar's own view switch, separate from boardMode (which stays responsible for URL sync) —
 // "group"/"saved:<id>" aren't URL-routed, just client display state.
@@ -50,6 +51,7 @@ export function setBoardModeState(v) { boardMode = v; }
 export function setActiveProjectCwd(v) { activeProjectCwd = v; }
 export function setProjectBoards(v) { projectBoards = v; }
 export function setCurrentProjectColumns(v) { currentProjectColumns = v; }
+export function setGroupBoardColumns(v) { groupBoardColumns = v; }
 export function setContentMatchIds(v) { contentMatchIds = v; }
 export function setContentSearchTimer(v) { contentSearchTimer = v; }
 export function setDelegationPoll(v) { delegationPoll = v; }

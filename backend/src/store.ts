@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, BOARD_PATH, TODO_BOARD_PATH, PROJECT_BOARDS_PATH,
-  SAVED_VIEWS_PATH, BOARD_SETTINGS_PATH,
+  GROUP_BOARD_PATH, SAVED_VIEWS_PATH, BOARD_SETTINGS_PATH,
   REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, QUICKPROMPTS_DIR, RUNNING_DIR, PID_LINKS_PATH,
   QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS,
 } from "./constants.ts";
@@ -38,6 +38,21 @@ export async function loadTodoBoard(): Promise<BoardColumn[] | null> {
 
 export async function saveTodoBoard(columns: BoardColumn[]) {
   await Bun.write(TODO_BOARD_PATH, JSON.stringify({ columns }, null, 2));
+}
+
+// "Projects" sidebar view — one persisted, manageable column set auto-seeded with a column per
+// project (unlike the per-project boards below, which are keyed by cwd, this is a single list).
+export async function loadGroupBoard(): Promise<BoardColumn[] | null> {
+  try {
+    const j = JSON.parse(await readFile(GROUP_BOARD_PATH, "utf-8"));
+    return Array.isArray(j.columns) ? j.columns : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveGroupBoard(columns: BoardColumn[]) {
+  await Bun.write(GROUP_BOARD_PATH, JSON.stringify({ columns }, null, 2));
 }
 
 // Per-project board columns (keyed by raw cwd) — each project owns its own independent set.
@@ -104,7 +119,8 @@ export type Meta = {
   status?: "idle" | "in-progress" | "blocked" | "done";
   pinned?: boolean;
   archived?: boolean;
-  board?: string;
+  board?: string; // legacy flat tag — kept only as the "main" board's fallback; boardTags is authoritative
+  boardTags?: Record<string, string | null>; // per-board-context column tag, keyed by ctxKey(ctx)
   lastReviewId?: string;
   lastContextId?: string;
   promptHistory?: { text: string; count: number }[]; // Quick Prompt's per-session recency/frequency chips
@@ -129,7 +145,8 @@ export type Ticket = {
   title: string;
   notes?: string;
   cwd?: string;
-  board?: string;
+  board?: string; // legacy flat tag — kept only as the "main" board's fallback; boardTags is authoritative
+  boardTags?: Record<string, string | null>; // per-board-context column tag, keyed by ctxKey(ctx)
   done?: boolean;
   startedSessionId?: string;
   createdAt: number;
