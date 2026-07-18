@@ -1,6 +1,6 @@
 // Entry point: starts the local server and delegates every request to the router.
 // Implementation lives in src/ — config, store, sessions, claude, html, routes.
-import { PORT } from "./src/config.ts";
+import { PORT } from "./src/constants.ts";
 import { handleRequest, startClearReconciliationPoller, startFsWatcher } from "./src/routes/index.ts";
 
 const server = Bun.serve({

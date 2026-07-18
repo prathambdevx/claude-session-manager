@@ -4,7 +4,7 @@ import { test, expect, beforeAll, afterAll } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { scanTranscript } from "../src/sessions.ts";
+import { scanTranscript } from "../src/sessions/index.ts";
 import { CONTEXT_WINDOW_TOKENS } from "../src/config.ts";
 
 let dir: string;

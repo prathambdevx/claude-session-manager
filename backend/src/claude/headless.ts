@@ -1,7 +1,7 @@
 // One-shot, awaited headless `claude` calls — used for quick synchronous tasks like summarizing a
 // session or running a smart search query.
 import { spawn } from "node:child_process";
-import { HOME, CLAUDE_BIN } from "../config.ts";
+import { CLAUDE_BIN, HOME } from "../constants.ts";
 
 export function runClaudeHeadless(
   prompt: string,

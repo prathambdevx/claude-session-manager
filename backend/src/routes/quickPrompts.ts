@@ -2,10 +2,10 @@
 // terminal if one exists, else runs headless in the background — see handleQuickPromptRoutes.
 import { stat, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { PROJECTS_DIR, QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS } from "../config.ts";
+import { PROJECTS_DIR, QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS } from "../constants.ts";
 import { saveQuickPromptJob, loadQuickPromptJob, deleteQuickPromptJob, loadRunning } from "../store.ts";
 import type { QuickPromptJob } from "../store.ts";
-import { scanAllSessions } from "../sessions.ts";
+import { scanAllSessions } from "../sessions/index.ts";
 import { runClaudeHeadlessDetached, sendPromptToRunningTerminal, ghosttyWindowTag, usingGhostty } from "../claude/index.ts";
 import { activityLine } from "../claude/activity.ts";
 import { json } from "./json.ts";

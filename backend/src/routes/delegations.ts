@@ -1,8 +1,8 @@
 import { join } from "node:path";
-import { PROJECTS_DIR } from "../config.ts";
+import { PROJECTS_DIR } from "../constants.ts";
 import { loadAgents, loadMeta, saveDelegation, loadDelegation, loadAllDelegations, deleteDelegation } from "../store.ts";
 import type { Delegation } from "../store.ts";
-import { scanAllSessions, buildTranscriptDigest } from "../sessions.ts";
+import { scanAllSessions, buildTranscriptDigest } from "../sessions/index.ts";
 import { runClaudeHeadlessDetached, buildDelegationPrompt } from "../claude/index.ts";
 import { escapeHtmlServer, markdownToHtml, delegationsIndexHtml } from "../html.ts";
 import { json } from "./json.ts";

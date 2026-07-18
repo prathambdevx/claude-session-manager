@@ -1,4 +1,4 @@
-import { KNOWN_MODELS } from "../config.ts";
+import { KNOWN_MODELS } from "../constants.ts";
 import { loadAgents, saveAgents } from "../store.ts";
 import { json } from "./json.ts";
 

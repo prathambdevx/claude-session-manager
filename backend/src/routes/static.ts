@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { PUBLIC_DIR, FRONTEND_SRC_DIR } from "../config.ts";
+import { PUBLIC_DIR, FRONTEND_SRC_DIR } from "../constants.ts";
 
 export async function handleStaticRoutes(req: Request, url: URL): Promise<Response | null> {
   // SPA routes ("/" and "/projects/<cwd>") all serve index.html so a hard reload/deep link

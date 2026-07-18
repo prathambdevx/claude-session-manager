@@ -7,10 +7,10 @@
 import { watch } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { RUNNING_DIR, PROJECTS_DIR, QUICKPROMPTS_DIR } from "./config.ts";
+import { RUNNING_DIR, PROJECTS_DIR, QUICKPROMPTS_DIR } from "./constants.ts";
 import { loadRunning, loadMeta, loadQuickPromptJob } from "./store.ts";
 import type { RunningInfo } from "./store.ts";
-import { scanTranscript, computeActivelyWorking } from "./sessions.ts";
+import { scanTranscript, computeActivelyWorking } from "./sessions/index.ts";
 import { broadcast } from "./sse.ts";
 
 const DEBOUNCE_MS = 100;

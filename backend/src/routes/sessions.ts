@@ -1,19 +1,19 @@
 import { readdir, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { PROJECTS_DIR } from "../config.ts";
+import { PROJECTS_DIR } from "../constants.ts";
 import {
   loadMeta, saveMeta, loadTickets, loadRunning, loadAgents, loadAllDelegations, loadTodos,
   loadBoard, loadTodoBoard, loadProjectBoards, loadSavedViews, loadBoardSettings,
   loadAllQuickPromptJobs, pidAlive,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
-import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions.ts";
+import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions/index.ts";
 import {
   ghosttyWindowTitle, writeGhosttyTitle, deleteGhosttyTitle, ghosttyTitleFilePath,
   openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, shellQuote, usingGhostty,
 } from "../claude/index.ts";
-import { CLAUDE_BIN, DANGEROUS_FLAG } from "../config.ts";
+import { CLAUDE_BIN, DANGEROUS_FLAG } from "../constants.ts";
 import { json } from "./json.ts";
 import { reconcileNow } from "./reconcile.ts";
 
@@ -34,8 +34,8 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       loadSavedViews(),
       loadBoardSettings(),
     ]);
-    // see computeActivelyWorking (sessions.ts) for why this doesn't just trust running.status —
-    // shared with fsWatcher.ts's granular per-session SSE push so both compute it identically.
+    // see computeActivelyWorking (sessions/index.ts) — shared with fsWatcher.ts's SSE push so both
+    // compute this identically.
     const enriched = sessions.map((s) => {
       const r = running[s.id] ?? null;
       return {

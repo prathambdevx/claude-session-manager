@@ -5,6 +5,7 @@
   "scripts": {
     "start": "bun run backend/server.ts",
     "setup": "bun run backend/setup.ts",
+    "config": "bun run backend/syncClaudeSettings.ts",
     "test": "bun test backend/tests"
   }
 }

@@ -1,6 +1,7 @@
 // Prompt text builders for every flow that shells out to `claude` — launcher, reviewer, context
 // extraction/continuation, and agent delegation.
-import { KNOWN_MODELS, DANGEROUS_FLAG, EFFORT_FLAG, EXTENDED_CONTEXT, CLAUDE_BIN } from "../config.ts";
+import { EFFORT_FLAG, DEFAULT_MODEL, EXTENDED_CONTEXT } from "../config.ts";
+import { KNOWN_MODELS, DANGEROUS_FLAG, CLAUDE_BIN } from "../constants.ts";
 import type { ReviewRecord, ContextRecord, Agent } from "../store.ts";
 import { shellQuote } from "./terminalLaunch.ts";
 
@@ -21,10 +22,8 @@ function researchPrompt(task: string): string {
   );
 }
 
-// Sonnet and Opus support an extended 1M-context variant via a "[1m]" suffix on the model alias
-// — but ONLY on accounts entitled to it. Appending [1m] on a machine without that entitlement
-// makes `claude --model sonnet[1m]` fail, so it's gated behind EXTENDED_CONTEXT (off by default,
-// opt-in per machine via data/settings.json). Standard accounts just get the plain model alias.
+// Sonnet and Opus support an extended 1M-context variant via a "[1m]" suffix on the model alias —
+// but ONLY on accounts entitled to it, so it's gated behind EXTENDED_CONTEXT (see config.ts).
 export function modelAliasWithContext(model: string): string {
   if (EXTENDED_CONTEXT && (model === "sonnet" || model === "opus")) return `${model}[1m]`;
   return model;
@@ -35,7 +34,8 @@ export function buildLaunchScript(
   mode: string,
   opts: { model?: string | null; sessionId?: string | null; dangerous?: boolean } = {}
 ): string {
-  const modelFlag = opts.model && KNOWN_MODELS.has(opts.model) ? ` --model ${modelAliasWithContext(opts.model)}` : "";
+  const model = opts.model && KNOWN_MODELS.has(opts.model) ? opts.model : DEFAULT_MODEL;
+  const modelFlag = ` --model ${modelAliasWithContext(model)}`;
   const sessionFlag = opts.sessionId ? ` --session-id ${opts.sessionId}` : "";
   const dangerFlag = opts.dangerous !== false ? DANGEROUS_FLAG : "";
 

@@ -1,4 +1,4 @@
-import { scanAllSessions } from "../sessions.ts";
+import { scanAllSessions } from "../sessions/index.ts";
 import { json } from "./json.ts";
 
 export async function handleProjectsRoutes(req: Request, url: URL): Promise<Response | null> {

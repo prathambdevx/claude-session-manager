@@ -3,8 +3,8 @@
 // couple seconds of resume could otherwise slip past before the mapping is recorded.
 import { loadRunning, loadMeta, saveMeta, reconcileClearedSessions } from "../store.ts";
 import type { Meta } from "../store.ts";
-import { scanAllSessions } from "../sessions.ts";
-import type { Session } from "../sessions.ts";
+import { scanAllSessions } from "../sessions/index.ts";
+import type { Session } from "../sessions/index.ts";
 import { writeGhosttyTitle, ghosttyWindowTitle } from "../claude/index.ts";
 
 export async function reconcileNow(): Promise<Record<string, Meta>> {

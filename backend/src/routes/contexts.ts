@@ -1,8 +1,8 @@
 import { join } from "node:path";
-import { PROJECTS_DIR, KNOWN_MODELS } from "../config.ts";
+import { PROJECTS_DIR, KNOWN_MODELS } from "../constants.ts";
 import { loadMeta, saveMeta, saveContext, loadContext } from "../store.ts";
 import type { ContextRecord } from "../store.ts";
-import { scanAllSessions, buildTranscriptDigest } from "../sessions.ts";
+import { scanAllSessions, buildTranscriptDigest } from "../sessions/index.ts";
 import {
   runClaudeHeadless, buildContextExtractionPrompt, buildContinuationPrompt, buildLaunchScript,
   openTerminalRunning, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath,

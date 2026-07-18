@@ -1,8 +1,8 @@
 import { join } from "node:path";
-import { PROJECTS_DIR } from "../config.ts";
+import { PROJECTS_DIR } from "../constants.ts";
 import { loadMeta } from "../store.ts";
-import { scanAllSessions, keywordSearchScores, queryNeedles, matchSnippets, projectNameFromCwd } from "../sessions.ts";
-import type { Session } from "../sessions.ts";
+import { scanAllSessions, keywordSearchScores, queryNeedles, matchSnippets, projectNameFromCwd } from "../sessions/index.ts";
+import type { Session } from "../sessions/index.ts";
 import { runClaudeHeadless } from "../claude/index.ts";
 import { json } from "./json.ts";
 

@@ -1,8 +1,9 @@
 import { readdir } from "node:fs/promises";
-import { REVIEWS_DIR, KNOWN_MODELS, CLAUDE_BIN, EFFORT_FLAG, DANGEROUS_FLAG } from "../config.ts";
+import { EFFORT_FLAG } from "../config.ts";
+import { CLAUDE_BIN, REVIEWS_DIR, KNOWN_MODELS, DANGEROUS_FLAG } from "../constants.ts";
 import { loadMeta, saveMeta, saveReview, loadReview } from "../store.ts";
 import type { ReviewRecord } from "../store.ts";
-import { scanAllSessions, projectNameFromCwd } from "../sessions.ts";
+import { scanAllSessions, projectNameFromCwd } from "../sessions/index.ts";
 import { runClaudeHeadless, buildFileReviewPrompt, buildFixPrompt, modelAliasWithContext, shellQuote, openTerminalRunning } from "../claude/index.ts";
 import { escapeHtmlServer, reviewsIndexHtml, markdownToHtml } from "../html.ts";
 import { json } from "./json.ts";

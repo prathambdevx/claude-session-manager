@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { KNOWN_MODELS, LAUNCH_MODES } from "../config.ts";
+import { KNOWN_MODELS, LAUNCH_MODES } from "../constants.ts";
 import { loadMeta, saveMeta } from "../store.ts";
 import { buildLaunchScript, openTerminalRunning, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath } from "../claude/index.ts";
 import { json } from "./json.ts";

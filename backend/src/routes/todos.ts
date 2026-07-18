@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
-import { KNOWN_MODELS, CLAUDE_BIN, DANGEROUS_FLAG } from "../config.ts";
+import { CLAUDE_BIN, KNOWN_MODELS, DANGEROUS_FLAG } from "../constants.ts";
 import { loadTodos, saveTodos, loadMeta, saveMeta } from "../store.ts";
-import { scanAllSessions } from "../sessions.ts";
+import { scanAllSessions } from "../sessions/index.ts";
 import {
   buildLaunchScript, openTerminalRunning, shellQuote, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath,
 } from "../claude/index.ts";

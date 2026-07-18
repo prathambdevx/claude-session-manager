@@ -1,7 +1,8 @@
 // Fire-and-forget background `claude` execution with a live streamed activity feed — the shared
 // primitive behind both Delegations and Quick Prompt's background-resume path.
 import { spawn } from "node:child_process";
-import { CLAUDE_BIN, KNOWN_MODELS } from "../config.ts";
+import { DEFAULT_MODEL, DEFAULT_EFFORT } from "../config.ts";
+import { KNOWN_MODELS, CLAUDE_BIN } from "../constants.ts";
 import { modelAliasWithContext } from "./prompts.ts";
 import { activityLine } from "./activity.ts";
 
@@ -17,14 +18,18 @@ export function runClaudeHeadlessDetached(
   }
 ): number | null {
   const { cwd, model, permission, timeoutMs = 20 * 60 * 1000, resumeSessionId } = opts;
-  const modelArg = model && KNOWN_MODELS.has(model) ? modelAliasWithContext(model) : null;
+  const explicitModel = model && KNOWN_MODELS.has(model) ? modelAliasWithContext(model) : null;
   // resumeSessionId continues that session's own transcript non-interactively (one turn, then
   // exits) instead of starting a disposable throwaway conversation — used by Quick Prompt, which
   // is meant to feel like "the same session did this in the background", not a fresh one-off.
   const args = resumeSessionId
-    ? ["--resume", resumeSessionId, "-p", prompt, "--effort", "medium", "--output-format", "stream-json", "--verbose"]
-    : ["-p", prompt, "--effort", "medium", "--no-session-persistence", "--output-format", "stream-json", "--verbose"];
-  if (modelArg) args.push("--model", modelArg);
+    ? ["--resume", resumeSessionId, "-p", prompt, "--effort", DEFAULT_EFFORT, "--output-format", "stream-json", "--verbose"]
+    : ["-p", prompt, "--effort", DEFAULT_EFFORT, "--no-session-persistence", "--output-format", "stream-json", "--verbose"];
+  // A --resume call must NOT force a model unless explicitly asked — same as interactive Resume,
+  // which never passes --model, so the session continues on whatever model it was already using.
+  // A fresh (non-resume) call has no prior model to preserve, so DEFAULT_MODEL applies there.
+  if (explicitModel) args.push("--model", explicitModel);
+  else if (!resumeSessionId) args.push("--model", modelAliasWithContext(DEFAULT_MODEL));
   if (permission === "read-only") args.push("--disallowedTools", "Edit,Write,NotebookEdit");
   else args.push("--dangerously-skip-permissions");
 

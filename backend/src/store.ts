@@ -8,7 +8,7 @@ import {
   SAVED_VIEWS_PATH, BOARD_SETTINGS_PATH,
   REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, QUICKPROMPTS_DIR, RUNNING_DIR, PID_LINKS_PATH,
   QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS,
-} from "./config.ts";
+} from "./constants.ts";
 
 // Board columns — server-side so they're shared across browsers/tabs.
 
