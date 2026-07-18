@@ -81,6 +81,12 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
         (usage.cache_read_input_tokens ?? 0);
       if (total > 0) lastContextTokens = total;
     }
+    // Compaction writes this marker the instant it finishes, well before the next real assistant
+    // turn — reading it here means the % drops immediately instead of staying stuck at the
+    // pre-compact value until a new usage entry eventually shows up.
+    if (d.type === "system" && d.subtype === "compact_boundary" && typeof d.compactMetadata?.postTokens === "number") {
+      lastContextTokens = d.compactMetadata.postTokens;
+    }
     // last one wins — reflects the most recent thing this session did, for a running session's
     // live-activity chip. Piggybacks on this same pass instead of re-reading the file.
     const line2 = activityLine(d);

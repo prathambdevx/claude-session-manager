@@ -88,6 +88,23 @@ test("a mid-session model switch to extended context updates the window from the
   expect(session.contextWindow).toBe(1_000_000);
 });
 
+test("a compact_boundary marker updates contextPct immediately, before any post-compact assistant turn", async () => {
+  const path = await writeTranscript("compact.jsonl", [
+    line({ type: "user", message: { content: "hello" } }),
+    line({
+      type: "assistant",
+      message: { content: [{ type: "text", text: "huge turn" }], usage: { input_tokens: 900000, cache_read_input_tokens: 0 } },
+    }),
+    line({
+      type: "system", subtype: "compact_boundary", content: "Conversation compacted",
+      compactMetadata: { trigger: "auto", preTokens: 900000, postTokens: 25082 },
+    }),
+  ]);
+  const session = await scanTranscript(path, "compact1", "-Users-me-project");
+  expect(session.contextTokens).toBe(25082);
+  expect(session.contextWindow).toBe(CONTEXT_WINDOW_TOKENS);
+});
+
 test("contextPct is null (not 0) when no assistant turn has run yet — the post-/clear state", async () => {
   const path = await writeTranscript("fresh-clear.jsonl", [
     line({ type: "user", isMeta: true, message: { content: "<local-command-caveat>Caveat: ...</local-command-caveat>" } }),
