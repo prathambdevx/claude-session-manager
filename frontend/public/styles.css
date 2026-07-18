@@ -219,10 +219,6 @@
   .launch-body { display: flex; flex-direction: column; gap: 10px; }
   .launch-row { display: flex; gap: 8px; flex-wrap: wrap; }
   .launch-row select, .launch-row input[type="text"] { flex: 1; min-width: 180px; }
-  textarea#launchTask {
-    background: var(--panel); border: 1px solid var(--line); color: var(--ink);
-    border-radius: 8px; padding: 9px 12px; font-size: 13px; font-family: inherit; resize: vertical; min-height: 60px;
-  }
   .mode-toggle { display: flex; gap: 6px; }
   .mode-toggle button { flex: 1; }
   .mode-toggle button.active { background: var(--ink); color: var(--bg); border-color: var(--ink); }
@@ -508,6 +504,11 @@
   }
   .qp-chip-del:hover { color: var(--danger); }
   .modal-row textarea.qp-text { min-height: 150px; }
+  .img-token-backdrop {
+    position: absolute; top: 0; left: 0; z-index: 0; margin: 0;
+    color: transparent; white-space: pre-wrap; word-wrap: break-word; overflow: hidden; pointer-events: none;
+  }
+  .img-token-backdrop .img-token { background: rgba(178, 125, 20, 0.28); border-radius: 3px; }
 
   /* ---------- Layout shell: sidebar + main content ---------- */
   .layout { display: flex; align-items: flex-start; }

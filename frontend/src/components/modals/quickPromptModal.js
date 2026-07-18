@@ -6,6 +6,7 @@ import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
 import { escapeHtml, escapeAttr } from "../../ui/format.js";
 import { patchMeta, loadSessions } from "../../api/sessionsApi.js";
 import { sendQuickPrompt } from "../../api/quickPromptsApi.js";
+import { wireImagePaste } from "../../ui/pasteImage.js";
 
 function topPromptChips(s) {
   return (s.meta?.promptHistory || []).slice().sort((a, b) => b.count - a.count).slice(0, 5);
@@ -50,6 +51,7 @@ export function openQuickPromptModal(id) {
   `, 460);
 
   const textEl = document.getElementById("qpText");
+  const { resolvePromptText } = wireImagePaste(textEl);
   textEl.focus();
   // Enter sends (Shift+Enter still inserts a newline — that's the textarea's native behavior,
   // nothing to do for it), matching how chat-style prompt boxes usually behave.
@@ -84,7 +86,7 @@ export function openQuickPromptModal(id) {
     if (!text) return;
     closeReviewModal();
     await patchMeta(id, { promptHistory: nextPromptHistory(s, text) });
-    await sendQuickPrompt(id, text);
+    await sendQuickPrompt(id, resolvePromptText(text));
     loadSessions();
   });
 }
