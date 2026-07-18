@@ -10,16 +10,18 @@ export let collapsedProjects = new Set(JSON.parse(localStorage.getItem("collapse
 export let expandedCards = new Set();
 export let summarizingIds = new Set();
 
+// Home column ("All sessions", id "all-sessions") always shows every session; the rest are status
+// columns. The home column is identified positionally (cols[0]), so its id is just a stable label.
 export const DEFAULT_COLUMNS = [
-  { id: "todo", title: "All sessions" },
+  { id: "all-sessions", title: "All sessions" },
+  { id: "to-do", title: "Todo" },
   { id: "in-progress", title: "In Progress" },
-  { id: "priority", title: "Priority" },
   { id: "done", title: "Done" },
 ];
 export const OLD_DEFAULT_ORDER = ["todo", "priority", "research", "in-progress", "done"];
 // Individual project boards start with just the home column — only Main board gets the full
-// starter set (In Progress/Priority/Done); you add your own from there if you want more.
-export const PROJECT_DEFAULT_COLUMNS = [{ id: "todo", title: "All sessions" }];
+// starter set (Todo/In Progress/Done); you add your own from there if you want more.
+export const PROJECT_DEFAULT_COLUMNS = [{ id: "all-sessions", title: "All sessions" }];
 export let boardColumns = DEFAULT_COLUMNS.slice();
 
 export let boardMode = "main"; // "main" | "project" — set for real by routing/boardRouting.js at boot

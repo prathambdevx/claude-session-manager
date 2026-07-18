@@ -36,7 +36,8 @@ globalDangerousBox.addEventListener("change", (e) => {
 });
 
 document.getElementById("refreshBtn").addEventListener("click", loadSessions);
-document.getElementById("globalSearchBtn").addEventListener("click", openGlobalSearchModal);
+// global search button is hidden in index.html (feature not reliable yet) — guard the wiring
+document.getElementById("globalSearchBtn")?.addEventListener("click", openGlobalSearchModal);
 
 initThemeToggle();
 

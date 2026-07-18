@@ -23,7 +23,9 @@
       <button id="tabTodos">Todos</button>
     </div>
     <input type="text" id="search" placeholder="Search by name, project, message, tag, branch..." />
-    <button id="globalSearchBtn" title="Search the full content of every session's conversation">🔍 Global search</button>
+    <!-- Global search is hidden — the semantic-search pipeline isn't reliable yet. Code kept in
+         components/modals/globalSearchModal.js + routes/search.ts; re-enable by uncommenting this. -->
+    <!-- <button id="globalSearchBtn" title="Search the full content of every session's conversation">🔍 Global search</button> -->
     <!-- <select id="filterProject"><option value="">All projects</option></select> -->
     <!-- <select id="filterDate">
       <option value="">All time</option>

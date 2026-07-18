@@ -75,7 +75,7 @@ export async function loadSessions(opts = {}) {
     cols = carryTransientColumnFlags(boardColumns, migrateColumns(data.board));
   } else {
     const legacy = JSON.parse(localStorage.getItem("boardColumns") || "null");
-    cols = carryTransientColumnFlags(boardColumns, migrateColumns(legacy && legacy.length ? legacy : [{ id: "todo", title: "All sessions" }]));
+    cols = carryTransientColumnFlags(boardColumns, migrateColumns(legacy && legacy.length ? legacy : [{ id: "all-sessions", title: "All sessions" }]));
     setBoardColumns(cols);
     await saveBoardColumns();
   }
