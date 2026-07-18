@@ -5,7 +5,7 @@ import { PROJECTS_DIR } from "../config.ts";
 import {
   loadMeta, saveMeta, loadTickets, loadRunning, loadAgents, loadAllDelegations, loadTodos,
   loadBoard, loadTodoBoard, loadProjectBoards, loadSavedViews, loadBoardSettings,
-  loadAllQuickPromptJobs,
+  loadAllQuickPromptJobs, pidAlive,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
 import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions.ts";
@@ -106,6 +106,20 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       const pid = usingGhostty() ? null : (await loadRunning())[id]?.pid ?? null;
       if (await tryFocusRunningSession(pid, ghosttyWindowTag(id))) {
         return json({ ok: true, focused: true, cwd: s.cwd });
+      }
+      // No window to focus, so we're about to LAUNCH one. But if a headless Quick Prompt is still
+      // running against this exact session, launching now would put a SECOND `claude --resume <id>`
+      // on the same transcript at once — the fork/clobber risk. Refuse until the background job
+      // finishes; its on-card chip is the progress surface, and Resume works normally once it's done.
+      const bgQuickPrompt = (await loadAllQuickPromptJobs()).find(
+        (j) => j.sessionId === id && j.status === "running" && j.pid != null && pidAlive(j.pid),
+      );
+      if (bgQuickPrompt) {
+        return json({
+          ok: false,
+          busy: true,
+          error: "A quick prompt is running in the background on this session — opening a terminal now would start a second process on the same conversation. Wait for it to finish (watch the chip on the card), then resume.",
+        }, { status: 409 });
       }
     }
 

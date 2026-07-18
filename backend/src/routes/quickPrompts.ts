@@ -20,7 +20,7 @@ import { PROJECTS_DIR, QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS } from "../config.t
 import { saveQuickPromptJob, loadQuickPromptJob, deleteQuickPromptJob, loadRunning } from "../store.ts";
 import type { QuickPromptJob } from "../store.ts";
 import { scanAllSessions } from "../sessions.ts";
-import { runClaudeHeadlessDetached, sendPromptToRunningTerminal, ghosttyWindowTag } from "../claude/index.ts";
+import { runClaudeHeadlessDetached, sendPromptToRunningTerminal, ghosttyWindowTag, usingGhostty } from "../claude/index.ts";
 import { activityLine } from "../claude/activity.ts";
 import { json } from "./json.ts";
 
@@ -137,24 +137,31 @@ export async function handleQuickPromptRoutes(req: Request, url: URL): Promise<R
       progress: [],
     };
 
+    // Prefer typing the prompt straight into this session's OWN already-open terminal (no new
+    // window ever opened) over a background run. For Ghostty the authoritative "is it open?" signal
+    // is whether a window carrying this session's csm tag exists — checked inside
+    // sendPromptToRunningTerminal — so we attempt it regardless of loadRunning() (whose status
+    // files were unreliably missing live terminals). For Terminal.app we still need a live pid (it
+    // targets by tty), so that stays gated on loadRunning. If no terminal is open, it falls through
+    // to the headless background run below.
     const running = await loadRunning();
     const live = running[sessionId];
-    if (live) {
+    if (usingGhostty() || live) {
       let baselineMtimeMs = 0;
       try {
         baselineMtimeMs = (await stat(transcriptPath)).mtimeMs;
       } catch {
         // no transcript on disk yet — any future write counts as new
       }
-      const delivered = await sendPromptToRunningTerminal(live.pid, ghosttyWindowTag(sessionId), prompt);
+      const delivered = await sendPromptToRunningTerminal(live?.pid ?? null, ghosttyWindowTag(sessionId), prompt);
       if (delivered) {
         const record: QuickPromptJob = { ...baseRecord, progress: ["Sent — waiting for a response in the terminal…"] };
         await saveQuickPromptJob(record); // persist "running" immediately so the chip shows up right away
         watchTranscriptForCompletion(record, transcriptPath, baselineMtimeMs);
         return json({ ok: true, deliveredTo: "terminal", jobId: id });
       }
-      // couldn't reach the open terminal (focus or keystroke failed) — fall through to the
-      // background path below instead of dead-ending with nothing visible
+      // no open terminal for this session (or delivery failed) — fall through to the background
+      // path below instead of dead-ending with nothing visible
     }
 
     await saveQuickPromptJob(baseRecord); // persist "running" before spawning, so it's visible immediately

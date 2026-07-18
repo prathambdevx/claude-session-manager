@@ -113,11 +113,18 @@ function sendTextToGhosttyTerminal(tag: string, text: string): Promise<boolean> 
 // fallback used when nothing's open). Ghostty gets true no-focus delivery; Terminal.app (no
 // equivalent scripting object here) falls back to a brief focus-and-restore. Returns false if the
 // terminal couldn't be found or delivery failed outright.
-export async function sendPromptToRunningTerminal(pid: number, ghosttyTag: string | undefined, prompt: string): Promise<boolean> {
-  if (!pidAlive(pid)) return false;
-  if (usingGhostty() && ghosttyTag) {
-    return sendTextToGhosttyTerminal(ghosttyTag, prompt);
+export async function sendPromptToRunningTerminal(pid: number | null, ghosttyTag: string | undefined, prompt: string): Promise<boolean> {
+  // Ghostty targets the window purely by its csm-<id> title tag — the tag's presence IS the "this
+  // session's terminal is open right now" signal, so no pid is needed. (Requiring a live pid here
+  // wrongly vetoed delivery whenever loadRunning()'s lazily-written ~/.claude/sessions status files
+  // hadn't recorded the terminal — the real reason a quick prompt sometimes went background instead
+  // of into the open window.) Returns false if no window carrying the tag is open, so the caller
+  // cleanly falls back to a headless background run.
+  if (usingGhostty()) {
+    return ghosttyTag ? sendTextToGhosttyTerminal(ghosttyTag, prompt) : false;
   }
+  // Terminal.app has no per-window scripting object, so it matches by tty — which needs a live pid.
+  if (pid == null || !pidAlive(pid)) return false;
   const previousApp = await getFrontmostAppName();
   const focused = await tryFocusRunningSession(pid, ghosttyTag);
   if (!focused) return false;
