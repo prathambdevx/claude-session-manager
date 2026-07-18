@@ -24,18 +24,12 @@ To remove auto-start later: `bun run setup -- --uninstall`
 
 ## Features
 
-- **Session list** — every session, grouped by project, most recently active first. Green dot =
-  live process, live chip = actually working right now.
-- **Kanban board** — Main board, a Projects view (auto-organized by project), each project's own
-  board, and saved views. Drag sessions between columns.
-- **Resume / Fork** — reopen a session in a real terminal, or fork it into a new one.
-- **Close terminal** — close a session's terminal window straight from its card.
+- **Resume** — double-click any session card to resume it in a real terminal.
 - **Quick Prompt** — send a prompt in the background and see its live progress, no terminal needed.
-- **Image paste** — paste an image straight into any prompt field.
-- **Tickets** — notes for later, one click to turn into a real session.
+- **Kanban board** — organize sessions into columns, drag and drop between them.
 - **Context gauge** — how full each session's context window is, updated live.
-- **Auto-description** — one click to summarize a session into a short label.
 - **Search** — keyword filter, plus Claude-powered semantic search across all sessions.
+- **Prompt modal** — write a prompt directly in a modal, paste an image straight into it.
 
 ## How it works
 
