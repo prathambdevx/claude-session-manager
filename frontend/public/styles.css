@@ -391,10 +391,12 @@
   /* rename pencil hugs the title; this spacer pushes ⚡ + ⋮ into their own cluster at the far right */
   .bc-title-spacer { flex: 1; }
   .quick-prompt-btn {
-    border: none; background: none; color: var(--accent); cursor: pointer; font-size: 13px;
-    flex-shrink: 0; padding: 0 2px; opacity: 0.85; line-height: 1;
+    border: none; background: none; color: var(--accent); cursor: pointer; font-size: 15px;
+    flex-shrink: 0; opacity: 0.85; line-height: 1;
+    width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+    border-radius: 7px; transition: background 0.12s, opacity 0.12s;
   }
-  .quick-prompt-btn:hover { opacity: 1; transform: scale(1.12); }
+  .quick-prompt-btn:hover { opacity: 1; background: rgba(178,125,20,0.16); }
   .job-spin {
     width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; display: inline-block;
     border: 1.5px solid rgba(178,125,20,0.3); border-top-color: var(--accent);
