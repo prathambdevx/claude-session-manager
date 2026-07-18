@@ -65,13 +65,28 @@ export function wireViewsSection(root) {
     });
   });
 
+  // same viewport-rect positioning as board card/column menus — the sidebar is too narrow for a
+  // dropdown to just fall into its natural flow position without getting clipped by the board panel
   root.querySelectorAll("[data-view-menu-toggle]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const dropdown = document.getElementById("viewmenu-" + btn.dataset.viewMenuToggle);
       const wasOpen = dropdown.classList.contains("open");
       document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
-      if (!wasOpen) dropdown.classList.add("open");
+      if (!wasOpen) {
+        const rect = btn.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - rect.bottom;
+        dropdown.style.left = rect.left + "px";
+        dropdown.style.right = "";
+        if (spaceBelow < 200) {
+          dropdown.style.top = "";
+          dropdown.style.bottom = (window.innerHeight - rect.top) + "px";
+        } else {
+          dropdown.style.top = rect.bottom + 4 + "px";
+          dropdown.style.bottom = "";
+        }
+        dropdown.classList.add("open");
+      }
     });
   });
 
