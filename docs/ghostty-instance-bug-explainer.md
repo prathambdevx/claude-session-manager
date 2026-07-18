@@ -141,3 +141,32 @@ arrow with no fork at all.
 5. The before/after box diagram from section 5 as the closing visual.
 6. Keep tone plain and concrete — this was a real bug on a real machine with real numbers, not a
    generic OS lecture.
+
+## Follow-up: raising the RIGHT window to the front (double-tap "focus")
+
+Once every session lands in the single scriptable instance (above), a second, separate problem
+surfaced: double-tapping a session in the UI selected the right tab and put the cursor there, but
+the window itself often stayed *behind* other Ghostty windows. Two more OS quirks, both confirmed
+live, explain it — the fix lives in `focusExistingGhosttyWindow()` (`terminalFocus.ts`):
+
+1. **Ghostty's own `activate window w` doesn't reliably reorder windows on screen.** `activate` is a
+   standard *app-level* AppleScript verb (bring the whole app forward), but activating one specific
+   *window object* isn't part of core AppleScript vocabulary the way app-level activation is, and
+   Ghostty's dictionary doesn't implement it as a real reorder. So plain `activate` brought Ghostty
+   forward to whichever window it last considered current — often the wrong one. The reliable path
+   is System Events' Accessibility action **`AXRaise`** on that specific window (OS window-server
+   level), which is the same class of thing Terminal.app gets for free via `set frontmost of w`.
+
+2. **Ghostty populates its Accessibility window list LAZILY — only after the app is activated.**
+   Confirmed live: with Ghostty in the background, `tell application "System Events" to tell process
+   "ghostty" to count windows` returns **0**, while Ghostty's own dictionary returns the real count
+   (e.g. 5). After `tell application "Ghostty" to activate` + a short delay, System Events then sees
+   all of them. So the working sequence is: select the tab + focus its terminal (Ghostty dictionary)
+   → `activate` the app → poll until the AX window list is non-empty → `AXRaise` the matching window.
+
+Two smaller gotchas found while debugging this, both of which silently no-op'd earlier attempts:
+- **The process name is lowercase `ghostty`** (it matches the running binary), and System Events
+  process names are **case-sensitive** — `tell process "Ghostty"` (capital G) matches nothing.
+- **Return "found the tab", not "AXRaise succeeded".** The resume route launches a NEW terminal when
+  focus returns false, so if AXRaise ever fails (e.g. Accessibility permission not granted) the
+  function must still report success on having found the window, or it would spawn a duplicate.

@@ -46,10 +46,12 @@ function focusExistingTerminalTab(tty: string): Promise<boolean> {
   });
 }
 
-// Searches windows AND their tabs (not just window names) — a background tab's title is invisible
-// to a window-name-only search. See docs/ghostty-instance-bug-explainer.md.
+// Raises the session's window front via System Events' AXRaise; returns true on FINDING the tab,
+// not on the raise, so a partial raise never makes the caller spawn a duplicate. Why it's shaped
+// this way (activate-then-poll, lowercase "ghostty"): docs/ghostty-instance-bug-explainer.md.
 function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
   const script = `
+    set found to false
     tell application "Ghostty"
       repeat with w in windows
         repeat with t in tabs of w
@@ -60,14 +62,32 @@ function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
             try
               focus (focused terminal of t)
             end try
-            activate window w
-            activate
-            return true
+            set found to true
+            exit repeat
           end if
         end repeat
+        if found then exit repeat
       end repeat
-      return false
+      if found then activate
     end tell
+    if not found then return "false"
+    delay 0.3
+    tell application "System Events"
+      tell process "ghostty"
+        set tries to 0
+        repeat while (count of windows) is 0 and tries < 8
+          delay 0.15
+          set tries to tries + 1
+        end repeat
+        repeat with w in windows
+          if (name of w) contains "${tag}" then
+            perform action "AXRaise" of w
+            exit repeat
+          end if
+        end repeat
+      end tell
+    end tell
+    return "true"
   `;
   return new Promise((resolve) => {
     const child = spawn("osascript", ["-e", script], { stdio: ["ignore", "pipe", "ignore"] });
