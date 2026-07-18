@@ -199,6 +199,20 @@ export async function deleteSession(id, title) {
   toast("Deleted");
 }
 
+export async function closeSessionTerminal(id, title) {
+  const ok = await openConfirmModal({
+    title: `Close terminal for "${title || id}"?`,
+    message: "The session itself isn't deleted — just its open terminal window.",
+    confirmLabel: "Close terminal",
+    danger: true,
+  });
+  if (!ok) return;
+  const res = await fetch(`/api/sessions/${id}/close-terminal`, { method: "POST" });
+  const data = await res.json();
+  toast(data.closed ? "Terminal closed" : "No terminal window was open for this session");
+  loadSessions();
+}
+
 export async function fetchContentMatches(q) {
   if (q.trim().length < 2) { setContentMatchIds(new Set()); render(); return; }
   try {

@@ -1,7 +1,7 @@
 // Card action wiring shared by renderBoardView (main/per-project boards) and any other place a
 // board-card's markup gets inserted — click actions, double-click-to-resume, and the 3-dot menu.
 import { sessions } from "../../state.js";
-import { resumeSession, deleteSession, summarizeSession, patchMeta, loadSessions } from "../../api/sessionsApi.js";
+import { resumeSession, deleteSession, closeSessionTerminal, summarizeSession, patchMeta, loadSessions } from "../../api/sessionsApi.js";
 import { openReviewModal } from "../modals/reviewModal.js";
 import { openExtractModal } from "../modals/extractModal.js";
 import { openRenameModal } from "../modals/renameModal.js";
@@ -20,6 +20,7 @@ export function wireBoardCards(app) {
       if (action === "resume") resumeSession(id, false);
       if (action === "fork") resumeSession(id, true);
       if (action === "delete") deleteSession(id, title);
+      if (action === "closeTerminal") closeSessionTerminal(id, title);
       if (action === "review") openReviewModal(id);
       if (action === "extract") openExtractModal(id);
       if (action === "summarize") summarizeSession(id);

@@ -111,3 +111,65 @@ export async function tryFocusRunningSession(pid: number | null, ghosttyTag?: st
   if (!tty) return false;
   return focusExistingTerminalTab(tty);
 }
+
+// Terminal's Tab class supports `close` directly on the AppleScript object.
+function closeTerminalTabByTty(tty: string): Promise<boolean> {
+  const script = `
+    tell application "Terminal"
+      repeat with w in windows
+        repeat with t in tabs of w
+          if (tty of t) contains "${tty}" then
+            close t
+            return true
+          end if
+        end repeat
+      end repeat
+      return false
+    end tell
+  `;
+  return new Promise((resolve) => {
+    const child = spawn("osascript", ["-e", script], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    child.stdout.on("data", (d) => (out += d.toString()));
+    child.on("close", () => resolve(out.trim() === "true"));
+    child.on("error", () => resolve(false));
+  });
+}
+
+// Ghostty's own "close window" command (its .sdef, distinct from the plain AppleScript "close"
+// verb) closes the window directly — no activate/focus needed, so it never steals focus, and it
+// bypasses the "Close Window? All terminal sessions..." confirmation Cmd+W would trigger.
+function closeGhosttyWindowByTag(tag: string): Promise<boolean> {
+  const script = `
+    tell application "Ghostty"
+      repeat with w in windows
+        repeat with t in tabs of w
+          if (name of t) contains "${tag}" then
+            close window w
+            return "true"
+          end if
+        end repeat
+      end repeat
+      return "false"
+    end tell
+  `;
+  return new Promise((resolve) => {
+    const child = spawn("osascript", ["-e", script], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    child.stdout.on("data", (d) => (out += d.toString()));
+    child.on("close", () => resolve(out.trim() === "true"));
+    child.on("error", () => resolve(false));
+  });
+}
+
+// Closes this session's open terminal window/tab, if any is open. Returns false (not an error)
+// when there's simply nothing to close.
+export async function closeRunningSessionTerminal(pid: number | null, ghosttyTag?: string): Promise<boolean> {
+  if (usingGhostty()) {
+    return ghosttyTag ? closeGhosttyWindowByTag(ghosttyTag) : false;
+  }
+  if (pid == null || !pidAlive(pid)) return false;
+  const tty = await getTtyForPid(pid);
+  if (!tty) return false;
+  return closeTerminalTabByTty(tty);
+}

@@ -11,7 +11,7 @@ import type { Meta } from "../store.ts";
 import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions/index.ts";
 import {
   ghosttyWindowTitle, writeGhosttyTitle, deleteGhosttyTitle, ghosttyTitleFilePath,
-  openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, shellQuote, usingGhostty,
+  openTerminalRunning, tryFocusRunningSession, closeRunningSessionTerminal, ghosttyWindowTag, shellQuote, usingGhostty,
 } from "../claude/index.ts";
 import { CLAUDE_BIN, DANGEROUS_FLAG } from "../constants.ts";
 import { json } from "./json.ts";
@@ -125,6 +125,14 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     if (!fork) await writeGhosttyTitle(id, ghosttyWindowTitle(label, id));
     await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitleFile: ghosttyTitleFilePath(id) });
     return json({ ok: true, command: cmd, cwd: s.cwd });
+  }
+
+  const closeTerminalMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/close-terminal$/);
+  if (closeTerminalMatch && req.method === "POST") {
+    const id = closeTerminalMatch[1];
+    const pid = usingGhostty() ? null : (await loadRunning())[id]?.pid ?? null;
+    const closed = await closeRunningSessionTerminal(pid, ghosttyWindowTag(id));
+    return json({ ok: true, closed });
   }
 
   const deleteMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)$/);
