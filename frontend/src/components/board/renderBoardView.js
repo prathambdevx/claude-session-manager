@@ -112,6 +112,8 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
                 <div class="bc-dropdown" id="menu-col-${c.id}">
                   <button data-rename-col-menu="${c.id}">✎ Rename</button>
                   <button data-collapse-col="${c.id}">◀ Collapse group</button>
+                  <button data-hide-col-menu="${c.id}">🙈 Hide column</button>
+                  ${c.id === homeId ? "" : `<button data-delete-col-menu="${c.id}" class="danger">✕ Delete column</button>`}
                 </div>
               </div>
               <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
@@ -209,6 +211,25 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
       e.stopPropagation();
       document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
       startColumnRename(ctx, el.dataset.renameColMenu, rerender);
+    });
+  });
+  app.querySelectorAll("[data-hide-col-menu]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      const c = ctx.cols.find((x) => x.id === el.dataset.hideColMenu);
+      if (!c) return;
+      pushHistory(ctx);
+      c.hidden = true;
+      ctx.save();
+      rerender();
+    });
+  });
+  app.querySelectorAll("[data-delete-col-menu]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      removeColumn(ctx, el.dataset.deleteColMenu, rerender);
     });
   });
   document.getElementById("collapseAllBtn")?.addEventListener("click", () => {

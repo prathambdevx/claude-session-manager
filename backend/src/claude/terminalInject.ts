@@ -21,6 +21,7 @@ function typeIntoFocusedWindow(text: string): Promise<boolean> {
   const script = `
     tell application "System Events"
       keystroke "${appleScriptQuote(singleLine)}"
+      delay 0.2
       key code 36
     end tell
   `;
@@ -82,6 +83,7 @@ function sendTextToGhosttyTerminal(tag: string, text: string): Promise<boolean> 
       if (count of matches) = 0 then return "false"
       set t to item 1 of matches
       input text "${appleScriptQuote(singleLine)}" to t
+      delay 0.2
       send key "enter" to t
       return "true"
     end tell
