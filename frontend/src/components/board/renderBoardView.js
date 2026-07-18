@@ -182,6 +182,15 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   wireInlineRename(app, ctx, rerender);
 
+  // "Collapse/Expand all" label mirrors visibleCols' live collapsed state, not just the render-time snapshot
+  function refreshCollapseAllBtn() {
+    const btn = document.getElementById("collapseAllBtn");
+    if (!btn) return;
+    const expanded = visibleCols.some((c) => !c.collapsed);
+    btn.textContent = expanded ? "« Collapse all" : "» Expand all";
+    btn.title = expanded ? "Collapse every column" : "Expand every column";
+  }
+
   // Toggles .collapsed directly on the existing element (not via rerender, which would cut the CSS
   // transition short); the next natural render picks up the persisted state.
   function setColumnCollapsed(id, collapsed) {
@@ -192,6 +201,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     else delete c.collapsed;
     ctx.save();
     app.querySelector(`.board-col[data-col-id="${id}"]`)?.classList.toggle("collapsed", collapsed);
+    refreshCollapseAllBtn();
   }
   app.querySelectorAll("[data-collapse-col]").forEach((el) => {
     el.addEventListener("click", (e) => {
@@ -233,7 +243,10 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     });
   });
   document.getElementById("collapseAllBtn")?.addEventListener("click", () => {
-    visibleCols.forEach((c) => setColumnCollapsed(c.id, anyExpanded));
+    // re-read collapsed state at click time, not the render-time snapshot — otherwise a second
+    // click re-applies the same direction instead of toggling back
+    const expandedNow = visibleCols.some((c) => !c.collapsed);
+    visibleCols.forEach((c) => setColumnCollapsed(c.id, expandedNow));
   });
 
   document.getElementById("addColBtn")?.addEventListener("click", async () => {
