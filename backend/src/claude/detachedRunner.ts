@@ -5,6 +5,7 @@ import { DEFAULT_MODEL, DEFAULT_EFFORT } from "../config.ts";
 import { KNOWN_MODELS, CLAUDE_BIN } from "../constants.ts";
 import { modelAliasWithContext } from "./prompts.ts";
 import { activityLine } from "./activity.ts";
+import { SUPPORTS_EFFORT } from "./effortSupport.ts";
 
 // Fire-and-forget spawn with a LIVE activity feed. Uses stream-json so we can parse each tool-use /
 // reasoning event as it happens; onProgress is called (throttled) with the rolling activity log, and
@@ -22,9 +23,10 @@ export function runClaudeHeadlessDetached(
   // resumeSessionId continues that session's own transcript non-interactively (one turn, then
   // exits) instead of starting a disposable throwaway conversation — used by Quick Prompt, which
   // is meant to feel like "the same session did this in the background", not a fresh one-off.
+  const effortArgs = SUPPORTS_EFFORT ? ["--effort", DEFAULT_EFFORT] : [];
   const args = resumeSessionId
-    ? ["--resume", resumeSessionId, "-p", prompt, "--effort", DEFAULT_EFFORT, "--output-format", "stream-json", "--verbose"]
-    : ["-p", prompt, "--effort", DEFAULT_EFFORT, "--no-session-persistence", "--output-format", "stream-json", "--verbose"];
+    ? ["--resume", resumeSessionId, "-p", prompt, ...effortArgs, "--output-format", "stream-json", "--verbose"]
+    : ["-p", prompt, ...effortArgs, "--no-session-persistence", "--output-format", "stream-json", "--verbose"];
   // A --resume call must NOT force a model unless explicitly asked — same as interactive Resume,
   // which never passes --model, so the session continues on whatever model it was already using.
   // A fresh (non-resume) call has no prior model to preserve, so DEFAULT_MODEL applies there.
