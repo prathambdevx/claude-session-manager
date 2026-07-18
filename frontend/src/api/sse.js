@@ -1,11 +1,5 @@
-// Live-update channel — listens on the server's SSE stream (backend/src/fsWatcher.ts is what
-// decides when to push, backend/src/routes/events.ts is the actual endpoint) and applies each
-// granular push straight into local state, in place, instead of re-fetching the whole /api/sessions
-// bundle on every change. A push is one of: a session's fresh full data (upsert by id), a session
-// removed (its transcript was deleted), a lightweight running-status patch (busy/idle/waiting or the
-// process exiting — no transcript re-scan needed for that), or a Quick Prompt job upserted/removed.
-// Both the session activity/done chip and Quick Prompt's own job chip read straight off `sessions`/
-// `quickPrompts` in state.js, so patching those in place here updates both the moment a push arrives.
+// SSE live-update channel (backend/src/fsWatcher.ts decides pushes, routes/events.ts is the
+// endpoint) — patches state in place instead of re-fetching /api/sessions on every change.
 import { sessions, quickPrompts } from "../state.js";
 import { render, isTransientUiOpen } from "../pages/sessionsPage.js";
 

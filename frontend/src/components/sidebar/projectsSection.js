@@ -1,6 +1,5 @@
-// The sidebar's "Projects" section — one row per project. Click opens that project's own
-// independent board. Dragging a session card onto a row tags it into that project (rejected if
-// the card already belongs to a different project — see assignCardToProjectColumn).
+// Sidebar "Projects" section — click opens that project's own board; dragging a card onto a row
+// tags it in (rejected if it belongs to a different project).
 import { sessions, boardMode, activeProjectCwd } from "../../state.js";
 import { escapeHtml, escapeAttr, projectName } from "../../ui/format.js";
 import { enterProjectBoard, assignCardToProjectColumn } from "../../routing/boardRouting.js";

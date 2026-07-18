@@ -1,6 +1,5 @@
-// A promise-based replacement for window.confirm() that matches the app's own modal styling
-// instead of the browser's native dialog. Resolves true/false; closing any other way (overlay
-// click, Escape) resolves false via the MutationObserver below, same as dismissing a native confirm.
+// Promise-based window.confirm() replacement matching the app's modal styling — resolves false on
+// any dismissal (overlay/Escape), same as the native dialog.
 import { modalShell, closeReviewModal } from "./modalShell.js";
 import { escapeHtml } from "./format.js";
 

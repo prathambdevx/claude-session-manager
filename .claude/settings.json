@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          { "type": "command", "command": ".claude/hooks/remind-comment-style-backend.sh" },
+          { "type": "command", "command": ".claude/hooks/remind-comment-style-frontend.sh" }
+        ]
+      }
+    ]
+  }
+}

@@ -1,11 +1,6 @@
-// Bridges /clear: the CLI starts a brand-new transcript id for the same running terminal instead
-// of resetting the old one in place, so this carries the old id's name/board/etc. over to the new
-// id. Exported so it can ALSO be driven by a fast independent background interval (see
-// startClearReconciliationPoller below) — relying only on the frontend's periodic GET /api/sessions
-// poll left a real gap: resume a session, /clear it within a couple seconds, and the pre-clear
-// pid->sessionId mapping may never get recorded before the id changes, so there's nothing to
-// carry over — the new id just shows up as a fresh untitled card instead of "reset to 0%, same
-// card." Running this independently every couple seconds shrinks that window drastically.
+// Bridges /clear (new transcript id, same terminal): carries the old id's name/board over to the
+// new one. Also run on its own fast interval (not just the browser's poll) — a /clear within a
+// couple seconds of resume could otherwise slip past before the mapping is recorded.
 import { loadRunning, loadMeta, saveMeta, reconcileClearedSessions } from "../store.ts";
 import type { Meta } from "../store.ts";
 import { scanAllSessions } from "../sessions.ts";
@@ -22,10 +17,9 @@ export async function reconcileNow(): Promise<Record<string, Meta>> {
   };
   const { meta: reconciledMeta, changed, reconciled } = await reconcileClearedSessions(running, meta, resolveFallbackLabel);
   if (changed) await saveMeta(reconciledMeta);
-  // the terminal window itself didn't restart — it's still reading its ORIGINAL (pre-clear)
-  // title file — so keep writing to that same file, just with the carried-over name and the
-  // NEW session id's tag, so the still-open window's title (and future resume-focus matching,
-  // which now targets the new id) both stay correct across the clear.
+  // The window is still reading its pre-clear title file, so keep writing there — with the
+  // carried-over name and the new session's tag — to keep both its title and future focus-matching
+  // correct.
   for (const { oldId, newId, carriedName } of reconciled) {
     await writeGhosttyTitle(oldId, ghosttyWindowTitle(carriedName || newId.slice(0, 8), newId));
   }

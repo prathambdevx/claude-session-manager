@@ -10,7 +10,7 @@ import {
   QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS,
 } from "./config.ts";
 
-// ---------- board columns (server-side so they're shared across browsers/tabs) ----------
+// Board columns — server-side so they're shared across browsers/tabs.
 
 export type BoardColumn = { id: string; title: string; cwd?: string; hidden?: boolean; collapsed?: boolean };
 
@@ -40,8 +40,7 @@ export async function saveTodoBoard(columns: BoardColumn[]) {
   await Bun.write(TODO_BOARD_PATH, JSON.stringify({ columns }, null, 2));
 }
 
-// ---------- per-project board columns (keyed by raw cwd) — each project gets its own
-// independent column set, kept fully separate from the shared main board above ----------
+// Per-project board columns (keyed by raw cwd) — each project owns its own independent set.
 
 export type ProjectBoards = Record<string, BoardColumn[]>;
 
@@ -58,8 +57,8 @@ export async function saveProjectBoards(boards: ProjectBoards) {
   await Bun.write(PROJECT_BOARDS_PATH, JSON.stringify(boards, null, 2));
 }
 
-// ---------- saved views: a named, reusable snapshot of the Main board's column layout —
-// switchable from the sidebar without disturbing the live Main board columns above ----------
+// Saved views — a named snapshot of the Main board's column layout, switchable from the sidebar
+// without disturbing the live Main board.
 
 export type SavedView = { id: string; title: string; columns: BoardColumn[] };
 
@@ -76,9 +75,8 @@ export async function saveSavedViews(views: SavedView[]) {
   await Bun.write(SAVED_VIEWS_PATH, JSON.stringify({ views }, null, 2));
 }
 
-// ---------- board settings: small per-installation display preferences (which view loads by
-// default, whether empty columns auto-hide) — shared across browsers like everything else here,
-// not left in one browser's localStorage ----------
+// Board settings — small per-installation display preferences, server-side like everything else
+// here rather than left in one browser's localStorage.
 
 export type BoardSettings = { defaultViewId?: string; autoHideEmpty?: boolean };
 
@@ -95,7 +93,7 @@ export async function saveBoardSettings(settings: BoardSettings) {
   await Bun.write(BOARD_SETTINGS_PATH, JSON.stringify(settings, null, 2));
 }
 
-// ---------- sidecar metadata (names, tags, notes, status, pinned, archived) ----------
+// Sidecar metadata (names, tags, notes, status, pinned, archived).
 
 export type Meta = {
   name?: string;
@@ -124,7 +122,7 @@ export async function saveMeta(meta: Record<string, Meta>) {
   await Bun.write(META_PATH, JSON.stringify(meta, null, 2));
 }
 
-// ---------- tickets (note-only board cards, not Claude sessions) ----------
+// Tickets — note-only board cards, not Claude sessions.
 
 export type Ticket = {
   id: string;
@@ -149,7 +147,7 @@ export async function saveTickets(tickets: Record<string, Ticket>) {
   await Bun.write(TICKETS_PATH, JSON.stringify(tickets, null, 2));
 }
 
-// ---------- todos (standalone task board) ----------
+// Todos — standalone task board.
 
 export type Todo = {
   id: string;
@@ -174,7 +172,7 @@ export async function saveTodos(todos: Record<string, Todo>) {
   await Bun.write(TODOS_PATH, JSON.stringify(todos, null, 2));
 }
 
-// ---------- review reports ----------
+// Review reports.
 
 export type ReviewRecord = {
   id: string;
@@ -198,7 +196,7 @@ export async function loadReview(id: string): Promise<ReviewRecord | null> {
   }
 }
 
-// ---------- context briefings ----------
+// Context briefings.
 
 export type ContextRecord = {
   id: string;
@@ -221,7 +219,7 @@ export async function loadContext(id: string): Promise<ContextRecord | null> {
   }
 }
 
-// ---------- live process tracking (~/.claude/sessions/*.json) ----------
+// Live process tracking (~/.claude/sessions/*.json).
 
 export type RunningInfo = {
   pid: number;
@@ -262,8 +260,8 @@ export async function loadRunning(): Promise<Record<string, RunningInfo>> {
   return out;
 }
 
-// ---------- pid → session continuity (bridges /clear, which makes the CLI start a brand-new,
-// empty transcript id for the same running terminal instead of editing the old one in place) ----------
+// Pid → session continuity — bridges /clear, which starts a brand-new transcript id for the same
+// running terminal instead of editing the old one in place.
 
 export type PidLinks = Record<string, string>; // pid (as string) -> last-seen sessionId
 
@@ -281,12 +279,8 @@ export async function savePidLinks(links: PidLinks) {
 
 const CARRIED_META_FIELDS = ["name", "description", "descriptionSource", "tags", "notes", "status", "pinned", "board"] as const;
 
-// Called on every /api/sessions poll. If a PID we've seen before is now reporting a different live
-// session id (i.e. /clear just fired in that terminal), the new id inherits the old session's
-// identity/board slot — so the user sees the same named card just reset to a fresh context %. The
-// old (now-frozen) transcript isn't deleted or hidden: it's relabeled "<name> (before clear)" and
-// dropped out of its board column (so it defaults to the "All sessions" column) instead of leaving
-// a stale duplicate sitting where the live card used to be.
+// On a /clear, the new transcript id inherits the old one's name/board slot; the old (now-frozen)
+// transcript is relabeled "<name> (before clear)" and dropped to the default column.
 export type ClearedReconciliation = { oldId: string; newId: string; carriedName?: string };
 
 export async function reconcileClearedSessions(
@@ -333,7 +327,7 @@ export async function reconcileClearedSessions(
   return { meta, changed, reconciled };
 }
 
-// ---------- agents (reusable delegation profiles) ----------
+// Agents — reusable delegation profiles.
 
 export type Agent = {
   id: string;
@@ -382,7 +376,7 @@ export async function saveAgents(agents: Record<string, Agent>) {
   await Bun.write(AGENTS_PATH, JSON.stringify(agents, null, 2));
 }
 
-// ---------- delegations (background agent jobs) ----------
+// Delegations — background agent jobs.
 
 export type Delegation = {
   id: string;
@@ -444,7 +438,7 @@ function reconcileDelegation(d: Delegation): Delegation {
   return d;
 }
 
-// ---------- quick prompts (ad-hoc background tasks against a session, no agent/digest) ----------
+// Quick prompts — ad-hoc background tasks against a session, no agent/digest.
 
 export type QuickPromptJob = {
   id: string;

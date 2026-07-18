@@ -1,15 +1,9 @@
-// Watches the filesystem locations Claude Code itself writes to live (session status files,
-// transcripts) plus this app's own Quick Prompt job files, and pushes a GRANULAR, typed update over
-// SSE (see sse.ts) for exactly the one session/job that changed — not a bare "something changed, go
-// refetch everything" nudge. The browser patches just that one entity in place (frontend/src/api/
-// sse.js), so a busy board never has to re-fetch and re-render every session just because one of
-// them did something.
+// Watches Claude Code's own status/transcript files plus this app's Quick Prompt job files, and
+// pushes a granular per-entity update over SSE — the browser patches just that one session/job,
+// not a full re-fetch.
 //
-// One raw write (e.g. a single transcript append) commonly fires several raw fs events in a row
-// (the writer's own buffered flush, metadata update, etc.) — so rather than reacting per-event,
-// every event (re)arms a short per-entity debounce timer and only the timer's own fire actually
-// does the (re)compute + broadcast. That collapses a burst into one push, and — keyed per entity,
-// not globally — means session A's burst never delays session B's update.
+// Debounces per-entity: a burst of raw fs events from one write collapses into a single push, and
+// one session's burst never delays another's.
 import { watch } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";

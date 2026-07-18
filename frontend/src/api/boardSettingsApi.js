@@ -1,6 +1,5 @@
-// Small board-level display preferences (default view, auto-hide-empty-columns) — server-side so
-// they're shared across browsers, like everything else here, instead of stuck in one browser's
-// localStorage.
+// Small board-level display preferences — server-side so they're shared across browsers, not
+// stuck in one browser's localStorage.
 import { setDefaultViewId, setAutoHideEmpty } from "../state.js";
 
 export function applyBoardSettings(settings) {

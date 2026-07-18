@@ -1,37 +1,5 @@
-// Moved as-is (not deleted) in case it's re-enabled later — agentsDockHtml is currently
-// unreachable (renderBoardView always gets '' back), but the wiring is kept working.
-//
-// function agentsDockHtml() {
-//   const collapsed = localStorage.getItem("agentsDockCollapsed") === "1";
-//   const recent = delegations.slice(0, 8);
-//   const jobChip = (d) => {
-//     const icon = d.status === "done" ? "✓" : d.status === "error" ? "✗" : "⏳";
-//     const cls = d.status === "done" ? "job-done" : d.status === "error" ? "job-error" : "job-running";
-//     return `<span class="job-chip ${cls}" data-open-delegation="${d.id}" title="${escapeAttr(d.agentName + " → " + d.sessionLabel)} — click for details">
-//       ${icon} ${escapeHtml(d.agentEmoji)} ${escapeHtml(d.sessionLabel.slice(0, 24))}</span>`;
-//   };
-//   return `
-//     <div class="agents-dock ${collapsed ? "collapsed" : ""}" id="agentsDock">
-//       <div class="dock-row">
-//         <span class="dock-label" id="agentsDockToggle" title="Collapse/expand">AGENTS ${collapsed ? "▸" : "▾"}</span>
-//         ${agents
-//           .map(
-//             (a) => `<div class="agent-tile" data-agent-drop="${a.id}" data-agent-edit="${a.id}" title="${escapeAttr(a.prompt.slice(0, 120))} — drop a session to delegate; click to edit">
-//               <span>${escapeHtml(a.emoji)}</span> <span>${escapeHtml(a.name)}</span>
-//               <span class="agent-perm ${a.permission === "edit" ? "perm-edit" : "perm-ro"}">${a.permission === "edit" ? "✎" : "👁"}</span>
-//             </div>`
-//           )
-//           .join("")}
-//         <div class="agent-tile agent-new" id="agentNewTile" title="Create a new agent">＋ New agent</div>
-//       </div>
-//       <div class="dock-row dock-jobs">
-//         <span class="dock-label">JOBS</span>
-//         ${recent.length ? recent.map(jobChip).join("") : '<span class="dock-empty">no delegations yet — drop a session on an agent</span>'}
-//         <a class="dock-all" href="/delegations" target="_blank" rel="noopener">all ↗</a>
-//       </div>
-//     </div>
-//   `;
-// }
+// agentsDockHtml is currently unreachable (renderBoardView always gets '' back), but the wiring
+// below is kept working in case it's re-enabled later.
 import { sessions } from "../../state.js";
 import { toast } from "../../ui/toast.js";
 import { startDelegation } from "../../api/sessionsApi.js";

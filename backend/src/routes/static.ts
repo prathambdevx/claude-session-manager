@@ -2,10 +2,8 @@ import { join } from "node:path";
 import { PUBLIC_DIR, FRONTEND_SRC_DIR } from "../config.ts";
 
 export async function handleStaticRoutes(req: Request, url: URL): Promise<Response | null> {
-  // client-routed pages (SPA): "/" (main board) and "/projects/<encoded-cwd>" (drilled into one
-  // project's own board) both serve the same index.html so a hard reload/deep link survives. Bare
-  // "/projects" (from before the project picker was merged into the main board) is also matched
-  // here as a harmless fallback — the client-side router just treats it as "main".
+  // SPA routes ("/" and "/projects/<cwd>") all serve index.html so a hard reload/deep link
+  // survives; the client router handles the rest.
   if (req.method === "GET" && /^\/(projects(\/.*)?)?$/.test(url.pathname)) {
     return new Response(Bun.file(join(PUBLIC_DIR, "index.html")));
   }

@@ -1,11 +1,8 @@
 // Shared form-control fragments so every modal renders the same model dropdown + dangerous toggle
 // (change once here, all modals update). Each takes the element id the modal reads back from.
 
-// global "run dangerously" default — drives resume/fork directly and pre-checks per-launch modals.
-// defaults ON (matches the tool's dangerous-by-default behavior) unless the user turned it off.
-// Lives here (not api/) since it's a pure localStorage read with no fetch involved, and both this
-// module's dangerousCheckboxHtml and api/sessionsApi.js need it — keeping it in ui/ (which nothing
-// else depends on) avoids a ui → api import.
+// Global "run dangerously" default, ON unless the user opted out — lives in ui/ (not api/) purely
+// to avoid a ui → api import, since sessionsApi.js needs it too.
 export function dangerousDefault() {
   return localStorage.getItem("globalDangerous") !== "0";
 }

@@ -1,6 +1,5 @@
-// dark / light mode toggle. `data-theme` on <html> (set inline in index.html's <head>, before
-// first paint) overrides the CSS's default OS-driven `prefers-color-scheme`; absence of the
-// attribute means "follow the OS".
+// dark/light toggle — data-theme on <html> overrides prefers-color-scheme; its absence means
+// "follow the OS".
 export function currentTheme() {
   const override = document.documentElement.getAttribute("data-theme");
   if (override) return override;

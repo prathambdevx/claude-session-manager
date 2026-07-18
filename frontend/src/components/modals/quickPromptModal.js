@@ -1,8 +1,6 @@
-// "Quick Prompt" — hand a session a task without opening a terminal yourself. The backend decides
-// how to deliver it (types straight into the session's terminal if one's already open, otherwise
-// resumes it in the background — see api/quickPromptsApi.js and backend/src/routes/quickPrompts.ts).
-// The chip row is learned from what you actually send TO THIS SESSION (session.meta.promptHistory),
-// not a shared/global list or hand-authored presets — whatever you repeat most rises to the top.
+// Quick Prompt: delivers straight into an open terminal or resumes in the background (see
+// api/quickPromptsApi.js). Chip row is ranked from this session's own promptHistory, not a shared
+// preset list.
 import { sessions } from "../../state.js";
 import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
 import { escapeHtml, escapeAttr } from "../../ui/format.js";

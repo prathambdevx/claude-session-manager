@@ -25,10 +25,8 @@ export type Session = {
   lastActivity: string | null; // last tool-use/thinking/text line seen — "what is it doing" for a running session
 };
 
-// Shared with routes/sessions.ts's GET /api/sessions AND fsWatcher.ts's granular per-session SSE
-// push, so both compute "is this session actively working" identically: Claude Code's own status
-// file can get stuck reporting a stale "waiting" indefinitely on a long-running interactive
-// terminal (confirmed live), so a recent transcript write counts too, not just status === "busy".
+// Shared with routes/sessions.ts and fsWatcher.ts so both agree: Claude Code's own status file
+// can get stuck on stale "waiting", so a recent transcript write also counts as "actively working".
 export const ACTIVITY_WINDOW_MS = 15_000;
 export function computeActivelyWorking(s: Session, running: { status?: string } | null | undefined): boolean {
   return running?.status === "busy" || Date.now() - s.lastActive < ACTIVITY_WINDOW_MS;
@@ -67,12 +65,8 @@ export function projectNameFromCwd(cwd: string): string {
   return parts[parts.length - 1] || cwd;
 }
 
-// Full transcripts can be tens of MB and there can be hundreds of them — re-reading and
-// re-parsing every byte of every session on every poll (every few seconds) is the dominant cost of
-// this app. Almost all sessions are inactive between polls, so cache each file's computed Session
-// keyed by its own path, invalidated only when its mtime/size actually changed (i.e. it grew —
-// only the transcript(s) someone is actively working in). This turns a full re-scan into a cheap
-// stat() for every unchanged file instead of reading+JSON-parsing its entire contents again.
+// Caches each Session by its transcript's mtime/size so an unchanged file (almost all of them,
+// most polls) costs a stat() instead of a full re-parse.
 const transcriptCache = new StatCache<Session>();
 
 export async function scanTranscript(path: string, id: string, projectSlug: string): Promise<Session> {
@@ -132,12 +126,9 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
     if (line2) lastActivity = line2;
   }
 
-  // No transcript field ever records which context-window size a turn ran under — "[1m]" is
-  // resolved away before Claude Code logs message.model, and no usage field encodes window size.
-  // But if a turn's real usage exceeds the standard 200K window, that's proof (not a guess) it
-  // must have run extended — a 200K model physically can't hold that much context. This makes the
-  // denominator per-session and reacts correctly to a mid-session model switch, without needing to
-  // sniff model strings (confirmed unreliable).
+  // No field records which context window a turn used, but real usage over 200K proves it ran
+  // extended (a 200K model can't hold that much) — makes the % denominator correct per-session,
+  // even mid-session model switches.
   const contextWindow =
     lastContextTokens != null && lastContextTokens > 200_000 ? 1_000_000 : CONTEXT_WINDOW_TOKENS;
   const contextPct =

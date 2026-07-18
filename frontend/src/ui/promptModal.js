@@ -1,6 +1,5 @@
-// A promise-based replacement for window.prompt() that matches the app's own modal styling.
-// Resolves the entered string on Save/Enter, or null on Cancel/overlay-click/Escape — same
-// null-means-cancelled contract as the native prompt() it replaces.
+// Promise-based window.prompt() replacement — resolves the string on Save/Enter, null on cancel,
+// same contract as the native prompt() it replaces.
 import { modalShell, closeReviewModal } from "./modalShell.js";
 import { escapeHtml, escapeAttr } from "./format.js";
 

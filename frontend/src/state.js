@@ -1,6 +1,5 @@
-// All shared mutable state, in one place, as live-exported bindings. Every other module imports
-// exactly the pieces it needs from here instead of each owning its own copy — this is what lets
-// the app stay split into many small files without threading state through every function call.
+// All shared mutable state as live-exported bindings — lets the app stay split into small files
+// without threading state through every function call.
 export let sessions = [];
 export let agents = [];
 export let delegations = [];
@@ -25,10 +24,8 @@ export let activeProjectCwd = null;
 export let projectBoards = {}; // Record<cwd, BoardColumn[]> — mirrors server's project-boards.json
 export let currentProjectColumns = null; // BoardColumn[] for whichever project is currently drilled into
 
-// The sidebar's own view switch — separate from boardMode above, which stays responsible for URL
-// sync ("/" vs "/projects/<cwd>"). "group" (the read-only Projects lens) and "saved:<id>" (a saved
-// view preview) aren't URL-routed — they're pure client display state, reset to boardMode's own
-// view on reload, same as the design this mirrors.
+// Sidebar's own view switch, separate from boardMode (which stays responsible for URL sync) —
+// "group"/"saved:<id>" aren't URL-routed, just client display state.
 export let activeView = "main"; // "main" | "project" | "group" | "saved:<id>"
 export let savedViews = []; // SavedView[] — mirrors server's saved-views.json
 export let defaultViewId = "main"; // mirrors server's board-settings.json
@@ -39,9 +36,8 @@ export let contentMatchIds = new Set();
 export let contentSearchTimer = null;
 export let delegationPoll = null;
 
-// Plain setters for every binding above, since `export let` can be reassigned by importers in
-// most bundlers/engines but relying on that is fragile — these make every mutation explicit and
-// keep the module the single source of truth.
+// Plain setters for every binding above — relying on importers reassigning `export let` directly
+// is fragile, so mutation always goes through these.
 export function setSessions(v) { sessions = v; }
 export function setAgents(v) { agents = v; }
 export function setDelegations(v) { delegations = v; }

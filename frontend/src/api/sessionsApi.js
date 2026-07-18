@@ -15,9 +15,8 @@ import { escapeHtml, escapeAttr } from "../ui/format.js";
 import { applyBoardSettings } from "./boardSettingsApi.js";
 import { openConfirmModal } from "../ui/confirmModal.js";
 
-// ---------- project filter dropdown ----------
-// Launching lives entirely in the per-column "+" New Task modal; this dropdown scopes the
-// visible board/list to one project's sessions.
+// Project filter dropdown — scopes the visible board to one project's sessions; launching lives in
+// the per-column "+" New Task modal instead.
 export async function loadProjects() {
   const res = await fetch("/api/projects");
   const data = await res.json();
@@ -37,10 +36,8 @@ export async function saveBoardColumns() {
   });
 }
 
-// `background: true` is passed by the periodic backstop poll and the tab-focus/visibility
-// refreshers — an automatic refresh that must NOT rebuild the board while the user has a ⋮ menu or
-// inline rename open (that would close it out from under them). State is always updated; only the
-// visual rebuild is skipped in that case. User-initiated calls (default) always render.
+// background:true (poll/tab-focus refreshes) skips the visual rebuild if a ⋮ menu or rename is
+// open — state still updates, only the render is deferred.
 export async function loadSessions(opts = {}) {
   const res = await fetch("/api/sessions");
   const data = await res.json();
@@ -75,12 +72,8 @@ export async function loadSessions(opts = {}) {
   }
   setBoardColumns(cols);
 
-  // One-time (per browser): ensure every project currently in use has its own column, without
-  // ever touching existing columns — a fresh install starts from just "All sessions" above, so
-  // this fills it out to "All sessions" + one column per project; an existing install's own
-  // Priority/In Progress/etc columns are preserved exactly and project columns are appended
-  // alongside them. Gated on a flag so a later deliberate removal of a project's column isn't
-  // resurrected on the next poll.
+  // One-time per browser: adds a column per project without touching existing columns; gated on a
+  // flag so a manually-removed project column isn't resurrected.
   if (!localStorage.getItem("projectColumnsMigrated")) {
     const merged = mergeInProjectColumns(cols, data.sessions || []);
     if (merged.changed) {

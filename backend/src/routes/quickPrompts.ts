@@ -1,19 +1,5 @@
-// "Quick Prompt" — hands the SAME session a follow-up task without opening a terminal yourself.
-// Two delivery paths, tried in order — BOTH get a persisted job + progress chip, so the outcome is
-// always visible somewhere, never a silent dead end:
-//
-// 1. Terminal already open for this session: deliver the prompt straight into that existing
-//    window (focus it, type the whole prompt as one burst, press Return) via
-//    sendPromptToRunningTerminal — exactly as if the user had typed it there themselves. There's no
-//    subprocess to await here (it's a real interactive terminal now), so progress is inferred by
-//    polling that session's own transcript file for a new response to show up (watchTranscriptFor
-//    Completion) rather than fabricating a percentage.
-// 2. Terminal not open, OR (1) couldn't actually deliver it (focus/keystroke failed — e.g. this
-//    machine hasn't granted System Events Accessibility permission yet): resume that session's own
-//    transcript non-interactively in the background (`claude --resume <id> -p "<prompt>"`, see
-//    runClaudeHeadlessDetached's resumeSessionId) — same continuity as clicking "Resume" and
-//    typing, just without a terminal window. Real subprocess, real streamed progress, mirroring
-//    routes/delegations.ts's pattern.
+// Quick Prompt: hands a session a follow-up task without opening a terminal. Types into an open
+// terminal if one exists, else runs headless in the background — see handleQuickPromptRoutes.
 import { stat, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { PROJECTS_DIR, QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS } from "../config.ts";
@@ -57,16 +43,9 @@ function lastAssistantText(raw: string): string | null {
   return null;
 }
 
-// Polls the session's own transcript file for changes after `sinceMtimeMs` (the moment we just
-// typed the prompt in) — the only way to observe progress once the prompt has gone into a real
-// interactive terminal instead of a subprocess we control. Used to mark the job "done" at the
-// FIRST change of any kind — which meant a multi-step task (e.g. "commit and push this") flipped
-// to done the instant Claude's first tool call landed, long before the real work finished. Now
-// uses the same "is this actually done" signal the card's own done-chip uses (see
-// boardCard.js's doneChipHtml): the last assistant entry's first content block has to be plain
-// text (💭, activityLine()'s way of saying "a final response, no further tool call queued in this
-// message") — anything else (a tool call still running) keeps watching and streams that as
-// live progress instead. Fire-and-forget; writes its own conclusion when truly done or on timeout.
+// Polls the transcript for a genuinely final response (plain-text last block, activityLine's 💭)
+// rather than the first change — otherwise a multi-step task flipped "done" after just the first
+// tool call.
 function watchTranscriptForCompletion(
   record: QuickPromptJob, transcriptPath: string, sinceMtimeMs: number, startedAt: number = Date.now()
 ) {

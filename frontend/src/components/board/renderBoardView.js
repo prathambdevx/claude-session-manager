@@ -13,11 +13,8 @@ import { createSavedView } from "../../api/savedViewsApi.js";
 import { openPromptModal } from "../../ui/promptModal.js";
 import { openConfirmModal } from "../../ui/confirmModal.js";
 
-// A column's members are computed, not just bucketed once per card — a session can belong to
-// several columns at the same time. The home column (cols[0], "All sessions") always shows
-// everyone; on Main board, a column with a `.cwd` shows every card whose own cwd matches it,
-// permanently (a session's project is fixed — dragging it elsewhere never removes it from here);
-// every other column is a plain tag (`meta.board === column.id`), same as always.
+// Membership is computed, not bucketed: home column shows everyone, a .cwd column shows matching
+// sessions permanently, everything else is a plain meta.board tag.
 function cardsForColumn(c, ctx, filtered, homeId) {
   if (c.id === homeId) return filtered;
   if (ctx.kind === "main" && c.cwd) return filtered.filter((s) => s.cwd === c.cwd);
@@ -30,15 +27,8 @@ function missingProjectCount(ctx) {
   return new Set(sessions.filter((s) => !s.isTicket && !existing.has(s.cwd)).map((s) => s.cwd)).size;
 }
 
-// Deterministic, no config needed, and never duplicated between two columns that currently exist
-// together: each column's palette slot comes from its rank in ctx.cols sorted by `id` (excluding
-// the home column) — a fixed, order-independent ranking, so dragging columns around never
-// reassigns colors (the live array ORDER changes, but this sort doesn't depend on it). Since it's
-// a straight assignment of "1st alphabetically -> slot 0, 2nd -> slot 1, ..." with a palette sized
-// to comfortably cover a normal board, no two simultaneously-visible columns ever collide — that
-// only becomes possible past PALETTE_SIZE columns, an edge case not worth a bigger palette for.
-// Kept desaturated so none of these fight the gold accent used everywhere else in the app. The
-// home column stays neutral since it isn't really a "status" the way the others are.
+// Palette slot = column's rank when ctx.cols is sorted by id (excluding home) — order-independent,
+// so dragging columns never reassigns colors.
 const PILL_PALETTE_SIZE = 9;
 function pillColorClass(ctx, c) {
   const homeId = ctx.cols[0]?.id;
@@ -72,9 +62,8 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   const drift = missingProjectCount(ctx);
 
-  // Every render fully replaces .board's innerHTML (new session data, a column edit, a poll,
-  // …) — without this, the browser resets scrollLeft to 0 each time, which reads as the board
-  // "jerking back to start" mid-scroll. Same for each column's own vertical scroll.
+  // Every render replaces .board's innerHTML, which resets scrollLeft to 0 — save/restore it (and
+  // each column's scrollTop) so the board doesn't jerk back mid-scroll.
   const prevScrollLeft = app.querySelector(".board")?.scrollLeft || 0;
   const prevColScrollTops = new Map();
   app.querySelectorAll(".board-col-body[data-col-drop]").forEach((el) => {
@@ -108,14 +97,8 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
             ? `<span class="col-title-link" data-col-title="${c.id}" title="Open ${escapeAttr(projectName(c.cwd))}'s own board">${escapeHtml(c.title)}</span>`
             : `<span>${escapeHtml(c.title)}</span>`;
 
-        // Both the full header/body AND the collapsed pill are always in the DOM at once — only a
-        // `.collapsed` class on the outer element decides which one shows (via CSS). This is what
-        // lets collapsing/expanding actually animate: a full rerender() replaces this whole block
-        // of markup from scratch every time (new poll, new SSE push, any board change), so there's
-        // no continuously-existing element for a CSS transition to interpolate between if the two
-        // states were two entirely different template branches — the toggle click handler below
-        // flips the class directly on the existing DOM node instead of forcing an immediate
-        // rerender, so the transition actually has something to animate.
+        // Header/body and collapsed pill both stay in the DOM; only a .collapsed class (toggled
+        // directly, not via rerender) switches them, so the CSS transition has something to animate.
         return `
         <div class="board-col${c.hidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c)}" data-col-id="${c.id}">
           <div class="board-col-header" draggable="${!c.renaming}" data-col-drag="${c.id}" title="${c.cwd ? "Drag to reorder" : "Drag to reorder columns"}">
@@ -197,13 +180,8 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   wireInlineRename(app, ctx, rerender);
 
-  // collapse/expand a single column — the hover-revealed header arrow and its equivalent ⋯ menu
-  // item both just toggle the same flag; clicking the collapsed pill itself expands it back.
-  // The class is toggled directly on the EXISTING .board-col element rather than going through
-  // rerender() right away — rerender() replaces this element's whole subtree from scratch, which
-  // would cut the CSS transition off before it has a chance to play (nothing to interpolate from
-  // once the old node is gone). Persisting still happens immediately; the next natural render
-  // (next SSE push/poll, or any other board interaction) picks up the saved state for free.
+  // Toggles .collapsed directly on the existing element (not via rerender, which would cut the CSS
+  // transition short); the next natural render picks up the persisted state.
   function setColumnCollapsed(id, collapsed) {
     const c = ctx.cols.find((x) => x.id === id);
     if (!c) return;

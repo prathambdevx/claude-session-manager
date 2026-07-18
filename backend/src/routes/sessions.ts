@@ -96,21 +96,15 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     const s = sessions.find((x) => x.id === id);
     if (!s) return json({ error: "session not found" }, { status: 404 });
 
-    // fork always creates a new session, so there's never an existing window to reuse for it.
-    // The focus decision is keyed off the SESSION ID (via the csm-<id8> window-title tag), not a
-    // pid from loadRunning — the window's existence is the authoritative "already open?" signal,
-    // and relying on the pid map here was the source of duplicate-terminal-on-resume bugs (stale
-    // /orphaned/windowless pid files). Terminal.app still needs the pid (it matches by tty), so it
-    // keeps the loadRunning lookup; Ghostty passes pid=null and matches purely by tag.
+    // fork never has an existing window to reuse. Otherwise focus is keyed by the csm-<id8> tag,
+    // not loadRunning()'s pid — see terminalFocus.ts.
     if (!fork) {
       const pid = usingGhostty() ? null : (await loadRunning())[id]?.pid ?? null;
       if (await tryFocusRunningSession(pid, ghosttyWindowTag(id))) {
         return json({ ok: true, focused: true, cwd: s.cwd });
       }
-      // No window to focus, so we're about to LAUNCH one. But if a headless Quick Prompt is still
-      // running against this exact session, launching now would put a SECOND `claude --resume <id>`
-      // on the same transcript at once — the fork/clobber risk. Refuse until the background job
-      // finishes; its on-card chip is the progress surface, and Resume works normally once it's done.
+      // About to launch a new terminal — refuse if a headless Quick Prompt is still running on
+      // this session, to avoid two processes on one transcript.
       const bgQuickPrompt = (await loadAllQuickPromptJobs()).find(
         (j) => j.sessionId === id && j.status === "running" && j.pid != null && pidAlive(j.pid),
       );

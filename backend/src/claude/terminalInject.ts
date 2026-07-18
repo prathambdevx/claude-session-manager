@@ -1,8 +1,5 @@
-// Quick Prompt's "terminal already open" delivery path: get the prompt into that session's
-// existing terminal exactly as if the user had typed it and hit Return, without disrupting
-// whatever else the user is doing. Ghostty gets true no-focus delivery via its own AppleScript
-// scripting object; Terminal.app (no equivalent) falls back to simulated keystrokes with a
-// focus-and-restore, since bringing a window forward is unavoidable there.
+// Quick Prompt's "terminal already open" path — types the prompt in as if the user did, no
+// subprocess. Ghostty gets true no-focus delivery; Terminal.app falls back to focus-and-restore.
 import { spawn } from "node:child_process";
 import { pidAlive } from "../store.ts";
 import { usingGhostty } from "./ghosttyEnv.ts";
@@ -107,19 +104,11 @@ function sendTextToGhosttyTerminal(tag: string, text: string): Promise<boolean> 
   });
 }
 
-// Quick Prompt's "terminal already open" path: deliver the prompt directly into that session's
-// existing terminal, exactly as if the user had typed it and hit Return — instead of racing a
-// second headless process against the same session transcript (see routes/quickPrompts.ts for the
-// fallback used when nothing's open). Ghostty gets true no-focus delivery; Terminal.app (no
-// equivalent scripting object here) falls back to a brief focus-and-restore. Returns false if the
-// terminal couldn't be found or delivery failed outright.
+// Delivers into the session's existing terminal; returns false if none is open or delivery
+// failed, so the caller can fall back to a headless run (see routes/quickPrompts.ts).
 export async function sendPromptToRunningTerminal(pid: number | null, ghosttyTag: string | undefined, prompt: string): Promise<boolean> {
-  // Ghostty targets the window purely by its csm-<id> title tag — the tag's presence IS the "this
-  // session's terminal is open right now" signal, so no pid is needed. (Requiring a live pid here
-  // wrongly vetoed delivery whenever loadRunning()'s lazily-written ~/.claude/sessions status files
-  // hadn't recorded the terminal — the real reason a quick prompt sometimes went background instead
-  // of into the open window.) Returns false if no window carrying the tag is open, so the caller
-  // cleanly falls back to a headless background run.
+  // The csm-<id> tag's presence IS "this session's terminal is open" — no pid needed. A live pid
+  // was previously required and wrongly vetoed delivery when loadRunning()'s status files lagged.
   if (usingGhostty()) {
     return ghosttyTag ? sendTextToGhosttyTerminal(ghosttyTag, prompt) : false;
   }

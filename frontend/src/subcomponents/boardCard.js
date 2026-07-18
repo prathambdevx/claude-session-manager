@@ -4,14 +4,8 @@ import { summarizingIds, quickPrompts, sessions } from "../state.js";
 import { escapeHtml, timeAgo, projectName } from "../ui/format.js";
 import { ctxBadgeFullHtml } from "../ui/contextBadge.js";
 
-// Quick Prompt's job chip — persists on the card until clicked (never auto-hides) *as long as
-// nothing new has happened since*. Picks the MOST RECENT job for this session (not just the first
-// match — an old dismissed-pending done/error job and a freshly-sent one can coexist until the old
-// one is clicked away), and if that latest job has already finished but the session is active
-// again (a new prompt sent, or the user just typed straight into its terminal — either way,
-// s.activelyWorking is true), steps aside so the real current state (workingChipHtml/doneChipHtml)
-// shows instead of a stale green "Done" from a prompt that isn't the one running right now. A
-// still-*running* job always shows regardless, since it already reflects live progress itself.
+// Quick Prompt's job chip — picks this session's MOST RECENT job; steps aside for
+// workingChipHtml/doneChipHtml if that job already finished but the session is active again.
 function jobChipHtml(s) {
   const j = quickPrompts
     .filter((x) => x.sessionId === s.id)
@@ -34,13 +28,8 @@ function jobChipHtml(s) {
   `;
 }
 
-// Any actively-working session gets the same live-progress chip Quick Prompt jobs use — reusing
-// .job-chip/.job-running (indeterminate bar, no fabricated percentage). s.activelyWorking is
-// computed server-side (routes/sessions.ts) from either Claude Code's own "busy" status OR a
-// recent transcript write — not "busy" alone, since that status file can get stuck reporting a
-// stale "waiting" indefinitely on a long-running interactive terminal. The label is
-// s.lastActivity, the last tool-use/thinking/text line seen in that session's transcript (same
-// activityLine() formatter Quick Prompt/Delegations use for their own live feed).
+// Reuses Quick Prompt's .job-chip/.job-running for any actively-working session — s.activelyWorking
+// checks a recent transcript write too, since Claude Code's own "busy" status can get stuck stale.
 function workingChipHtml(s) {
   if (!s.activelyWorking) return "";
   return `
@@ -51,15 +40,9 @@ function workingChipHtml(s) {
   `;
 }
 
-// Once a session finishes responding, show the same green "done" treatment Quick Prompt jobs get
-// (.job-chip.job-done — full color-matched bar, ✓ icon) so anyone scanning the board can tell at a
-// glance "this one just answered" without opening it. There's no persisted job to know when a
-// session started/finished, so this is inferred straight from the transcript: activityLine() picks
-// the FIRST content-block type it finds in the last assistant message — if that's a plain text
-// block (💭), the last thing Claude did was give a final response with no further tool call queued
-// up in the same message, which is as close to "done, no job record needed" as this data gets.
-// Bounded to a recency window so a session that finished hours/days ago doesn't show a permanently
-// stale "Done" — same freshness-over-status-flag principle as activelyWorking.
+// Shows the same "done" chip as Quick Prompt jobs, inferred from the transcript: activityLine's 💭
+// marker means the last message was plain text, no further tool call queued. Bounded to a recency
+// window so it doesn't stay stale.
 const DONE_CHIP_WINDOW_MS = 5 * 60 * 1000;
 function doneChipHtml(s) {
   if (s.activelyWorking || !s.lastActivity?.startsWith("💭")) return "";

@@ -1,12 +1,5 @@
-// Board column state/migration, plus the "boardMode" routing state machine: clicking a project
-// column on the main board drills INTO that project's own, independently persisted board (its own
-// columns, separate from the main board's).
-//
-// The URL is the source of truth for which view is showing (not localStorage), so a hard reload
-// or a shared link lands back on the same page: "/" = main board, "/projects/<encoded-cwd>" = a
-// drilled-in project's own board. The server (backend/src/routes.ts) serves index.html for both
-// so a direct/reloaded request works too. A bare "/projects" (from before the project picker was
-// merged into the main board) harmlessly falls through to "main" below.
+// Board column state + the "boardMode" routing state machine. The URL (not localStorage) is the
+// source of truth: "/" = main board, "/projects/<cwd>" = a drilled-in project's own board.
 import {
   boardColumns, setBoardColumns, boardMode, setBoardModeState, activeProjectCwd,
   setActiveProjectCwd, projectBoards, setProjectBoards, currentProjectColumns,
@@ -23,11 +16,8 @@ export function migrateColumns(cols) {
   return cols;
 }
 
-// Client-only per-column flags (e.g. "never populated yet, so exempt from auto-hide-empty") live
-// only in memory on the current column objects — they're never sent to/from the server. Every
-// poll (loadSessions) replaces the whole columns array with freshly-parsed objects from
-// the server response, which would otherwise silently drop these flags out from under the user a
-// few seconds after they took effect. Carry them forward by matching column id.
+// Client-only column flags (e.g. neverPopulated) live only in memory — carry them forward by
+// column id so a poll's fresh column objects don't silently drop them.
 const TRANSIENT_COLUMN_FLAGS = ["neverPopulated"];
 export function carryTransientColumnFlags(oldCols, newCols) {
   if (!oldCols?.length) return newCols;
@@ -44,11 +34,8 @@ export function projectColumnId(cwd) {
   return "proj-" + projectName(cwd).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
-// Appends a column for any project cwd not already represented (matched by BoardColumn.cwd),
-// leaving every existing column — custom or otherwise — untouched. Idempotent: safe to call even
-// when nothing needs to change. This is what makes the main board default to "one column per
-// project" on a fresh install while never disturbing an existing install's own columns — it just
-// fills in whatever project columns are missing, wherever the board currently stands.
+// Appends a column for any project cwd not already represented, leaving every existing column
+// untouched. Idempotent — safe to call even when nothing needs to change.
 export function mergeInProjectColumns(cols, sessionList) {
   const existingCwds = new Set(cols.filter((c) => c.cwd).map((c) => c.cwd));
   const cwds = [...new Set(sessionList.filter((s) => s.cwd && !existingCwds.has(s.cwd)).map((s) => s.cwd))]
@@ -78,10 +65,8 @@ export function initBoardStateFromLocation() {
   const initial = boardModeFromLocation();
   setBoardModeState(initial.mode);
   setActiveProjectCwd(initial.cwd);
-  // BoardColumn[] for whichever project is currently drilled into. Seeded synchronously with
-  // DEFAULT_COLUMNS (mirroring how `boardColumns` itself defaults synchronously) so a hard reload
-  // straight into /projects/<cwd> has something non-null to render with before loadSessions()'s
-  // fetch resolves and replaces this with the project's real saved columns (or these same defaults).
+  // Seeded synchronously with DEFAULT_COLUMNS so a hard reload into /projects/<cwd> has something
+  // to render before loadSessions() resolves with the real columns.
   setCurrentProjectColumns(initial.mode === "project" ? DEFAULT_COLUMNS.slice() : null);
 }
 
@@ -93,10 +78,8 @@ export async function saveProjectBoardColumns(cwd) {
   });
 }
 
-// ctx objects let renderBoardView work against either the main board or a per-project board
-// without duplicating its ~200 lines of column-management/drag-and-drop code. `cols` is a
-// getter/setter so a reassignment inside renderBoardView (e.g. removing a column) writes through
-// to the right global instead of just rebinding a local parameter.
+// ctx objects let renderBoardView target either board without duplicating its column/drag-drop
+// code — cols is a getter/setter so reassignment writes through to the right global.
 export function mainBoardCtx() {
   return {
     kind: "main",
@@ -118,9 +101,8 @@ export function projectBoardCtx(cwd) {
   };
 }
 
-// A saved view previews as its own board — same permanent project-column membership rules as
-// Main board (kind: "main"), but edits persist back into that saved view's own column snapshot
-// instead of touching the live Main board.
+// A saved view previews as its own board (same rules as kind:"main"), but edits persist to its own
+// column snapshot, never the live Main board.
 export function savedViewCtx(view) {
   return {
     kind: "main",
@@ -180,11 +162,8 @@ function sameOrder(a, b) {
   return a.length === b.length && a.every((c, i) => c.id === b[i].id);
 }
 
-// ---------- "Regroup by project" — repeatable, not just the one-time first-load migration
-// (mergeInProjectColumns above) that's gated behind localStorage. Callable any time a project's
-// column has drifted missing (e.g. a brand-new project cwd shows up after that gate has already
-// fired once for this browser), and also whenever columns need re-sorting back to
-// projects-then-custom order ----------
+// "Regroup by project" — repeatable (unlike mergeInProjectColumns' one-time gated migration);
+// callable any time a project column has drifted missing.
 export async function ensureAllProjectColumns() {
   const merged = mergeInProjectColumns(boardColumns, sessions);
   const reordered = reorderProjectColumnsFirst(merged.columns);
@@ -204,9 +183,8 @@ export async function ensureAllProjectColumns() {
   await import("../pages/sessionsPage.js").then((m) => m.render());
 }
 
-// ---------- idea 6: drop a card straight onto a sidebar project entry. A session's project is
-// fixed (its `cwd`), same rule as dropping it on a project column on the board itself — only a
-// ticket (no fixed project) can actually be tagged onto a different one this way ----------
+// Drop a card onto a sidebar project entry — a session's cwd is fixed (same rule as the board's
+// own project columns); only a ticket can be tagged onto a different one.
 async function ensureProjectColumnFor(cwd) {
   const merged = mergeInProjectColumns(boardColumns, sessions);
   if (merged.changed) {
@@ -237,7 +215,7 @@ export async function assignCardToProjectColumn(cardId, cwd) {
   toast(`Moved onto "${projectName(cwd)}"`);
 }
 
-// ---------- breadcrumb header shown atop a drilled-in project's board ----------
+// Breadcrumb header shown atop a drilled-in project's board.
 export function projectBreadcrumbHtml() {
   return `
     <div class="board-breadcrumb">

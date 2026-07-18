@@ -1,6 +1,5 @@
-// Global undo for board-structure edits (add/remove/rename/reorder/hide a column, drag a card) —
-// not just Regroup's own dedicated undo. Snapshots are scoped per board (`ctx.kind` + `ctx.cwd`
-// for a project board) so undoing on Main board never touches a project board's own history.
+// Global undo for board-structure edits, scoped per board (ctx.kind + ctx.cwd) so undoing on Main
+// board never touches a project board's history.
 import { sessions, boardHistory, setBoardHistory } from "../../state.js";
 import { toast } from "../../ui/toast.js";
 
@@ -10,9 +9,8 @@ function ctxKey(ctx) {
   return ctx.kind === "main" ? "main" : `project:${ctx.cwd}`;
 }
 
-// A snapshot is the column layout plus every currently-loaded card's own board tag — board tags
-// live on each session/ticket's own record server-side (not one shared blob), so restoring one
-// means replaying a patchMeta call per card whose tag actually changed.
+// Board tags live per-card server-side, not one shared blob — restoring a snapshot means replaying
+// a patchMeta call per card whose tag actually changed.
 function snapshotBoardTags() {
   const tags = {};
   for (const s of sessions) tags[s.id] = s.meta?.board;

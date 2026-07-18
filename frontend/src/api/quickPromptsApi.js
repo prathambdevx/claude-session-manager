@@ -1,9 +1,5 @@
-// "Quick Prompt" — hand a session a task without opening a terminal yourself. The backend picks
-// one of two delivery paths per request (see routes/quickPrompts.ts): if that session's terminal
-// is already open, the prompt is typed straight into it (response has no jobId — nothing to track,
-// it's a real terminal now); otherwise it resumes that session's transcript in the background and
-// returns a jobId whose running/done/error state rides the normal /api/sessions poll, same as
-// delegations.
+// Quick Prompt: hand a session a task without opening a terminal — backend picks terminal-delivery
+// or background-resume per request (see routes/quickPrompts.ts).
 import { toast } from "../ui/toast.js";
 
 export async function sendQuickPrompt(sessionId, prompt) {

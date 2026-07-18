@@ -1,7 +1,5 @@
-// Turns one stream-json event (from a live headless run) OR one parsed transcript-JSONL line
-// (from a regular interactive session — same shape) into a short human-readable activity line, or
-// null to skip it. Shared by detachedRunner.ts (Delegations/Quick Prompt's live feed) and
-// sessions.ts (deriving "what is this session currently doing" for any running session).
+// Turns a stream-json/transcript event into a short human-readable activity line, or null. Shared
+// by detachedRunner.ts and sessions.ts.
 // Full absolute paths (/Users/x/Desktop/project/deeply/nested/file.tsx) are noise on a small chip
 // — parent-dir/filename is enough to recognize what's being touched without needing the whole route.
 function shortenPath(p: string): string {

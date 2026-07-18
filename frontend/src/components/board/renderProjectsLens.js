@@ -1,7 +1,5 @@
-// "Projects" — a read-only lens computed live from each session's actual cwd, always in sync (no
-// drag/manage-columns; nothing here is tagged, so it can never go stale). Clicking a project's
-// name opens that project's own board — same navigation as clicking a project column on Main
-// board or a project entry in the sidebar.
+// "Projects" — a read-only lens computed live from each session's cwd, so it can never go stale;
+// clicking a name opens that project's own board.
 import { sessions } from "../../state.js";
 import { escapeHtml, escapeAttr, projectName } from "../../ui/format.js";
 import { boardCardHtml } from "../../subcomponents/boardCard.js";

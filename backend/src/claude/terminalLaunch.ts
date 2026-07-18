@@ -58,17 +58,12 @@ export async function openTerminalRunning(cwd: string, command: string, opts: { 
       ? `( while true; do printf '\\033]0;%s\\007' "$(cat ${shellQuote(opts.ghosttyTitleFile)} 2>/dev/null || echo 'Claude session')"; sleep 1; done & ); __csm_title_pid=$!; trap "kill $__csm_title_pid 2>/dev/null" EXIT; ${command}`
       : command;
 
-    // Launch into the EXISTING Ghostty instance via its native AppleScript (Ghostty 1.3+), NOT
-    // `open -na`. `open -na` forks a brand-new Ghostty *instance* on every launch (`-n` = new
-    // instance) — confirmed live as ~1 instance per session — and AppleScript can only ever script
-    // ONE instance, so a session opened in any other instance is invisible to
-    // focusExistingGhosttyWindow, which is exactly why Resume kept spawning a duplicate terminal
-    // instead of focusing the real one. `new window with configuration` opens inside the single
-    // scriptable instance, so every session's window is enumerable (and thus focusable) afterward.
+    // Uses Ghostty's native "new window with configuration" against the single running instance —
+    // NOT open -na, which forks a new instance per launch and broke focus. See
+    // docs/ghostty-instance-bug-explainer.md.
     //
-    // The command goes through a temp script file rather than inline into the AppleScript string:
-    // it sidesteps both AppleScript escaping of the (quote/backslash-heavy) title loop AND any
-    // ambiguity in how Ghostty parses the `command` field — `zsh <path>` is unambiguous either way.
+    // A temp script file (not an inline command string) sidesteps AppleScript escaping of the
+    // title loop and any ambiguity in how Ghostty parses `command`.
     const script = `#!/bin/zsh\ncd ${shellQuote(cwd)}\n${wrapped}\n`;
     const path = join(tmpdir(), `claude-sessions-launch-${crypto.randomUUID()}.sh`);
     await Bun.write(path, script);

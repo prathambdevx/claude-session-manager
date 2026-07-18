@@ -1,6 +1,5 @@
-// The "⋮ Manage columns" dropdown — auto-hide-empty toggle, one row per column (drag handle,
-// visibility switch, rename pencil, delete), reusing the same .bc-menu-wrap/.bc-dropdown
-// language the card ⋮ menus already use elsewhere.
+// The "⋮ Manage columns" dropdown — reuses the same .bc-menu-wrap/.bc-dropdown language the card ⋮
+// menus already use.
 import { autoHideEmpty } from "../../state.js";
 import { escapeHtml } from "../../ui/format.js";
 import { toast } from "../../ui/toast.js";
@@ -16,10 +15,8 @@ export function closeManageColumnsMenu() {
   menuOpen = false;
 }
 
-// Unlike the card ⋮ menus (a JS-positioned `.open` class closed by a single shared listener in
-// main.js), this dropdown is conditionally rendered rather than class-toggled (see
-// manageColumnsDropdownHtml below), so it needs its own outside-click close — registered once here
-// at module load, not per-render, so it never accumulates listeners across the app's polling.
+// This dropdown is conditionally rendered, not class-toggled, so it needs its own outside-click
+// close — registered once at module load, not per-render.
 document.addEventListener("click", (e) => {
   if (!menuOpen) return;
   const wrap = document.querySelector(".manage-columns-dropdown");
@@ -42,9 +39,8 @@ function manageColumnsDropdownHtml() {
   return `<div class="bc-dropdown manage-columns-dropdown" id="manageColumnsDropdown"></div>`;
 }
 
-// A column can be invisible on the board for two different reasons — manually hidden (`c.hidden`),
-// or swept out by "auto-hide empty columns" because it's currently empty — but the switch and its
-// click behavior need to treat both as one "is this column currently shown?" state.
+// A column is invisible either because c.hidden is set, or auto-hide swept it for being empty —
+// the switch treats both as one "shown?" state.
 function isAutoHidden(c, count, isHome) {
   return autoHideEmpty && !isHome && count === 0 && !c.neverPopulated && !c.hidden;
 }
@@ -68,9 +64,8 @@ function columnRowHtml(c, count, isHome) {
   `;
 }
 
-// `countFor(c)` comes from the caller (renderBoardView.js) since it already knows how to compute
-// a column's members (permanent project membership vs. plain tag) — avoids duplicating that rule
-// here.
+// countFor(c) comes from the caller (renderBoardView.js) — avoids duplicating its column-
+// membership rule here.
 export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDeleteColumn, onReorder, rerender }) {
   const toggleBtn = root.querySelector("[data-manage-columns-toggle]");
   toggleBtn?.addEventListener("click", (e) => {
@@ -90,9 +85,8 @@ export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDelete
   dropdown.appendChild(ruleRow);
   ruleRow.querySelector("[data-toggle-auto-hide]").addEventListener("click", async () => {
     await saveAutoHideEmpty(!autoHideEmpty);
-    // a column stays visible while empty until this setting is actively re-toggled — flipping it
-    // (either direction) re-evaluates every column fresh, so "stay visible while new/empty" isn't
-    // permanent, but it's also never silent: it only ever changes right when you touch this switch
+    // flipping this re-evaluates every column fresh — "stay visible while empty" isn't permanent,
+    // but it only changes when you touch this switch
     for (const c of ctx.cols) delete c.neverPopulated;
     toast(autoHideEmpty ? "Empty columns will hide automatically" : "Auto-hide turned off");
     menuOpen = true;

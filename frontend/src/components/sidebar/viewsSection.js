@@ -1,7 +1,5 @@
-// The sidebar's "Views" section — Main board, the read-only Projects lens, and any saved views —
-// each with a ★ to mark it the one that loads by default; saved views also get a ⋮ menu
-// (Rename/Delete). The ⋮ dropdown reuses the app's existing .bc-dropdown.open convention (opened
-// per-click, closed by main.js's global outside-click listener) rather than its own render state.
+// Sidebar "Views" section — Main board, Projects lens, saved views, each with a ★ default-view
+// toggle; saved views' ⋮ menu reuses the app's .bc-dropdown.open convention.
 import { activeView, setActiveView, boardMode, savedViews, defaultViewId } from "../../state.js";
 import { setBoardMode } from "../../routing/boardRouting.js";
 import { escapeHtml } from "../../ui/format.js";

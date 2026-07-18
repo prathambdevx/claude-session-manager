@@ -1,7 +1,5 @@
-// Entry point — replicates the original monolithic app.js's exact effective bootstrap order:
-// 1) synchronously derive board routing state from the URL (must happen before the first
-//    render()/loadSessions() call), 2) wire every remaining top-level DOM control, 3) run the
-// original end-of-file init sequence (load data, start polling, restore the active tab).
+// Entry point — derives board routing from the URL first (must happen before the first render()),
+// then wires DOM controls and starts polling.
 import { currentTab, contentSearchTimer, setContentSearchTimer, boardColumns, defaultViewId, setActiveView } from "./state.js";
 import { initBoardStateFromLocation, wirePopstate } from "./routing/boardRouting.js";
 import { loadSessions, loadProjects, fetchContentMatches } from "./api/sessionsApi.js";
@@ -87,17 +85,11 @@ loadSessions().then(() => {
 });
 loadProjects();
 initLiveUpdates(); // SSE — pushes a granular refetch within tens of ms of a real change (api/sse.js)
-// Slow backstop only — SSE (above) is the real-time path. This exists purely for the gap where the
-// live-update connection is briefly down (most commonly a server restart: EventSource auto-
-// reconnects, but a change during the reconnect gap would otherwise be missed) so the board reaches
-// consistency on its own within a few seconds. 1s would be pointless churn given SSE; 15s is plenty
-// as a safety net. `background: true` so it never rebuilds the board out from under an open menu.
+// Slow backstop only — SSE is the real-time path; this just covers the reconnect gap after e.g. a
+// server restart. background:true so it never rebuilds under an open menu.
 setInterval(() => loadSessions({ background: true }), 15000);
-// Also refresh the moment you return to this tab/window — a card's embedded session id can be stale
-// otherwise. That staleness is exactly what let a real bug through: open a session, /clear it
-// (server-side reconciliation swaps which id owns that card), close the terminal, then immediately
-// re-click the SAME still-stale card before the next refresh — resuming the OLD pre-clear id
-// instead of the one that now lives there. Closing a terminal and clicking back is a focus change.
+// Also refresh on tab-focus — a card's session id can go stale after /clear reconciles it
+// server-side, and this is the only signal that a stale id might now be resumed.
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") loadSessions({ background: true });
 });

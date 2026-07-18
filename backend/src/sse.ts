@@ -1,9 +1,6 @@
-// Server-Sent Events hub: a tiny one-way pub/sub that pushes granular, typed events straight to
-// every connected browser tab — a changed session's full up-to-date data, a patch to just its
-// running/activelyWorking fields, a removal, or a Quick Prompt job update — instead of a bare
-// "something changed, go refetch everything" nudge. fsWatcher.ts is the only thing that calls
-// broadcast() (see it for the event shapes); routes/events.ts is the only thing that calls
-// subscribe()/unsubscribe() (one pair per connected browser tab's open /api/events request).
+// SSE hub: a one-way pub/sub pushing granular typed events (full session, a patch, a removal, a
+// job update) instead of a bare "something changed, refetch everything" nudge. fsWatcher.ts
+// broadcasts; routes/events.ts subscribes.
 export type PushEvent =
   | { type: "session"; session: unknown }
   | { type: "session-removed"; id: string }
