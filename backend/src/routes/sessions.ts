@@ -11,7 +11,7 @@ import type { Meta } from "../store.ts";
 import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions.ts";
 import {
   ghosttyWindowTitle, writeGhosttyTitle, deleteGhosttyTitle, ghosttyTitleFilePath,
-  openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, shellQuote,
+  openTerminalRunning, tryFocusRunningSession, ghosttyWindowTag, shellQuote, usingGhostty,
 } from "../claude/index.ts";
 import { CLAUDE_BIN, DANGEROUS_FLAG } from "../config.ts";
 import { json } from "./json.ts";
@@ -96,11 +96,15 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     const s = sessions.find((x) => x.id === id);
     if (!s) return json({ error: "session not found" }, { status: 404 });
 
-    // fork always creates a new session, so there's never an existing window to reuse for it
+    // fork always creates a new session, so there's never an existing window to reuse for it.
+    // The focus decision is keyed off the SESSION ID (via the csm-<id8> window-title tag), not a
+    // pid from loadRunning — the window's existence is the authoritative "already open?" signal,
+    // and relying on the pid map here was the source of duplicate-terminal-on-resume bugs (stale
+    // /orphaned/windowless pid files). Terminal.app still needs the pid (it matches by tty), so it
+    // keeps the loadRunning lookup; Ghostty passes pid=null and matches purely by tag.
     if (!fork) {
-      const running = await loadRunning();
-      const info = running[id];
-      if (info && (await tryFocusRunningSession(info.pid, ghosttyWindowTag(id)))) {
+      const pid = usingGhostty() ? null : (await loadRunning())[id]?.pid ?? null;
+      if (await tryFocusRunningSession(pid, ghosttyWindowTag(id))) {
         return json({ ok: true, focused: true, cwd: s.cwd });
       }
     }

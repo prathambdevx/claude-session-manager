@@ -9,7 +9,7 @@ import {
 import { migrateColumns, mergeInProjectColumns, carryTransientColumnFlags } from "../routing/boardRouting.js";
 import { toast } from "../ui/toast.js";
 import { dangerousDefault } from "../ui/formFragments.js";
-import { render } from "../pages/sessionsPage.js";
+import { render, isTransientUiOpen } from "../pages/sessionsPage.js";
 import { renderTodoBoard } from "../components/todoBoard/renderTodoBoard.js";
 import { escapeHtml, escapeAttr } from "../ui/format.js";
 import { applyBoardSettings } from "./boardSettingsApi.js";
@@ -37,7 +37,11 @@ export async function saveBoardColumns() {
   });
 }
 
-export async function loadSessions() {
+// `background: true` is passed by the periodic backstop poll and the tab-focus/visibility
+// refreshers — an automatic refresh that must NOT rebuild the board while the user has a ⋮ menu or
+// inline rename open (that would close it out from under them). State is always updated; only the
+// visual rebuild is skipped in that case. User-initiated calls (default) always render.
+export async function loadSessions(opts = {}) {
   const res = await fetch("/api/sessions");
   const data = await res.json();
   // tickets are note-only cards, not Claude sessions — normalize them into the same list shape
@@ -95,6 +99,7 @@ export async function loadSessions() {
   applyBoardSettings(data.boardSettings);
   setQuickPrompts(Array.isArray(data.quickPrompts) ? data.quickPrompts : []);
 
+  if (opts.background && isTransientUiOpen()) return; // don't rebuild under an open menu/rename
   render();
   if (currentTab === "todos") renderTodoBoard();
 }

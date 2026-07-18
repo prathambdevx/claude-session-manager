@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { GHOSTTY_TITLES_DIR } from "../config.ts";
-import { GHOSTTY_APP, usingGhostty } from "./ghosttyEnv.ts";
+import { usingGhostty } from "./ghosttyEnv.ts";
 
 export function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
@@ -43,13 +43,12 @@ export async function deleteGhosttyTitle(sessionId: string): Promise<void> {
   await unlink(ghosttyTitleFilePath(sessionId)).catch(() => {}); // fine if it was never created
 }
 
+// Escapes a string for embedding inside an AppleScript double-quoted literal.
+function appleScriptQuote(s: string): string {
+  return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
 export async function openTerminalRunning(cwd: string, command: string, opts: { ghosttyTitleFile?: string } = {}) {
-  // Ghostty: pass the command as real CLI args (`ghostty -e zsh -c "<command>"`) instead of
-  // writing + executing a .command script file. Executing a script file makes Ghostty show its
-  // own "Allow Ghostty to execute ...command" confirmation dialog every single launch; running a
-  // command via -e is a normal CLI invocation and never triggers that prompt. `open -na <app>
-  // --args ...` is required (rather than `open -a`) to actually forward args on macOS — `open -na`
-  // still just uses Launch Services, so still no Automation/permission prompt either.
   if (usingGhostty()) {
     // A background loop re-reads the title file every second and re-asserts it via OSC — this is
     // what lets a rename in the UI update an already-open window's title live. It's wrapped in a
@@ -58,11 +57,30 @@ export async function openTerminalRunning(cwd: string, command: string, opts: { 
     const wrapped = opts.ghosttyTitleFile
       ? `( while true; do printf '\\033]0;%s\\007' "$(cat ${shellQuote(opts.ghosttyTitleFile)} 2>/dev/null || echo 'Claude session')"; sleep 1; done & ); __csm_title_pid=$!; trap "kill $__csm_title_pid 2>/dev/null" EXIT; ${command}`
       : command;
-    spawn(
-      "open",
-      ["-na", GHOSTTY_APP, "--args", `--working-directory=${cwd}`, "-e", "zsh", "-c", wrapped],
-      { stdio: "ignore", detached: true }
-    ).unref();
+
+    // Launch into the EXISTING Ghostty instance via its native AppleScript (Ghostty 1.3+), NOT
+    // `open -na`. `open -na` forks a brand-new Ghostty *instance* on every launch (`-n` = new
+    // instance) — confirmed live as ~1 instance per session — and AppleScript can only ever script
+    // ONE instance, so a session opened in any other instance is invisible to
+    // focusExistingGhosttyWindow, which is exactly why Resume kept spawning a duplicate terminal
+    // instead of focusing the real one. `new window with configuration` opens inside the single
+    // scriptable instance, so every session's window is enumerable (and thus focusable) afterward.
+    //
+    // The command goes through a temp script file rather than inline into the AppleScript string:
+    // it sidesteps both AppleScript escaping of the (quote/backslash-heavy) title loop AND any
+    // ambiguity in how Ghostty parses the `command` field — `zsh <path>` is unambiguous either way.
+    const script = `#!/bin/zsh\ncd ${shellQuote(cwd)}\n${wrapped}\n`;
+    const path = join(tmpdir(), `claude-sessions-launch-${crypto.randomUUID()}.sh`);
+    await Bun.write(path, script);
+    const osa = [
+      'tell application "Ghostty"',
+      "  set cfg to new surface configuration",
+      `  set command of cfg to "zsh ${appleScriptQuote(path)}"`,
+      "  set win to new window with configuration cfg",
+      "  activate",
+      "end tell",
+    ].join("\n");
+    spawn("osascript", ["-e", osa], { stdio: "ignore", detached: true }).unref();
     return;
   }
 

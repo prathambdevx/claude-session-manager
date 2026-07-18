@@ -86,21 +86,21 @@ loadSessions().then(() => {
   }
 });
 loadProjects();
-initLiveUpdates(); // pushes a refetch within tens of ms of a real change — see api/sse.js
-// Backstop only — SSE is the fast path now. This just covers the rare case where the live-update
-// connection is down (e.g. it's still reconnecting after a server restart) so the board doesn't go
-// stale indefinitely; cheap enough at this cadence regardless (pure local filesystem/JSON reads,
-// and StatCache turns an unchanged transcript into a plain stat() rather than a re-parse).
-setInterval(loadSessions, 1000);
-// Refresh immediately whenever you come back to this tab/window — otherwise a card's embedded
-// session id can be stale until the next poll. That staleness is exactly what let a real bug through: open a
-// session, /clear it (server-side reconciliation swaps which id owns that card), close the
-// terminal, then immediately re-click the SAME still-stale card before the next scheduled poll —
-// resuming the OLD pre-clear id instead of the one that actually now lives there. Since closing a
-// terminal and clicking back into the browser is exactly a focus/visibility change, catch it here.
+initLiveUpdates(); // SSE — pushes a granular refetch within tens of ms of a real change (api/sse.js)
+// Slow backstop only — SSE (above) is the real-time path. This exists purely for the gap where the
+// live-update connection is briefly down (most commonly a server restart: EventSource auto-
+// reconnects, but a change during the reconnect gap would otherwise be missed) so the board reaches
+// consistency on its own within a few seconds. 1s would be pointless churn given SSE; 15s is plenty
+// as a safety net. `background: true` so it never rebuilds the board out from under an open menu.
+setInterval(() => loadSessions({ background: true }), 15000);
+// Also refresh the moment you return to this tab/window — a card's embedded session id can be stale
+// otherwise. That staleness is exactly what let a real bug through: open a session, /clear it
+// (server-side reconciliation swaps which id owns that card), close the terminal, then immediately
+// re-click the SAME still-stale card before the next refresh — resuming the OLD pre-clear id
+// instead of the one that now lives there. Closing a terminal and clicking back is a focus change.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") loadSessions();
+  if (document.visibilityState === "visible") loadSessions({ background: true });
 });
-window.addEventListener("focus", loadSessions);
+window.addEventListener("focus", () => loadSessions({ background: true }));
 // apply initial tab
 if (currentTab === "todos") setTimeout(() => setTab("todos"), 0);

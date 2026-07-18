@@ -46,23 +46,33 @@ function focusExistingTerminalTab(tty: string): Promise<boolean> {
   });
 }
 
-// Ghostty has no custom AppleScript dictionary for tabs/ttys like Terminal.app, but it does expose
-// its own window list via the standard Cocoa scripting suite (no Automation permission needed for
-// a read-only "get name of every window" query — that's the same class of query System Preferences
-// itself uses to list open windows). Every Ghostty window we launch is titled with
-// ghosttyWindowTitle(...), which embeds ghosttyWindowTag(sessionId) as a bracketed suffix — so
-// finding a window whose name *contains* that tag tells us this session already has a window open,
-// and `activate` (also permission-free — the same verb `open -na` already performs) brings Ghostty
-// to the front so the user lands on it directly instead of getting a duplicate/broken second
-// `claude --resume` process.
+// Every window/tab we launch carries ghosttyWindowTag(sessionId) as a bracketed suffix in its
+// title (set live by the OSC title loop), so finding one whose name *contains* that tag means this
+// session already has a terminal open. We search at the TAB level, not just window names: sessions
+// can be separate windows OR tabs merged into one window, and a window's own `name` only reflects
+// its *active* tab — a background tab would be missed by a window-name-only search (this, combined
+// with the old `open -na` multi-instance bug, is why Resume used to spawn duplicates). Now that all
+// launches land in the single scriptable instance (see openTerminalRunning), enumerating its
+// windows → tabs finds every session. On a match we raise that exact tab: select it within its
+// window, focus its terminal, and bring Ghostty to the front. All of this is permission-wise the
+// same class as the `activate` we already relied on.
 function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
   const script = `
     tell application "Ghostty"
       repeat with w in windows
-        if (name of w) contains "${tag}" then
-          activate
-          return true
-        end if
+        repeat with t in tabs of w
+          if (name of t) contains "${tag}" then
+            try
+              set selected tab of w to t
+            end try
+            try
+              focus (focused terminal of t)
+            end try
+            activate window w
+            activate
+            return true
+          end if
+        end repeat
       end repeat
       return false
     end tell
@@ -76,13 +86,23 @@ function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
   });
 }
 
-// If this session has a live process, try to bring its existing terminal window to front instead
-// of spawning a duplicate. Returns true if an existing window was found and focused.
-export async function tryFocusRunningSession(pid: number, ghosttyTag?: string): Promise<boolean> {
-  if (!pidAlive(pid)) return false;
+// Try to bring this session's existing terminal window to front instead of spawning a duplicate.
+// Returns true if an existing window was found and focused.
+//
+// For Ghostty, the window is matched by the csm-<id8> TAG in its title — which is derived from the
+// SESSION ID, not the pid. The window's existence is therefore the authoritative "is this session
+// already open" signal, and it deliberately does NOT gate on the pid: Claude Code leaves multiple
+// stale ~/.claude/sessions/<pid>.json files per session (lazy cleanup), and headless runs (Quick
+// Prompt) spawn windowless pid files that are often the newest — so any pid picked from that data
+// can be stale/orphaned/windowless and wrongly veto a focus that would otherwise succeed. Passing
+// pid=null (the normal case for the Ghostty resume path) skips the pid entirely.
+//
+// The Terminal.app fallback still needs the pid — it matches by tty, which only a live process has.
+export async function tryFocusRunningSession(pid: number | null, ghosttyTag?: string): Promise<boolean> {
   if (usingGhostty()) {
     return ghosttyTag ? focusExistingGhosttyWindow(ghosttyTag) : false;
   }
+  if (pid == null || !pidAlive(pid)) return false;
   const tty = await getTtyForPid(pid);
   if (!tty) return false;
   return focusExistingTerminalTab(tty);

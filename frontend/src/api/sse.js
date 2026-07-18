@@ -7,7 +7,7 @@
 // Both the session activity/done chip and Quick Prompt's own job chip read straight off `sessions`/
 // `quickPrompts` in state.js, so patching those in place here updates both the moment a push arrives.
 import { sessions, quickPrompts } from "../state.js";
-import { render } from "../pages/sessionsPage.js";
+import { render, isTransientUiOpen } from "../pages/sessionsPage.js";
 
 const ACTIVITY_WINDOW_MS = 15_000; // mirrors backend/src/sessions.ts's ACTIVITY_WINDOW_MS exactly
 
@@ -72,7 +72,9 @@ export function initLiveUpdates() {
       default:
         return;
     }
-    render();
+    // State is already merged above; only skip the visual rebuild if the user is mid-interaction
+    // with a menu/rename a rebuild would destroy — the next push repaints once they're done.
+    if (!isTransientUiOpen()) render();
   };
   // EventSource reconnects on its own (default browser behavior) after a drop — nothing to do here
   // for that; onerror is only for visibility, not recovery.

@@ -14,6 +14,7 @@ export {
   writeGhosttyTitle, deleteGhosttyTitle, openTerminalRunning,
 } from "./terminalLaunch.ts";
 export { tryFocusRunningSession } from "./terminalFocus.ts";
+export { usingGhostty } from "./ghosttyEnv.ts";
 export { sendPromptToRunningTerminal } from "./terminalInject.ts";
 export {
   modelAliasWithContext, buildLaunchScript, buildFileReviewPrompt, buildFixPrompt,
