@@ -3,7 +3,8 @@
 import {
   boardColumns, setBoardColumns, boardMode, setBoardModeState, activeProjectCwd,
   setActiveProjectCwd, projectBoards, setProjectBoards, currentProjectColumns,
-  setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns, DEFAULT_COLUMNS, OLD_DEFAULT_ORDER, sessions,
+  setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns, DEFAULT_COLUMNS, PROJECT_DEFAULT_COLUMNS,
+  OLD_DEFAULT_ORDER, sessions,
 } from "../state.js";
 import { escapeHtml, projectName } from "../ui/format.js";
 import { toast } from "../ui/toast.js";
@@ -65,9 +66,9 @@ export function initBoardStateFromLocation() {
   const initial = boardModeFromLocation();
   setBoardModeState(initial.mode);
   setActiveProjectCwd(initial.cwd);
-  // Seeded synchronously with DEFAULT_COLUMNS so a hard reload into /projects/<cwd> has something
-  // to render before loadSessions() resolves with the real columns.
-  setCurrentProjectColumns(initial.mode === "project" ? DEFAULT_COLUMNS.slice() : null);
+  // Seeded synchronously with PROJECT_DEFAULT_COLUMNS so a hard reload into /projects/<cwd> has
+  // something to render before loadSessions() resolves with the real columns.
+  setCurrentProjectColumns(initial.mode === "project" ? PROJECT_DEFAULT_COLUMNS.slice() : null);
 }
 
 export async function saveProjectBoardColumns(cwd) {
@@ -164,7 +165,7 @@ export function setBoardMode(mode, { skipPush = false } = {}) {
 export async function enterProjectBoard(cwd) {
   setActiveProjectCwd(cwd);
   const isFirstVisit = !projectBoards[cwd];
-  if (isFirstVisit) setProjectBoards({ ...projectBoards, [cwd]: DEFAULT_COLUMNS.slice() }); // same defaults as the main board
+  if (isFirstVisit) setProjectBoards({ ...projectBoards, [cwd]: PROJECT_DEFAULT_COLUMNS.slice() });
   setCurrentProjectColumns(projectBoards[cwd]);
   if (isFirstVisit) await saveProjectBoardColumns(cwd);
   await setBoardMode("project");
@@ -178,7 +179,7 @@ export function wirePopstate() {
     setBoardModeState(mode);
     setActiveProjectCwd(cwd);
     if (mode === "project" && cwd) {
-      setCurrentProjectColumns(projectBoards[cwd] || DEFAULT_COLUMNS.slice());
+      setCurrentProjectColumns(projectBoards[cwd] || PROJECT_DEFAULT_COLUMNS.slice());
     }
     import("../pages/sessionsPage.js").then((m) => m.render());
   });

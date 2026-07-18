@@ -5,7 +5,7 @@ import {
   boardMode, activeProjectCwd, boardColumns, projectBoards, setBoardColumns, setProjectBoards,
   currentProjectColumns, setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns,
   summarizingIds, setContentMatchIds, currentTab,
-  DEFAULT_COLUMNS, setSavedViews, setQuickPrompts,
+  PROJECT_DEFAULT_COLUMNS, setSavedViews, setQuickPrompts,
 } from "../state.js";
 import { migrateColumns, mergeInProjectColumns, carryTransientColumnFlags } from "../routing/boardRouting.js";
 import { toast } from "../ui/toast.js";
@@ -103,7 +103,7 @@ export async function loadSessions(opts = {}) {
 
   setProjectBoards((data.projectBoards && typeof data.projectBoards === "object") ? data.projectBoards : {});
   if (boardMode === "project" && activeProjectCwd) {
-    setCurrentProjectColumns(carryTransientColumnFlags(currentProjectColumns, projectBoards[activeProjectCwd] || DEFAULT_COLUMNS.slice()));
+    setCurrentProjectColumns(carryTransientColumnFlags(currentProjectColumns, projectBoards[activeProjectCwd] || PROJECT_DEFAULT_COLUMNS.slice()));
   }
 
   setSavedViews(Array.isArray(data.savedViews) ? data.savedViews : []);

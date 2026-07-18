@@ -17,6 +17,9 @@ export const DEFAULT_COLUMNS = [
   { id: "done", title: "Done" },
 ];
 export const OLD_DEFAULT_ORDER = ["todo", "priority", "research", "in-progress", "done"];
+// Individual project boards start with just the home column — only Main board gets the full
+// starter set (In Progress/Priority/Done); you add your own from there if you want more.
+export const PROJECT_DEFAULT_COLUMNS = [{ id: "todo", title: "All sessions" }];
 export let boardColumns = DEFAULT_COLUMNS.slice();
 
 export let boardMode = "main"; // "main" | "project" — set for real by routing/boardRouting.js at boot

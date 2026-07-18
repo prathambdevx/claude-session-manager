@@ -24,13 +24,15 @@ async function setDefault(id, label) {
 function viewRowHtml(id, label, opts = {}) {
   const active = boardMode === "main" && activeView === id;
   const star = `<span class="star${defaultViewId === id ? " set" : ""}" data-set-default="${id}" data-default-label="${escapeHtml(label)}" title="${defaultViewId === id ? "Default view" : "Make this the default view"}">★</span>`;
+  // menu data-attrs carry the RAW view id (opts.rawId), not the "saved:<id>" switch-view id — the
+  // rename/delete handlers look the view up by its raw id and hit /api/saved-views/<raw id>
   const menu = opts.renameable
     ? `
       <div class="bc-menu-wrap">
-        <button class="bc-menu-btn" data-view-menu-toggle="${id}" title="Options">⋮</button>
-        <div class="bc-dropdown" id="viewmenu-${id}">
-          <button data-rename-view="${id}">✎ Rename</button>
-          <button class="danger" data-delete-view="${id}">🗑 Delete</button>
+        <button class="bc-menu-btn" data-view-menu-toggle="${opts.rawId}" title="Options">⋮</button>
+        <div class="bc-dropdown" id="viewmenu-${opts.rawId}">
+          <button data-rename-view="${opts.rawId}">✎ Rename</button>
+          <button class="danger" data-delete-view="${opts.rawId}">🗑 Delete</button>
         </div>
       </div>`
     : "";
@@ -48,8 +50,7 @@ export function viewsSectionHtml() {
   return `
     <div class="sidebar-group">Views</div>
     ${viewRowHtml("main", "Main board")}
-    ${viewRowHtml("group", "Projects")}
-    ${savedViews.map((v) => viewRowHtml(`saved:${v.id}`, v.title, { renameable: true })).join("")}
+    ${savedViews.map((v) => viewRowHtml(`saved:${v.id}`, v.title, { renameable: true, rawId: v.id })).join("")}
   `;
 }
 

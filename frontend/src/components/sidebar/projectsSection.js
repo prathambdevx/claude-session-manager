@@ -1,6 +1,6 @@
 // Sidebar "Projects" section — click opens that project's own board; dragging a card onto a row
 // tags it in (rejected if it belongs to a different project).
-import { sessions, boardMode, activeProjectCwd } from "../../state.js";
+import { sessions, boardMode, activeProjectCwd, activeView } from "../../state.js";
 import { escapeHtml, escapeAttr, projectName } from "../../ui/format.js";
 import { enterProjectBoard, assignCardToProjectColumn } from "../../routing/boardRouting.js";
 
@@ -24,8 +24,15 @@ function projectRowHtml(cwd) {
 export function projectsSectionHtml() {
   const cwds = projectCwds();
   if (!cwds.length) return "";
+  // "All Projects" opens the group lens (the board with one column per project) — data-switch-view
+  // is wired by wireViewsSection, which queries the whole sidebar root
+  const allActive = boardMode === "main" && activeView === "group";
   return `
     <div class="sidebar-group">Projects</div>
+    <div class="sidebar-item${allActive ? " active" : ""}" data-switch-view="group">
+      <span class="sidebar-dot proj"></span>
+      <span class="sidebar-label">All Projects</span>
+    </div>
     ${cwds.map(projectRowHtml).join("")}
   `;
 }

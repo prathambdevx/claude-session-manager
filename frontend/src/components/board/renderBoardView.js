@@ -59,7 +59,9 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     }
     return true;
   });
-  const hiddenCount = ctx.cols.filter((c) => c.hidden).length;
+  // everything not on screen, whether manually hidden or swept by auto-hide-empty — both are
+  // reopenable from Manage Columns, so both belong in the "N hidden columns" chip
+  const hiddenCount = ctx.cols.length - visibleCols.length;
   const anyExpanded = visibleCols.some((c) => !c.collapsed);
 
   const drift = missingProjectCount(ctx);
@@ -84,8 +86,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
           </button>` : ""}
       `}
       <span style="flex:1"></span>
-      ${ctx.kind === "main" ? `
-        <button class="btn ghost" id="saveViewBtn" title="Save this column layout as a reusable view">＋ Save as view</button>` : ""}
+      <button class="btn ghost" id="saveViewBtn" title="Save this column layout as a reusable view">＋ Save as view</button>
       ${ctx.kind === "group" ? "" : `
         <button class="btn ghost" id="boardUndoBtn" ${hasHistoryFor(ctx) ? "" : "disabled"} title="Undo the last change to this board">↩ Undo</button>`}
       <button class="btn ghost" id="collapseAllBtn" title="${anyExpanded ? "Collapse every column" : "Expand every column"}">${anyExpanded ? "« Collapse all" : "» Expand all"}</button>
@@ -157,7 +158,8 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   document.getElementById("boardUndoBtn")?.addEventListener("click", () => undoLast(ctx));
   document.getElementById("saveViewBtn")?.addEventListener("click", async () => {
     const title = await openPromptModal({ title: "Save as view", label: "View name" });
-    if (title && title.trim()) createSavedView(title.trim());
+    // snapshot only what's actually on screen — hidden columns aren't part of the saved layout
+    if (title && title.trim()) createSavedView(title.trim(), ctx.cols.filter((c) => !c.hidden));
   });
 
   wireManageColumnsPanel(app, ctx, {

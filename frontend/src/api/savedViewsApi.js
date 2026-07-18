@@ -1,17 +1,19 @@
-// CRUD for saved board views — named, reusable snapshots of Main board's column layout,
-// switchable from the sidebar without disturbing the live Main board.
-import { savedViews, setSavedViews, boardColumns } from "../state.js";
+// CRUD for saved board views — named, reusable snapshots of a board's column layout (Main board,
+// the Projects lens, or any individual project board), switchable from the sidebar without
+// disturbing the board it was saved from.
+import { savedViews, setSavedViews } from "../state.js";
 import { toast } from "../ui/toast.js";
 
-export async function createSavedView(title) {
+export async function createSavedView(title, columns) {
   const res = await fetch("/api/saved-views", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ title, columns: boardColumns }),
+    body: JSON.stringify({ title, columns }),
   });
   const data = await res.json();
   if (data.ok) {
     setSavedViews([...savedViews, data.view]);
+    await import("../components/sidebar/renderSidebar.js").then((m) => m.renderSidebar()); // show it in the sidebar without a reload
     toast(`Saved "${data.view.title}" — the sidebar remembers this exact column set`);
   } else {
     toast("Failed to save view: " + (data.error || "unknown error"));
