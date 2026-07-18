@@ -4,6 +4,7 @@ import { escapeHtml, escapeAttr, projectName } from "../../ui/format.js";
 import { modelSelectHtml, dangerousCheckboxHtml } from "../../ui/formFragments.js";
 import { toast } from "../../ui/toast.js";
 import { launchTask, patchMeta, loadSessions } from "../../api/sessionsApi.js";
+import { wireImagePaste } from "../../ui/pasteImage.js";
 
 export function openColumnTaskModal(colId, ctx) {
   const col = ctx.cols.find((c) => c.id === colId);
@@ -22,7 +23,7 @@ export function openColumnTaskModal(colId, ctx) {
     </div>
     <div class="modal-row">
       <label for="colTaskDesc" id="colDescLabel">Task</label>
-      <textarea id="colTaskDesc" class="notes-input" style="min-height:70px" placeholder="Describe the task..."></textarea>
+      <textarea id="colTaskDesc" class="notes-input" style="min-height:150px" placeholder="Describe the task..."></textarea>
     </div>
     <div class="session-only">
       <div class="modal-row">
@@ -42,6 +43,7 @@ export function openColumnTaskModal(colId, ctx) {
       <button class="primary" id="colTaskStart">▶ Launch in new terminal</button>
     </div>
   `);
+  const { resolvePromptText } = wireImagePaste(document.getElementById("colTaskDesc"));
   const isTicketBox = document.getElementById("colIsTicket");
   const syncTicketMode = () => {
     const t = isTicketBox.checked;
@@ -75,7 +77,7 @@ export function openColumnTaskModal(colId, ctx) {
     const cwd = projectEl.dataset.lockedCwd || projectEl.value;
     const model = document.getElementById("colTaskModel").value;
     const dangerous = document.getElementById("colTaskDangerous").checked;
-    const data = await launchTask({ cwd, task: desc, name, model, mode: "solo", dangerous });
+    const data = await launchTask({ cwd, task: resolvePromptText(desc), name, model, mode: "solo", dangerous });
     if (data?.ok) {
       closeReviewModal();
       if (data.sessionId) patchMeta(data.sessionId, { board: colId }); // drop the new session straight into the column it was launched from
@@ -100,7 +102,7 @@ export function convertTicketToSession(id) {
     </div>
     <div class="modal-row">
       <label for="ctSessTask">Task</label>
-      <textarea id="ctSessTask" class="notes-input" style="min-height:70px">${escapeHtml([t.meta?.name, t.meta?.notes].filter(Boolean).join(" — "))}</textarea>
+      <textarea id="ctSessTask" class="notes-input" style="min-height:150px">${escapeHtml([t.meta?.name, t.meta?.notes].filter(Boolean).join(" — "))}</textarea>
     </div>
     <div class="modal-row">
       <label for="ctSessModel">Model</label>
@@ -112,10 +114,11 @@ export function convertTicketToSession(id) {
       <button class="primary" id="ctSessGo">▶ Launch in new terminal</button>
     </div>
   `);
+  const { resolvePromptText } = wireImagePaste(document.getElementById("ctSessTask"));
   document.getElementById("ctSessCancel").addEventListener("click", closeReviewModal);
   document.getElementById("ctSessGo").addEventListener("click", async () => {
     const cwd = document.getElementById("ctSessProject").value;
-    const task = document.getElementById("ctSessTask").value.trim();
+    const task = resolvePromptText(document.getElementById("ctSessTask").value.trim());
     const name = document.getElementById("ctSessName").value.trim();
     const model = document.getElementById("ctSessModel").value;
     const dangerous = document.getElementById("ctSessDangerous").checked;
