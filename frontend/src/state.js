@@ -30,11 +30,10 @@ export let projectBoards = {}; // Record<cwd, BoardColumn[]> — mirrors server'
 export let currentProjectColumns = null; // BoardColumn[] for whichever project is currently drilled into
 export let groupBoardColumns = []; // BoardColumn[] for the "Projects" sidebar view — mirrors server's group-board.json
 
-// Sidebar's own view switch, separate from boardMode (which stays responsible for URL sync) —
-// "group"/"saved:<id>" aren't URL-routed, just client display state.
+// Which view is showing — kept in sync with the URL by routing/boardRouting.js (every view is a
+// real route now, so a refresh stays put).
 export let activeView = "main"; // "main" | "project" | "group" | "saved:<id>"
 export let savedViews = []; // SavedView[] — mirrors server's saved-views.json
-export let defaultViewId = "main"; // mirrors server's board-settings.json
 export let autoHideEmpty = false; // mirrors server's board-settings.json
 export let boardHistory = []; // in-memory undo stack — transient, not persisted
 
@@ -62,6 +61,5 @@ export function setContentSearchTimer(v) { contentSearchTimer = v; }
 export function setDelegationPoll(v) { delegationPoll = v; }
 export function setActiveView(v) { activeView = v; }
 export function setSavedViews(v) { savedViews = v; }
-export function setDefaultViewId(v) { defaultViewId = v; }
 export function setAutoHideEmpty(v) { autoHideEmpty = v; }
 export function setBoardHistory(v) { boardHistory = v; }

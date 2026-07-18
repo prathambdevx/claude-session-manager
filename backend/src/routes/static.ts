@@ -2,9 +2,9 @@ import { join } from "node:path";
 import { PUBLIC_DIR, FRONTEND_SRC_DIR } from "../constants.ts";
 
 export async function handleStaticRoutes(req: Request, url: URL): Promise<Response | null> {
-  // SPA routes ("/" and "/projects/<cwd>") all serve index.html so a hard reload/deep link
-  // survives; the client router handles the rest.
-  if (req.method === "GET" && /^\/(projects(\/.*)?)?$/.test(url.pathname)) {
+  // SPA routes ("/", "/projects", "/projects/<cwd>", "/views/<id>") all serve index.html so a hard
+  // reload/deep link survives; the client router (boardRouting.js) handles the rest.
+  if (req.method === "GET" && /^\/(projects(\/.*)?|views\/.+)?$/.test(url.pathname)) {
     return new Response(Bun.file(join(PUBLIC_DIR, "index.html")));
   }
 

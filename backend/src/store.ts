@@ -93,7 +93,7 @@ export async function saveSavedViews(views: SavedView[]) {
 // Board settings — small per-installation display preferences, server-side like everything else
 // here rather than left in one browser's localStorage.
 
-export type BoardSettings = { defaultViewId?: string; autoHideEmpty?: boolean };
+export type BoardSettings = { autoHideEmpty?: boolean };
 
 export async function loadBoardSettings(): Promise<BoardSettings> {
   try {

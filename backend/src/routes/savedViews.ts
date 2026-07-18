@@ -70,7 +70,6 @@ export async function handleSavedViewsRoutes(req: Request, url: URL): Promise<Re
     const body = await req.json().catch(() => ({}));
     const current = await loadBoardSettings();
     const next = { ...current };
-    if ("defaultViewId" in body) next.defaultViewId = body.defaultViewId ? String(body.defaultViewId).slice(0, 120) : undefined;
     if ("autoHideEmpty" in body) next.autoHideEmpty = Boolean(body.autoHideEmpty);
     await saveBoardSettings(next);
     return json({ ok: true, settings: next });

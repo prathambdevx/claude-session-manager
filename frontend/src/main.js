@@ -1,6 +1,6 @@
 // Entry point — derives board routing from the URL first (must happen before the first render()),
 // then wires DOM controls and starts polling.
-import { currentTab, contentSearchTimer, setContentSearchTimer, boardColumns, defaultViewId, setActiveView } from "./state.js";
+import { currentTab, contentSearchTimer, setContentSearchTimer, boardColumns } from "./state.js";
 import { initBoardStateFromLocation, wirePopstate } from "./routing/boardRouting.js";
 import { loadSessions, loadProjects, fetchContentMatches } from "./api/sessionsApi.js";
 import { initLiveUpdates } from "./api/sse.js";
@@ -75,15 +75,9 @@ render();
 
 wireTabs();
 
-loadSessions().then(() => {
-  // Apply the saved "default view" star exactly once at boot, and only when landing on the bare
-  // Main board URL — never on a direct/reloaded link into a specific project's own board, and
-  // never on later polls (those must never yank the user back to a different view mid-use).
-  if (boardMode === "main" && defaultViewId && defaultViewId !== "main") {
-    setActiveView(defaultViewId);
-    render();
-  }
-});
+// initBoardStateFromLocation already set the view from the URL; loadSessions renders it (and, for a
+// /views/<id> deep link, re-renders once savedViews arrive so the saved view resolves).
+loadSessions();
 loadProjects();
 initLiveUpdates(); // SSE — pushes a granular refetch within tens of ms of a real change (api/sse.js)
 // Slow backstop only — SSE is the real-time path; this just covers the reconnect gap after e.g. a

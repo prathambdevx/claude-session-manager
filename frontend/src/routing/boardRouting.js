@@ -1,10 +1,14 @@
-// Board column state + the "boardMode" routing state machine. The URL (not localStorage) is the
-// source of truth: "/" = main board, "/projects/<cwd>" = a drilled-in project's own board.
+// Board column state + the URL routing state machine. The URL (not localStorage) is the source of
+// truth for which view is showing, so a refresh/back/forward stays put:
+//   "/"                = Main board
+//   "/projects"        = All Projects (the group lens)
+//   "/projects/<cwd>"  = a drilled-in project's own board
+//   "/views/<id>"      = a saved view
 import {
   boardColumns, setBoardColumns, boardMode, setBoardModeState, activeProjectCwd,
   setActiveProjectCwd, projectBoards, setProjectBoards, currentProjectColumns,
-  setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns, DEFAULT_COLUMNS, PROJECT_DEFAULT_COLUMNS,
-  OLD_DEFAULT_ORDER, sessions,
+  setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns, setActiveView,
+  DEFAULT_COLUMNS, PROJECT_DEFAULT_COLUMNS, OLD_DEFAULT_ORDER, sessions,
 } from "../state.js";
 import { escapeHtml, projectName } from "../ui/format.js";
 import { toast } from "../ui/toast.js";
@@ -55,9 +59,19 @@ export function mergeInProjectColumns(cols, sessionList) {
 
 export function boardModeFromLocation() {
   const path = location.pathname;
-  const m = path.match(/^\/projects\/(.+)$/);
-  if (m) return { mode: "project", cwd: decodeURIComponent(m[1]) };
-  return { mode: "main", cwd: null };
+  const proj = path.match(/^\/projects\/(.+)$/);
+  if (proj) return { mode: "project", cwd: decodeURIComponent(proj[1]), activeView: "project" };
+  if (path === "/projects") return { mode: "main", cwd: null, activeView: "group" };
+  const view = path.match(/^\/views\/(.+)$/);
+  if (view) return { mode: "main", cwd: null, activeView: "saved:" + decodeURIComponent(view[1]) };
+  return { mode: "main", cwd: null, activeView: "main" };
+}
+
+// The URL a given view should live at — inverse of boardModeFromLocation.
+export function pathForActiveView(view) {
+  if (view === "group") return "/projects";
+  if (view?.startsWith("saved:")) return "/views/" + encodeURIComponent(view.slice(6));
+  return "/";
 }
 
 // Called once at boot (main.js) to seed state.js's boardMode/activeProjectCwd/currentProjectColumns
@@ -66,9 +80,21 @@ export function initBoardStateFromLocation() {
   const initial = boardModeFromLocation();
   setBoardModeState(initial.mode);
   setActiveProjectCwd(initial.cwd);
+  setActiveView(initial.activeView);
   // Seeded synchronously with PROJECT_DEFAULT_COLUMNS so a hard reload into /projects/<cwd> has
   // something to render before loadSessions() resolves with the real columns.
   setCurrentProjectColumns(initial.mode === "project" ? PROJECT_DEFAULT_COLUMNS.slice() : null);
+}
+
+// Canonical view navigation for the non-project views (Main / All Projects / a saved view):
+// updates state, pushes the matching URL, and re-renders. Project boards go through
+// enterProjectBoard instead (they also load that project's columns).
+export async function switchToView(view) {
+  setBoardModeState("main");
+  setActiveProjectCwd(null);
+  setActiveView(view);
+  history.pushState({}, "", pathForActiveView(view));
+  await import("../pages/sessionsPage.js").then((m) => m.render());
 }
 
 export async function saveProjectBoardColumns(cwd) {
@@ -164,6 +190,7 @@ export function setBoardMode(mode, { skipPush = false } = {}) {
 
 export async function enterProjectBoard(cwd) {
   setActiveProjectCwd(cwd);
+  setActiveView("project");
   const isFirstVisit = !projectBoards[cwd];
   if (isFirstVisit) setProjectBoards({ ...projectBoards, [cwd]: PROJECT_DEFAULT_COLUMNS.slice() });
   setCurrentProjectColumns(projectBoards[cwd]);
@@ -175,9 +202,10 @@ export async function enterProjectBoard(cwd) {
 // event.state (works even if the user typed/edited the URL directly, not just navigated via it)
 export function wirePopstate() {
   window.addEventListener("popstate", () => {
-    const { mode, cwd } = boardModeFromLocation();
+    const { mode, cwd, activeView } = boardModeFromLocation();
     setBoardModeState(mode);
     setActiveProjectCwd(cwd);
+    setActiveView(activeView);
     if (mode === "project" && cwd) {
       setCurrentProjectColumns(projectBoards[cwd] || PROJECT_DEFAULT_COLUMNS.slice());
     }

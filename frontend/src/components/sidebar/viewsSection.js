@@ -1,29 +1,16 @@
-// Sidebar "Views" section — Main board, Projects lens, saved views, each with a ★ default-view
-// toggle; saved views' ⋮ menu reuses the app's .bc-dropdown.open convention.
-import { activeView, setActiveView, boardMode, savedViews, defaultViewId } from "../../state.js";
-import { setBoardMode } from "../../routing/boardRouting.js";
+// Sidebar "Views" section — Main board + saved views. Each view is a real URL (see switchToView in
+// boardRouting), so a refresh stays on the current view. Saved views' ⋮ menu reuses .bc-dropdown.
+import { activeView, boardMode, savedViews } from "../../state.js";
+import { switchToView } from "../../routing/boardRouting.js";
 import { escapeHtml } from "../../ui/format.js";
-import { toast } from "../../ui/toast.js";
 import { renameSavedView, deleteSavedView } from "../../api/savedViewsApi.js";
-import { saveDefaultViewId } from "../../api/boardSettingsApi.js";
 import { openPromptModal } from "../../ui/promptModal.js";
 import { openConfirmModal } from "../../ui/confirmModal.js";
 
-export async function switchToView(view) {
-  if (boardMode !== "main") await setBoardMode("main");
-  setActiveView(view);
-  await import("../../pages/sessionsPage.js").then((m) => m.render());
-}
-
-async function setDefault(id, label) {
-  await saveDefaultViewId(id);
-  toast(`"${label}" will load next time you open the board`);
-  await import("./renderSidebar.js").then((m) => m.renderSidebar());
-}
+export { switchToView };
 
 function viewRowHtml(id, label, opts = {}) {
   const active = boardMode === "main" && activeView === id;
-  const star = `<span class="star${defaultViewId === id ? " set" : ""}" data-set-default="${id}" data-default-label="${escapeHtml(label)}" title="${defaultViewId === id ? "Default view" : "Make this the default view"}">★</span>`;
   // menu data-attrs carry the RAW view id (opts.rawId), not the "saved:<id>" switch-view id — the
   // rename/delete handlers look the view up by its raw id and hit /api/saved-views/<raw id>
   const menu = opts.renameable
@@ -40,7 +27,6 @@ function viewRowHtml(id, label, opts = {}) {
     <div class="sidebar-item${active ? " active" : ""}" data-switch-view="${id}">
       <span class="sidebar-dot"></span>
       <span class="sidebar-label">${escapeHtml(label)}</span>
-      ${star}
       ${menu}
     </div>
   `;
@@ -57,13 +43,6 @@ export function viewsSectionHtml() {
 export function wireViewsSection(root) {
   root.querySelectorAll("[data-switch-view]").forEach((el) => {
     el.addEventListener("click", () => switchToView(el.dataset.switchView));
-  });
-
-  root.querySelectorAll("[data-set-default]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      e.stopPropagation();
-      setDefault(el.dataset.setDefault, el.dataset.defaultLabel);
-    });
   });
 
   // same viewport-rect positioning as board card/column menus — the sidebar is too narrow for a
@@ -115,7 +94,8 @@ export function wireViewsSection(root) {
         danger: true,
       });
       if (!ok) return;
-      if (activeView === `saved:${id}`) setActiveView("main");
+      // if you're currently viewing the one being deleted, route back to Main board (URL + render)
+      if (activeView === `saved:${id}`) await switchToView("main");
       await deleteSavedView(id);
       await import("./renderSidebar.js").then((m) => m.renderSidebar());
     });
