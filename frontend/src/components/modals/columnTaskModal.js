@@ -12,12 +12,18 @@ export function openColumnTaskModal(colId, ctx) {
   // A project's own board, or a project-tagged column on Main board, already knows which project
   // this task belongs to — no need to ask (and no way to get it wrong by picking a different one).
   const lockedCwd = ctx.kind === "project" ? ctx.cwd : col?.cwd || null;
-  const projectOptions = [...new Set(sessions.map((s) => s.cwd))].sort();
+  const projectOptions = [...new Set(sessions.map((s) => s.cwd))].sort((a, b) => projectName(a).localeCompare(projectName(b)));
+  // A ticket has no fixed project, so it can never actually show up on a project-dedicated column
+  // (membership there is computed purely by cwd) or on home (which shows every real session, not a
+  // ticket) — offering the checkbox there would silently create a ticket with nowhere to land.
+  const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
+  const canBeTicket = !col?.cwd && colId !== homeId;
   modalShell(`
     <h3>⚡ New task → ${escapeHtml(col?.title || colId)}</h3>
+    ${canBeTicket ? `
     <label class="modal-checkbox" title="A ticket is just a note to yourself — no Claude session is started" style="color:var(--ticket-ink); font-weight:600;">
       <input type="checkbox" id="colIsTicket" /> 🎫 Just a ticket (a note to do later — doesn't start a session)
-    </label>
+    </label>` : ""}
     <div class="modal-row">
       <label for="colTaskName" id="colNameLabel">Session name (optional)</label>
       <input type="text" id="colTaskName" placeholder="e.g. wishlist-skeleton" />
@@ -28,10 +34,10 @@ export function openColumnTaskModal(colId, ctx) {
     </div>
     <div class="session-only">
       <div class="modal-row">
-        <label for="colTaskProject">Project</label>
+        <label for="colTaskProject">Project${lockedCwd ? ` <span title="Set by the column this task was created from — can't be changed here" style="opacity:0.7; font-size:11px;">🔒</span>` : ""}</label>
         ${lockedCwd
           ? `<input type="text" id="colTaskProject" value="${escapeAttr(projectName(lockedCwd))}" data-locked-cwd="${escapeAttr(lockedCwd)}" disabled />`
-          : `<select id="colTaskProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join("")}</select>`}
+          : `<select id="colTaskProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(projectName(p))}</option>`).join("")}</select>`}
       </div>
       <div class="modal-row">
         <label for="colTaskModel">Model</label>
@@ -46,14 +52,16 @@ export function openColumnTaskModal(colId, ctx) {
   `);
   const { resolvePromptText } = wireImagePaste(document.getElementById("colTaskDesc"));
   const isTicketBox = document.getElementById("colIsTicket");
-  const syncTicketMode = () => {
-    const t = isTicketBox.checked;
-    document.querySelectorAll(".session-only").forEach((el) => (el.style.display = t ? "none" : ""));
-    document.getElementById("colNameLabel").textContent = t ? "Ticket title" : "Session name (optional)";
-    document.getElementById("colDescLabel").textContent = t ? "Task (optional)" : "Task";
-    document.getElementById("colTaskStart").textContent = t ? "🎫 Create ticket" : "▶ Launch in new terminal";
-  };
-  isTicketBox.addEventListener("change", syncTicketMode);
+  if (isTicketBox) {
+    const syncTicketMode = () => {
+      const t = isTicketBox.checked;
+      document.querySelectorAll(".session-only").forEach((el) => (el.style.display = t ? "none" : ""));
+      document.getElementById("colNameLabel").textContent = t ? "Ticket title" : "Session name (optional)";
+      document.getElementById("colDescLabel").textContent = t ? "Task (optional)" : "Task";
+      document.getElementById("colTaskStart").textContent = t ? "🎫 Create ticket" : "▶ Launch in new terminal";
+    };
+    isTicketBox.addEventListener("change", syncTicketMode);
+  }
   // Enter launches/creates (Shift+Enter still inserts a newline), matching Quick Prompt's textarea.
   document.getElementById("colTaskDesc").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -66,7 +74,7 @@ export function openColumnTaskModal(colId, ctx) {
     const name = document.getElementById("colTaskName").value.trim();
     const desc = document.getElementById("colTaskDesc").value.trim();
 
-    if (isTicketBox.checked) {
+    if (isTicketBox?.checked) {
       const title = name || desc;
       if (!title) { toast("Give the ticket a title"); return; }
       const res = await fetch("/api/tickets", {
@@ -99,7 +107,7 @@ export function openColumnTaskModal(colId, ctx) {
 export function convertTicketToSession(id) {
   const t = sessions.find((x) => x.id === id);
   if (!t) return;
-  const projectOptions = [...new Set(sessions.filter((s) => s.cwd).map((s) => s.cwd))].sort();
+  const projectOptions = [...new Set(sessions.filter((s) => s.cwd).map((s) => s.cwd))].sort((a, b) => projectName(a).localeCompare(projectName(b)));
   modalShell(`
     <h3>▶ Start session from ticket</h3>
     <div style="font-size:12px; color:var(--dim);">The ticket stays on the board and switches to a "Resume" button once the session launches.</div>
@@ -109,7 +117,7 @@ export function convertTicketToSession(id) {
     </div>
     <div class="modal-row">
       <label for="ctSessProject">Project</label>
-      <select id="ctSessProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join("")}</select>
+      <select id="ctSessProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(projectName(p))}</option>`).join("")}</select>
     </div>
     <div class="modal-row">
       <label for="ctSessTask">Task</label>

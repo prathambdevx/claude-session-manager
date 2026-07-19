@@ -1,6 +1,7 @@
-import { sessions, autoHideEmpty } from "../../state.js";
+import { sessions, autoHideEmpty, setProjectFilter } from "../../state.js";
 import { escapeHtml, escapeAttr, projectName } from "../../ui/format.js";
-import { setBoardMode, enterProjectBoard, ensureAllProjectColumns, boardTagFor } from "../../routing/boardRouting.js";
+import { enterProjectBoard, boardTagFor, projectRecency } from "../../routing/boardRouting.js";
+import { projectColorRank } from "../../ui/projectColors.js";
 import { boardCardHtml } from "../../subcomponents/boardCard.js";
 import { wireBoardCards } from "./wireBoardCards.js";
 import { agentsDockHtml, wireAgentsDock } from "../agentsDock/agentsDock.js";
@@ -16,58 +17,123 @@ import { wireBoardDragDrop, reorderColumns } from "./wireBoardDragDrop.js";
 // Membership is computed, not bucketed: home column shows everyone, a .cwd column shows matching
 // sessions permanently, everything else is a plain per-board tag (independent per board — see
 // boardTagFor in boardRouting.js).
-function cardsForColumn(c, ctx, filtered, homeId) {
-  if (c.id === homeId) return filtered;
+function cardsForColumn(c, ctx, filtered, homeId, projectFilter) {
+  // The project filter only narrows the home column — every other column (project-cwd or
+  // tag-based) keeps showing its own real membership regardless, so organizing work you've
+  // already done never disappears just because you're filtering to find something else.
+  if (c.id === homeId) return projectFilter ? filtered.filter((s) => s.cwd === projectFilter) : filtered;
   if ((ctx.kind === "main" || ctx.kind === "group") && c.cwd) return filtered.filter((s) => s.cwd === c.cwd);
   return filtered.filter((s) => boardTagFor(ctx, s) === c.id);
 }
 
-function missingProjectCount(ctx) {
-  if (ctx.kind !== "main") return 0;
-  const existing = new Set(ctx.cols.filter((c) => c.cwd).map((c) => c.cwd));
-  return new Set(sessions.filter((s) => !s.isTicket && !existing.has(s.cwd)).map((s) => s.cwd)).size;
+/**
+ * Whether a column belongs on this board at all, independent of hidden/auto-hidden-empty state —
+ * shared by columnWouldShow, the Manage Columns row list (orderFor), and the hidden-count chip, so
+ * a column excluded here never has a dangling row or gets miscounted as "reopenable."
+ */
+function isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName) {
+  // Home never shows alongside its own stand-in/dedicated column while filtered (it would otherwise
+  // duplicate the same sessions under a second column).
+  if (projectFilter && c.id === homeId && !homeBorrowsProjectName) return false;
+  // Filtering only ever changes what the first column shows, and only on the live Main board — a
+  // project-dedicated column there earns a spot solely while its own project is the active filter.
+  // A saved view is a frozen snapshot: it has no filter, so this never touches one (ctx.viewId
+  // marks a saved view despite sharing kind "main").
+  if (ctx.kind === "main" && !ctx.viewId && c.cwd && c.cwd !== projectFilter) return false;
+  return true;
 }
 
-// Palette slot = column's rank when ctx.cols is sorted by id (excluding home) — order-independent,
-// so dragging columns never reassigns colors.
+/**
+ * Single source of truth for whether a column would actually render on the board right now — the
+ * Manage Columns panel's toggle state is driven by this same function, so it never disagrees with
+ * what's really on screen.
+ */
+function columnWouldShow(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName, menuOpen) {
+  // Scoping is absolute — never bypassed by Manage Columns being open (a column excluded by
+  // isInScope has no row there to manage anyway, so revealing it on the board would be a dead end).
+  if (!isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName)) return false;
+  // Manual hidden / auto-hidden-empty are preferences you're actively managing, so Manage Columns
+  // reveals them while open. The board's order still stays pinned to the filter (see
+  // reorderForFilter, applied unconditionally below), so opening the menu never reshuffles the
+  // visible layout, only reveals what else exists within the scope already fixed above.
+  if (menuOpen) return true;
+  // If no project column exists for the filtered project yet, home IS that project's only
+  // representation on the board — it needs the same "unhide me, I'm the match" exemption a real
+  // project column gets, or filtering to that project would show nothing at all.
+  const isFilterMatch = projectFilter && (c.cwd === projectFilter || (c.id === homeId && homeBorrowsProjectName));
+  if (c.hidden && !isFilterMatch) return false;
+  if (autoHideEmpty && c.id !== homeId) {
+    const count = cardsForColumn(c, ctx, filtered, homeId, projectFilter).length;
+    if (count === 0 && !c.neverPopulated) return false;
+  }
+  return true;
+}
+
+/**
+ * While filtered to one project, whatever represents it on the board — its own dedicated column,
+ * or home when no dedicated column exists yet — jumps to the very front of the list. Used for both
+ * the board's own column order and the Manage Columns panel's row order, so the two never disagree.
+ */
+function reorderForFilter(cols, homeId, projectFilter, homeBorrowsProjectName) {
+  if (!projectFilter || homeBorrowsProjectName) return cols;
+  const matchIdx = cols.findIndex((c) => c.cwd === projectFilter);
+  if (matchIdx === -1) return cols;
+  const result = [...cols];
+  const [match] = result.splice(matchIdx, 1);
+  const homeIdx = result.findIndex((c) => c.id === homeId);
+  result.splice(homeIdx > -1 ? homeIdx + 1 : 0, 0, match);
+  return result;
+}
+
+// A project column's slot comes from the exact same ranking projectColorClass uses for card chips
+// (see ui/projectColors.js), so a project's column header and its own cards always match. A plain
+// custom column has no chip to match, so it keeps the old order-independent id-sort rank instead.
 const PILL_PALETTE_SIZE = 9;
 function pillColorClass(ctx, c) {
   const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
   if (c.id === homeId) return "col-pill-neutral";
+  if (c.cwd) {
+    const rank = projectColorRank(c.cwd);
+    return rank == null ? "col-pill-1" : `col-pill-${rank}`;
+  }
   const rank = [...ctx.cols]
-    .filter((x) => x.id !== homeId)
+    .filter((x) => x.id !== homeId && !x.cwd)
     .map((x) => x.id)
     .sort()
     .indexOf(c.id);
   return `col-pill-${(rank % PILL_PALETTE_SIZE) + 1}`;
 }
 
-export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
+export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilter = "") {
   const app = document.getElementById("app");
   // the "Projects" group lens has no home column — every one of its columns is a real project.
   // A saved view shares kind:"main" for rendering regardless of where it was saved FROM, though —
   // one saved from the group lens has a real project column sitting at [0], not a genuine home
   // column, so also check for .cwd (a real home column never carries one).
   const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
+  // A dedicated project column already carries the filtered project's identity once Regroup has
+  // run (and it's the one that moves to the front — see reorderForFilter) — home only borrows the
+  // name when no such column exists yet, so the two never show the same label at once.
+  const homeBorrowsProjectName = projectFilter && !ctx.cols.some((c) => c.cwd === projectFilter);
   const menuOpen = isManageColumnsMenuOpen();
-  const visibleCols = ctx.cols.filter((c) => {
-    if (menuOpen) return true;
-    if (c.hidden) return false;
+  const rawVisibleCols = ctx.cols.filter((c) => {
     // auto-hide-empty only ever applies to a column that WAS populated and later emptied out —
     // never to one that's simply new and hasn't had a chance to receive a card yet
     if (autoHideEmpty && c.id !== homeId) {
-      const count = cardsForColumn(c, ctx, filtered, homeId).length;
+      const count = cardsForColumn(c, ctx, filtered, homeId, projectFilter).length;
       if (count > 0 && c.neverPopulated) delete c.neverPopulated;
-      if (count === 0 && !c.neverPopulated) return false;
     }
-    return true;
+    return columnWouldShow(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName, menuOpen);
   });
-  // everything not on screen, whether manually hidden or swept by auto-hide-empty — both are
-  // reopenable from Manage Columns, so both belong in the "N hidden columns" chip
-  const hiddenCount = ctx.cols.length - visibleCols.length;
+  // Reorder the filtered project to the front even with the menu open, so the board's order matches
+  // the Manage Columns panel's order (which reorders the same way) instead of jumping around.
+  const visibleCols = reorderForFilter(rawVisibleCols, homeId, projectFilter, homeBorrowsProjectName);
+  // Out-of-scope columns (e.g. every other project while filtered) aren't "hidden" — they simply
+  // don't belong here and have no row in Manage Columns to reopen from. Only count what's actually
+  // reopenable: an in-scope column that's manually hidden or swept by auto-hide-empty.
+  const inScopeCount = ctx.cols.filter((c) => isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName)).length;
+  const hiddenCount = inScopeCount - visibleCols.length;
   const anyExpanded = visibleCols.some((c) => !c.collapsed);
-
-  const drift = missingProjectCount(ctx);
 
   // Every render replaces .board's innerHTML, which resets scrollLeft to 0 — save/restore it (and
   // each column's scrollTop) so the board doesn't jerk back mid-scroll.
@@ -77,16 +143,26 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     prevColScrollTops.set(el.dataset.colDrop, el.scrollTop);
   });
 
+  // Narrows the home column only — not shown for the group lens (no home column), a per-project
+  // board (already one project), or a saved view (a frozen snapshot with no live filtering, though
+  // its columns are still hand-editable via Manage Columns).
+  const showProjectFilter = homeId != null && ctx.kind === "main" && !ctx.viewId;
+  // Same most-recently-active-first ordering "Regroup by project" uses — whichever project you
+  // actually touched last is the one you're most likely filtering to.
+  const projectCwds = [...new Set(sessions.filter((s) => s.cwd).map((s) => s.cwd))]
+    .sort((a, b) => projectRecency(b, sessions) - projectRecency(a, sessions));
+
   app.innerHTML = `
     ${breadcrumbHtml}
     ${agentsDockHtml()}
     <div class="board-actions">
       ${ctx.kind === "group" ? "" : `
+        ${showProjectFilter ? `
+          <select id="boardProjectFilter" title="Narrow the home column down to one project">
+            <option value="">All sessions</option>
+            ${projectCwds.map((cwd) => `<option value="${escapeAttr(cwd)}" ${cwd === projectFilter ? "selected" : ""}>${escapeHtml(projectName(cwd))}</option>`).join("")}
+          </select>` : ""}
         <button class="btn ghost" id="addColBtn">+ Add column</button>
-        ${ctx.kind === "main" ? `
-          <button class="btn accent" id="regroupBtn" title="${drift ? `${drift} project${drift === 1 ? "" : "s"} would get a column` : "Every project already has a column"}">
-            ↻ Regroup by project${drift ? ` <span class="badge">${drift}</span>` : ""}
-          </button>` : ""}
       `}
       <span style="flex:1"></span>
       <button class="btn ghost" id="saveViewBtn" title="Save this column layout as a reusable view">＋ Save as view</button>
@@ -97,22 +173,34 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     </div>
     <div class="board">
       ${visibleCols.map((c) => {
-        const items = cardsForColumn(c, ctx, filtered, homeId).sort(
+        const items = cardsForColumn(c, ctx, filtered, homeId, projectFilter).sort(
           (a, b) => (b.running ? 1 : 0) - (a.running ? 1 : 0) || b.lastActive - a.lastActive
         );
+        // The home column names itself after whatever it's actually showing — a per-project board
+        // is always exactly one project already, and the shared home column on Main/a saved view
+        // narrows to one project the moment you filter, so calling either "All sessions" would
+        // overstate what's on screen.
+        const displayTitle = c.id === homeId && ctx.kind === "project" ? projectName(ctx.cwd)
+          : c.id === homeId && homeBorrowsProjectName ? projectName(projectFilter)
+          : c.title;
         const titleHtml = c.renaming
           ? `<input class="col-title-input" data-rename-col-input="${c.id}" value="${escapeAttr(c.title)}" />`
           : c.cwd
             ? `<span class="col-title-link" data-col-title="${c.id}" title="Open ${escapeAttr(projectName(c.cwd))}'s own board">${escapeHtml(c.title)}</span>`
-            : `<span>${escapeHtml(c.title)}</span>`;
+            : `<span>${escapeHtml(displayTitle)}</span>`;
 
         // Header/body and collapsed pill both stay in the DOM; only a .collapsed class (toggled
         // directly, not via rerender) switches them, so the CSS transition has something to animate.
         // Home column stays pinned first while visible — see reorderColumns; undraggable here too
-        // so it doesn't snap back after a confusing drag.
-        const dragLocked = c.id === homeId && !c.hidden;
+        // so it doesn't snap back after a confusing drag. The filtered project's column is pinned
+        // first the same way (reorderForFilter re-front-loads it every render), so lock its drag too.
+        const dragLocked = (c.id === homeId && !c.hidden) || (projectFilter && c.cwd === projectFilter);
+        // A column only forced into view by the active filter (still c.hidden underneath) reads as
+        // a normal, fully-visible column — the dashed/dimmed treatment is reserved for the
+        // "N hidden columns" chip's own members, which this one currently isn't.
+        const stillHidden = c.hidden && !(projectFilter && (c.cwd === projectFilter || (c.id === homeId && homeBorrowsProjectName)));
         return `
-        <div class="board-col${dragLocked ? " board-col-sticky" : ""}${c.hidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c)}" data-col-id="${c.id}">
+        <div class="board-col${dragLocked ? " board-col-sticky" : ""}${stillHidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c)}" data-col-id="${c.id}">
           <div class="board-col-header" draggable="${!c.renaming && !dragLocked}" data-col-drag="${c.id}" title="${dragLocked ? "Always stays first" : c.cwd ? "Drag to reorder" : "Drag to reorder columns"}">
             <span class="drag-handle">⠿</span>
             ${titleHtml}
@@ -152,15 +240,25 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     if (prev) el.scrollTop = prev;
   });
 
-  if (breadcrumbHtml) {
-    app.querySelector("[data-back-to-main]")?.addEventListener("click", () => setBoardMode("main"));
-  }
-
   wireBoardCards(app);
 
   const rerender = () => import("../../pages/sessionsPage.js").then((m) => m.render());
 
-  document.getElementById("regroupBtn")?.addEventListener("click", () => ensureAllProjectColumns(ctx));
+  document.getElementById("boardProjectFilter")?.addEventListener("change", (e) => {
+    setProjectFilter(e.target.value);
+    // Selecting "All sessions" is the one point where you're explicitly asking to see everything
+    // again — un-hide home for good if it had been hidden, rather than leaving it invisible with
+    // no obvious way back short of a trip to Manage Columns.
+    if (!e.target.value) {
+      const home = ctx.cols.find((c) => c.id === homeId);
+      if (home?.hidden) {
+        pushHistory(ctx);
+        home.hidden = false;
+        ctx.save();
+      }
+    }
+    rerender();
+  });
   document.getElementById("boardUndoBtn")?.addEventListener("click", () => undoLast(ctx));
   document.getElementById("saveViewBtn")?.addEventListener("click", async () => {
     const title = await openPromptModal({ title: "Save as view", label: "View name" });
@@ -169,7 +267,22 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   });
 
   wireManageColumnsPanel(app, ctx, {
-    countFor: (c) => cardsForColumn(c, ctx, filtered, homeId).length,
+    countFor: (c) => cardsForColumn(c, ctx, filtered, homeId, projectFilter).length,
+    displayTitleFor: (c) => c.id === homeId && ctx.kind === "project" ? projectName(ctx.cwd)
+      : c.id === homeId && homeBorrowsProjectName ? projectName(projectFilter)
+      : c.title,
+    shownFor: (c) => columnWouldShow(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName),
+    isHomeFor: (c) => c.id === homeId,
+    // "All sessions" has nothing to add once a project with its own column is filtered — its row
+    // would just sit there permanently off, so it's dropped entirely rather than shown as a dead
+    // toggle. Same for every OTHER project column on Main board: it can only ever appear via the
+    // filter, never via this panel, so there's nothing here for it to manage until it's the match —
+    // the filter dropdown right next to this button is the actual way to bring one into view.
+    orderFor: (cols) => reorderForFilter(
+      cols.filter((c) => isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName)),
+      homeId, projectFilter, homeBorrowsProjectName
+    ),
+    lockedFor: (c) => Boolean(projectFilter) && c.cwd === projectFilter,
     onRename: (id) => startColumnRename(ctx, id, rerender),
     onDeleteColumn: (id) => removeColumn(ctx, id, rerender),
     onReorder: (fromId, toId) => reorderColumns(ctx, fromId, toId, rerender),

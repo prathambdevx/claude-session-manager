@@ -5,29 +5,15 @@ import {
   boardMode, activeProjectCwd, boardColumns, projectBoards, setBoardColumns, setProjectBoards,
   currentProjectColumns, setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns,
   summarizingIds, setContentMatchIds, currentTab,
-  PROJECT_DEFAULT_COLUMNS, setSavedViews, setQuickPrompts,
+  PROJECT_DEFAULT_COLUMNS, DEFAULT_COLUMNS, setSavedViews, setQuickPrompts,
 } from "../state.js";
 import { migrateColumns, mergeInProjectColumns, carryTransientColumnFlags } from "../routing/boardRouting.js";
 import { toast } from "../ui/toast.js";
 import { dangerousDefault } from "../ui/formFragments.js";
 import { render, isTransientUiOpen } from "../pages/sessionsPage.js";
 import { renderTodoBoard } from "../components/todoBoard/renderTodoBoard.js";
-import { escapeHtml, escapeAttr } from "../ui/format.js";
 import { applyBoardSettings } from "./boardSettingsApi.js";
 import { openConfirmModal } from "../ui/confirmModal.js";
-
-// Project filter dropdown — scopes the visible board to one project's sessions; launching lives in
-// the per-column "+" New Task modal instead.
-export async function loadProjects() {
-  const res = await fetch("/api/projects");
-  const data = await res.json();
-  const sel = document.getElementById("filterProject");
-  const current = sel.value;
-  sel.innerHTML =
-    '<option value="">All projects</option>' +
-    data.projects.map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(p)}</option>`).join("");
-  if (current && data.projects.includes(current)) sel.value = current; // preserve selection across refreshes
-}
 
 export async function saveBoardColumns() {
   await fetch("/api/board", {
@@ -69,13 +55,13 @@ export async function loadSessions(opts = {}) {
   setDelegations(data.delegations || []);
   setTodos(data.todos || []);
 
-  // session board columns: server is source of truth; migrate localStorage on first run
+  // session board columns: server is the sole source of truth — seed the defaults on a brand-new
+  // install (nothing saved yet), migrateColumns() upgrades an existing install's old column shape
   let cols;
   if (Array.isArray(data.board) && data.board.length) {
     cols = carryTransientColumnFlags(boardColumns, migrateColumns(data.board));
   } else {
-    const legacy = JSON.parse(localStorage.getItem("boardColumns") || "null");
-    cols = carryTransientColumnFlags(boardColumns, migrateColumns(legacy && legacy.length ? legacy : [{ id: "all-sessions", title: "All sessions" }]));
+    cols = DEFAULT_COLUMNS.slice();
     setBoardColumns(cols);
     await saveBoardColumns();
   }

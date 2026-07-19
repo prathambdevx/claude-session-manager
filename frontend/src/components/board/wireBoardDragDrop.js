@@ -1,7 +1,6 @@
 // Drag & drop wiring for the board: cards move between columns, column headers reorder columns.
 // Split out of renderBoardView.js once it grew past ~250 lines.
 import { sessions } from "../../state.js";
-import { patchMeta } from "../../api/sessionsApi.js";
 import { boardTagFor, setBoardTag } from "../../routing/boardRouting.js";
 import { toast } from "../../ui/toast.js";
 import { projectName } from "../../ui/format.js";
@@ -35,8 +34,10 @@ async function handleCardDrop(ctx, cardId, colId, rerender) {
   const targetCol = ctx.cols.find((c) => c.id === colId);
 
   // dropping onto the home column ("All sessions") isn't a move — it clears whatever custom tag
-  // this card has, since home always shows everyone regardless of tag
+  // this card has, since home always shows everyone regardless of tag. Tickets are work items, not
+  // real Claude sessions, so they're not part of "every session" at all — never allowed there.
   if (colId === homeId) {
+    if (s.isTicket) { toast('Tickets can\'t move to "All sessions" — it\'s for real sessions only'); return; }
     if (boardTagFor(ctx, s) == null) { toast('Already shown in "All sessions"'); return; }
     pushHistory(ctx);
     rerender();
@@ -45,25 +46,18 @@ async function handleCardDrop(ctx, cardId, colId, rerender) {
   }
 
   if (ctx.kind === "main" && targetCol?.cwd) {
-    if (!s.isTicket) {
-      // a session's project is fixed — dropping it on a DIFFERENT project's column is rejected;
-      // dropping it on its OWN project column just clears any custom tag (it's already shown there)
-      if (s.cwd !== targetCol.cwd) {
-        toast(`Can't move — this session belongs to "${projectName(s.cwd)}", not "${projectName(targetCol.cwd)}"`);
-        return;
-      }
-      if (boardTagFor(ctx, s) == null) { toast("Already shown on its own project column"); return; }
-      pushHistory(ctx);
-      rerender();
-      await setBoardTag(ctx, cardId, null);
+    // a ticket has no fixed project of its own — it never belongs on a project-dedicated column,
+    // same as it never belongs on "All sessions".
+    if (s.isTicket) { toast("Tickets can't be moved onto a project column"); return; }
+    // a session's project is fixed — dropping it on a DIFFERENT project's column is rejected;
+    // dropping it on its OWN project column just clears any custom tag (it's already shown there)
+    if (s.cwd !== targetCol.cwd) {
+      toast(`Can't move — this session belongs to "${projectName(s.cwd)}", not "${projectName(targetCol.cwd)}"`);
       return;
     }
-    // a ticket has no fixed project — dropping it on a project column adopts that project as its
-    // own (membership there is then computed from its cwd, same as a real session)
+    if (boardTagFor(ctx, s) == null) { toast("Already shown on its own project column"); return; }
     pushHistory(ctx);
-    s.cwd = targetCol.cwd;
     rerender();
-    await patchMeta(cardId, { cwd: targetCol.cwd });
     await setBoardTag(ctx, cardId, null);
     return;
   }

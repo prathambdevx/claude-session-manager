@@ -40,6 +40,10 @@ export let activeView = "main"; // "main" | "project" | "group" | "saved:<id>"
 export let savedViews = []; // SavedView[] — mirrors server's saved-views.json
 export let autoHideEmpty = false; // mirrors server's board-settings.json
 export let boardHistory = []; // in-memory undo stack — transient, not persisted
+// Narrows the home column only (see renderBoardView's cardsForColumn) — kept as real state, not
+// just a DOM element's own value, since the board's action bar re-renders wholesale on every
+// change and would otherwise reset a plain <select> back to its default each time.
+export let projectFilter = "";
 
 export let contentMatchIds = new Set();
 export let contentSearchTimer = null;
@@ -67,4 +71,5 @@ export function setActiveView(v) { activeView = v; }
 export function setSavedViews(v) { savedViews = v; }
 export function setAutoHideEmpty(v) { autoHideEmpty = v; }
 export function setBoardHistory(v) { boardHistory = v; }
+export function setProjectFilter(v) { projectFilter = v; }
 export function dismissDoneChip(sessionId, activity) { dismissedDoneChips.set(sessionId, activity); }
