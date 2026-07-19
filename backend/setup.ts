@@ -7,10 +7,11 @@ import { existsSync } from "node:fs";
 import { writeFile, unlink, mkdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
-// OSC 8 — a real terminal hyperlink (clickable, underlined), not just styled text. Supported by
-// Ghostty, iTerm2, Terminal.app, and VS Code's terminal; unsupported terminals just show the URL.
+// OSC 8 — a real terminal hyperlink, not just styled text. Terminal.app/iTerm2/Ghostty/VS Code
+// all auto-style a real OSC 8 link (blue + underlined) on their own — adding SGR codes on top of
+// it here is redundant and risks confusing where the clickable region actually starts/ends.
 function terminalLink(url: string): string {
-  return `\x1b]8;;${url}\x1b\\\x1b[4m${url}\x1b[24m\x1b]8;;\x1b\\`;
+  return `\x1b]8;;${url}\x1b\\${url}\x1b]8;;\x1b\\`;
 }
 
 const LABEL = "com.claude-session-manager";
