@@ -12,7 +12,6 @@ import {
 } from "../state.js";
 import { escapeHtml, projectName } from "../ui/format.js";
 import { toast } from "../ui/toast.js";
-import { pushHistory } from "../components/board/boardUndo.js";
 
 export function migrateColumns(cols) {
   if (cols.map((c) => c.id).join(",") === OLD_DEFAULT_ORDER.join(",")) return DEFAULT_COLUMNS.slice();
@@ -39,20 +38,35 @@ export function projectColumnId(cwd) {
   return "proj-" + projectName(cwd).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 }
 
+const STALE_PROJECT_MS = 14 * 24 * 60 * 60 * 1000;
+
+// Most recent lastActive among a project's own sessions — 0 if it has none (never sorts first,
+// never counts as stale-but-active).
+export function projectRecency(cwd, sessionList) {
+  let max = 0;
+  for (const s of sessionList) if (s.cwd === cwd && s.lastActive > max) max = s.lastActive;
+  return max;
+}
+
 // Appends a column for any project cwd not already represented, leaving every existing column
-// untouched. Idempotent — safe to call even when nothing needs to change.
+// untouched. Idempotent — safe to call even when nothing needs to change. A newly added column
+// for a project untouched in 14+ days starts collapsed — an already-existing column's collapsed
+// state is never touched here, so a manual expand/collapse survives a later re-run.
 export function mergeInProjectColumns(cols, sessionList) {
   const existingCwds = new Set(cols.filter((c) => c.cwd).map((c) => c.cwd));
   const cwds = [...new Set(sessionList.filter((s) => s.cwd && !existingCwds.has(s.cwd)).map((s) => s.cwd))]
     .sort((a, b) => projectName(a).localeCompare(projectName(b)));
   if (!cwds.length) return { columns: cols, changed: false };
   const seenIds = new Set(cols.map((c) => c.id));
+  const now = Date.now();
   const added = cwds.map((cwd) => {
     let id = projectColumnId(cwd);
     let n = 2;
     while (seenIds.has(id)) id = `${projectColumnId(cwd)}-${n++}`; // dedupe two dirs sharing a basename
     seenIds.add(id);
-    return { id, title: projectName(cwd), cwd };
+    const lastActive = projectRecency(cwd, sessionList);
+    const stale = lastActive > 0 && now - lastActive > STALE_PROJECT_MS;
+    return { id, title: projectName(cwd), cwd, ...(stale ? { collapsed: true } : {}) };
   });
   return { columns: [...cols, ...added], changed: true };
 }
@@ -234,46 +248,8 @@ export function wirePopstate() {
   });
 }
 
-// Keeps the home column ("All sessions") first, then every project column, then every custom
-// (plain-tag) column — the order "Regroup by project" is named for. Relative order within each
-// group is preserved so this never reshuffles columns the user has deliberately arranged.
-function reorderProjectColumnsFirst(cols) {
-  if (cols.length <= 1) return cols;
-  const [home, ...rest] = cols;
-  const projectCols = rest.filter((c) => c.cwd);
-  const customCols = rest.filter((c) => !c.cwd);
-  return [home, ...projectCols, ...customCols];
-}
-
-function sameOrder(a, b) {
-  return a.length === b.length && a.every((c, i) => c.id === b[i].id);
-}
-
-// "Regroup by project" — repeatable (unlike mergeInProjectColumns' one-time gated migration);
-// callable any time a project column has drifted missing. Generic over ctx so it also works for
-// the "Projects" group lens, which has no home column to keep pinned first (every column there
-// already has a .cwd), unlike Main board.
-export async function ensureAllProjectColumns(ctx = mainBoardCtx()) {
-  const merged = mergeInProjectColumns(ctx.cols, sessions);
-  const reordered = ctx.kind === "group" ? merged.columns : reorderProjectColumnsFirst(merged.columns);
-  const addedCount = merged.columns.length - ctx.cols.length;
-
-  if (!merged.changed && sameOrder(reordered, ctx.cols)) {
-    toast("Every project already has a column, in order");
-    return;
-  }
-
-  pushHistory(ctx); // so the global Undo button can revert this too
-  ctx.cols = reordered;
-  await ctx.save();
-  toast(addedCount > 0
-    ? `Added ${addedCount} column${addedCount === 1 ? "" : "s"} for project${addedCount === 1 ? "" : "s"} without one`
-    : "Reordered — project columns first");
-  await import("../pages/sessionsPage.js").then((m) => m.render());
-}
-
-// Drop a card onto a sidebar project entry — a session's cwd is fixed (same rule as the board's
-// own project columns); only a ticket can be tagged onto a different one.
+// Drop a card onto a sidebar project entry — a session's cwd is fixed, so this only ever
+// re-confirms it's already there. A ticket has no fixed project and is never allowed onto one.
 async function ensureProjectColumnFor(cwd) {
   const merged = mergeInProjectColumns(boardColumns, sessions);
   if (merged.changed) {
@@ -287,27 +263,21 @@ export async function assignCardToProjectColumn(cardId, cwd) {
   const card = sessions.find((s) => s.id === cardId);
   if (!card) return;
 
-  if (!card.isTicket) {
-    if (card.cwd !== cwd) {
-      toast(`Can't move — this session belongs to "${projectName(card.cwd)}", not "${projectName(cwd)}"`);
-      return;
-    }
-    await ensureProjectColumnFor(cwd);
-    toast(`Already belongs to "${projectName(cwd)}"`);
-    await import("../pages/sessionsPage.js").then((m) => m.render());
+  if (card.isTicket) { toast("Tickets can't be moved onto a project column"); return; }
+
+  if (card.cwd !== cwd) {
+    toast(`Can't move — this session belongs to "${projectName(card.cwd)}", not "${projectName(cwd)}"`);
     return;
   }
-
-  const col = await ensureProjectColumnFor(cwd);
-  await setBoardTag(mainBoardCtx(), cardId, col?.id ?? null);
-  toast(`Moved onto "${projectName(cwd)}"`);
+  await ensureProjectColumnFor(cwd);
+  toast(`Already belongs to "${projectName(cwd)}"`);
+  await import("../pages/sessionsPage.js").then((m) => m.render());
 }
 
 // Breadcrumb header shown atop a drilled-in project's board.
 export function projectBreadcrumbHtml() {
   return `
     <div class="board-breadcrumb">
-      <button data-back-to-main>← Back to board</button>
       <h2>${escapeHtml(projectName(activeProjectCwd))}</h2>
     </div>
   `;

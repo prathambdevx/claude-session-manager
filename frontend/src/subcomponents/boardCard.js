@@ -3,6 +3,7 @@
 import { summarizingIds, quickPrompts, sessions, dismissedDoneChips } from "../state.js";
 import { escapeHtml, timeAgo, projectName } from "../ui/format.js";
 import { ctxBadgeFullHtml } from "../ui/contextBadge.js";
+import { projectColorClass } from "../ui/projectColors.js";
 
 // Quick Prompt's job chip — picks this session's MOST RECENT job; steps aside for
 // workingChipHtml/doneChipHtml if that job already finished but the session is active again.
@@ -105,7 +106,7 @@ export function boardCardHtml(s, ctx) {
         ${desc && !summarizing ? "" : `<button class="summarize-btn ${summarizing ? "loading" : ""}" data-action="summarize" data-id="${s.id}" data-tooltip="Auto-generate description">${summarizing ? "" : "✦"}</button>`}
       </div>
       <div class="bc-meta">
-        <span class="chip">${escapeHtml(projectName(s.cwd))}</span>
+        <span class="chip ${projectColorClass(s.cwd)}">${escapeHtml(projectName(s.cwd))}</span>
         ${s.gitBranch ? `<span class="chip branch">${escapeHtml(s.gitBranch)}</span>` : ""}
         <span class="bc-time" title="${new Date(s.lastActive).toLocaleString()}">${timeAgo(s.lastActive)}</span>
       </div>

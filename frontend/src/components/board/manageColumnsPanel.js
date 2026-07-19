@@ -49,17 +49,20 @@ function isAutoHidden(c, count, isHome) {
 // `ctx.cols` at wiring time (columns can change between renders without a full board re-render).
 // `locked` (home column, or every column in the "Projects" group lens) shows 🔒 instead of a
 // delete button — separate from `isHome`, which only controls the auto-hide-empty exemption.
-function columnRowHtml(c, count, isHome, locked, lockedReason) {
+function columnRowHtml(c, count, isHome, locked, lockedReason, displayTitle, shown, pinnedFirst) {
   const autoHidden = isAutoHidden(c, count, isHome);
-  const shown = !c.hidden && !autoHidden;
   // The home column stays pinned first while visible — reorderColumns rejects the drop anyway,
-  // but making the row itself undraggable avoids a confusing drag that silently snaps back.
-  const dragLocked = isHome && !c.hidden;
+  // but making the row itself undraggable avoids a confusing drag that silently snaps back. The
+  // filtered project's own column is pinned the same way (reorderForFilter re-front-loads it), and
+  // its switch is inert too — it's force-shown as the filter match, so toggling it does nothing.
+  const dragLocked = (isHome && !c.hidden) || pinnedFirst;
+  const toggleTitle = pinnedFirst ? "Pinned while filtered to this project" : `${shown ? "Hide" : "Show"} this column`;
+  const toggleAttr = pinnedFirst ? "" : ` data-toggle-hidden="${c.id}"`;
   return `
     <div class="drow" draggable="${!dragLocked}" data-row-col-id="${c.id}">
       <span class="row-drag" ${dragLocked ? `title="Always stays first while shown"` : ""}>⠿</span>
-      <button class="sw${shown ? " on" : ""}" data-toggle-hidden="${c.id}" title="${shown ? "Hide" : "Show"} this column"></button>
-      <span class="lbl">${escapeHtml(c.title)}</span>
+      <button class="sw${shown ? " on" : ""}${pinnedFirst ? " locked" : ""}"${toggleAttr} title="${toggleTitle}"></button>
+      <span class="lbl"${toggleAttr} title="${toggleTitle}">${escapeHtml(displayTitle ?? c.title)}</span>
       ${autoHidden ? '<span class="quiet">auto-hidden</span>' : ""}
       <span class="row-rename" data-rename-col="${c.id}" title="Rename &quot;${escapeHtml(c.title)}&quot;">✎</span>
       ${locked
@@ -69,9 +72,10 @@ function columnRowHtml(c, count, isHome, locked, lockedReason) {
   `;
 }
 
-// countFor(c) comes from the caller (renderBoardView.js) — avoids duplicating its column-
-// membership rule here.
-export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDeleteColumn, onReorder, rerender }) {
+// countFor(c)/displayTitleFor(c)/shownFor(c)/isHomeFor(c)/orderFor(cols) come from the caller
+// (renderBoardView.js) — avoids duplicating its column-membership/project-filter-naming/
+// visibility/ordering rules here, so the panel never disagrees with what's actually on the board.
+export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, shownFor, isHomeFor, orderFor, lockedFor, onRename, onDeleteColumn, onReorder, rerender }) {
   const toggleBtn = root.querySelector("[data-manage-columns-toggle]");
   toggleBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -86,9 +90,9 @@ export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDelete
 
   const ruleRow = document.createElement("div");
   ruleRow.className = "drow rule";
-  ruleRow.innerHTML = `<button class="sw${autoHideEmpty ? " on" : ""}" data-toggle-auto-hide></button><span class="lbl">Auto-hide empty columns</span>`;
+  ruleRow.innerHTML = `<button class="sw${autoHideEmpty ? " on" : ""}" data-toggle-auto-hide></button><span class="lbl" data-toggle-auto-hide>Auto-hide empty columns</span>`;
   dropdown.appendChild(ruleRow);
-  ruleRow.querySelector("[data-toggle-auto-hide]").addEventListener("click", async () => {
+  ruleRow.querySelectorAll("[data-toggle-auto-hide]").forEach((el) => el.addEventListener("click", async () => {
     await saveAutoHideEmpty(!autoHideEmpty);
     // flipping this re-evaluates every column fresh — "stay visible while empty" isn't permanent,
     // but it only changes when you touch this switch
@@ -96,21 +100,26 @@ export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDelete
     toast(autoHideEmpty ? "Empty columns will hide automatically" : "Auto-hide turned off");
     menuOpen = true;
     rerender();
-  });
+  }));
 
   // In the "Projects" group lens every column is a real project — draggable/hideable/renameable,
   // but never deletable (there's nothing to "add back" the way a plain custom column has).
   const isGroupLens = ctx.kind === "group";
-  // A saved view from the group lens still renders kind:"main", but has a real project column at
-  // [0] instead of a genuine home column — a real home column never carries a .cwd.
-  ctx.cols.forEach((c, i) => {
-    const isHome = i === 0 && !isGroupLens && !ctx.cols[0]?.cwd;
-    const locked = isHome || isGroupLens;
+  const orderedCols = orderFor ? orderFor(ctx.cols) : ctx.cols;
+  orderedCols.forEach((c) => {
+    const isHome = isHomeFor ? isHomeFor(c) : c === ctx.cols[0] && !isGroupLens && !ctx.cols[0]?.cwd;
+    // The project you're actively filtering to is what you're currently relying on staying put —
+    // deleting it out from under yourself would be surprising, so it's locked only while filtered.
+    const isFilterMatch = !isHome && !isGroupLens && !!lockedFor?.(c);
+    const locked = isHome || isGroupLens || isFilterMatch;
     const lockedReason = isGroupLens
       ? "Project columns can be renamed, reordered, and hidden — but not deleted"
-      : "The home column always shows every session — it can be hidden but never deleted";
+      : isHome
+        ? "The home column always shows every session — it can be hidden but never deleted"
+        : "Clear the project filter before deleting this column";
+    const count = countFor(c);
     const row = document.createElement("div");
-    row.innerHTML = columnRowHtml(c, countFor(c), isHome, locked, lockedReason);
+    row.innerHTML = columnRowHtml(c, count, isHome, locked, lockedReason, displayTitleFor?.(c), shownFor ? shownFor(c) : !c.hidden && !isAutoHidden(c, count, isHome), isFilterMatch);
     dropdown.appendChild(row.firstElementChild);
   });
 
@@ -119,7 +128,7 @@ export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDelete
       const c = ctx.cols.find((x) => x.id === btn.dataset.toggleHidden);
       if (!c) return;
       pushHistory(ctx);
-      const isHome = c === ctx.cols[0] && !c.cwd;
+      const isHome = isHomeFor ? isHomeFor(c) : c === ctx.cols[0] && !c.cwd;
       if (c.hidden) {
         c.hidden = false; // manually hidden -> show
       } else if (isAutoHidden(c, countFor(c), isHome)) {

@@ -2,7 +2,7 @@
 // then wires DOM controls and starts polling.
 import { currentTab, contentSearchTimer, setContentSearchTimer, boardColumns } from "./state.js";
 import { initBoardStateFromLocation, wirePopstate } from "./routing/boardRouting.js";
-import { loadSessions, loadProjects, fetchContentMatches } from "./api/sessionsApi.js";
+import { loadSessions, fetchContentMatches } from "./api/sessionsApi.js";
 import { initLiveUpdates } from "./api/sse.js";
 import { dangerousDefault } from "./ui/formFragments.js";
 import { render } from "./pages/sessionsPage.js";
@@ -27,7 +27,6 @@ document.getElementById("search").addEventListener("input", (e) => {
 });
 
 document.getElementById("filterDate").addEventListener("change", render);
-document.getElementById("filterProject").addEventListener("change", render);
 
 const globalDangerousBox = document.getElementById("globalDangerous");
 globalDangerousBox.checked = dangerousDefault();
@@ -78,7 +77,6 @@ wireTabs();
 // initBoardStateFromLocation already set the view from the URL; loadSessions renders it (and, for a
 // /views/<id> deep link, re-renders once savedViews arrive so the saved view resolves).
 loadSessions();
-loadProjects();
 initLiveUpdates(); // SSE — pushes a granular refetch within tens of ms of a real change (api/sse.js)
 // Slow backstop only — SSE is the real-time path; this just covers the reconnect gap after e.g. a
 // server restart. background:true so it never rebuilds under an open menu.
