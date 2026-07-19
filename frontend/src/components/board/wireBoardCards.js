@@ -14,6 +14,10 @@ export function wireBoardCards(app) {
   app.querySelectorAll("[data-action]").forEach((el) => {
     el.addEventListener("click", async (e) => {
       e.stopPropagation();
+      // stopPropagation above skips main.js's outside-click handler that normally closes an open
+      // ⋮ menu — without this, a confirm modal (Close terminal/Delete) opens with the menu still
+      // showing behind/over it.
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
       const { action, id } = el.dataset;
       const s = sessions.find((x) => x.id === id);
       const title = s?.meta?.name || s?.firstMessage || id;

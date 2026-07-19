@@ -3,7 +3,7 @@
 import { sessions, quickPrompts } from "../state.js";
 import { render, isTransientUiOpen } from "../pages/sessionsPage.js";
 
-const ACTIVITY_WINDOW_MS = 15_000; // mirrors backend/src/sessions.ts's ACTIVITY_WINDOW_MS exactly
+const ACTIVITY_WINDOW_MS = 3_000; // mirrors backend/src/sessions/index.ts's ACTIVITY_WINDOW_MS exactly
 
 function computeActivelyWorking(s) {
   return s.running?.status === "busy" || Date.now() - s.lastActive < ACTIVITY_WINDOW_MS;
