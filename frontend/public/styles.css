@@ -293,6 +293,9 @@
                 max-width 220ms cubic-bezier(.4,0,.2,1), background 220ms ease, border-color 220ms ease;
   }
   .board-col.dragover { border-color: var(--accent); background: var(--chip-bg); }
+  .board-col.board-col-sticky {
+    position: sticky; left: 0; z-index: 3; box-shadow: 4px 0 8px -4px rgba(0,0,0,0.3);
+  }
   .board-col-header {
     display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--line);
     font-size: 13px; font-weight: 600; cursor: grab;
@@ -383,9 +386,10 @@
   .board-col-body { padding: 10px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
   .board-card {
     background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
-    font-size: 12.5px; cursor: grab; display: flex; flex-direction: column; gap: 8px;
+    font-size: 12.5px; display: flex; flex-direction: column; gap: 8px;
   }
-  .board-card:active { cursor: grabbing; }
+  .board-card[draggable="true"] { cursor: grab; }
+  .board-card[draggable="true"]:active { cursor: grabbing; }
   .board-card.dragging { opacity: 0.4; }
   .board-card .bc-title { font-weight: 500; display: flex; align-items: center; gap: 6px; }
   .board-card .bc-desc { color: var(--dim); font-size: 11.5px; display: flex; align-items: center; gap: 6px; }
@@ -487,7 +491,8 @@
   }
   .modal-row { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
   .modal-row label { font-weight: 500; }
-  .modal-checkbox { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .modal-checkbox { display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; }
+  .modal-checkbox input { cursor: pointer; }
   .dangerous-label { color: var(--danger); font-weight: 600; }
   .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
   /* the New Task modal nests its session-only fields in a wrapper, so restore the column spacing

@@ -54,6 +54,13 @@ export function openColumnTaskModal(colId, ctx) {
     document.getElementById("colTaskStart").textContent = t ? "🎫 Create ticket" : "▶ Launch in new terminal";
   };
   isTicketBox.addEventListener("change", syncTicketMode);
+  // Enter launches/creates (Shift+Enter still inserts a newline), matching Quick Prompt's textarea.
+  document.getElementById("colTaskDesc").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      document.getElementById("colTaskStart").click();
+    }
+  });
   document.getElementById("colTaskCancel").addEventListener("click", closeReviewModal);
   document.getElementById("colTaskStart").addEventListener("click", async () => {
     const name = document.getElementById("colTaskName").value.trim();
@@ -70,7 +77,7 @@ export function openColumnTaskModal(colId, ctx) {
       const data = await res.json();
       closeReviewModal();
       if (data.ok) {
-        await setBoardTag(ctx, data.ticket.id, colId);
+        await setBoardTag(ctx, data.ticket.id, colId, true);
         toast("Ticket created");
         loadSessions();
       } else toast("Failed to create ticket: " + (data.error || "unknown error"));

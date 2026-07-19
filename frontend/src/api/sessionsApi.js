@@ -62,7 +62,7 @@ export async function loadSessions(opts = {}) {
     contextPct: null,
     running: null,
     startedSessionId: t.startedSessionId,
-    meta: { name: t.title, notes: t.notes, board: t.board, status: t.done ? "done" : undefined },
+    meta: { name: t.title, notes: t.notes, board: t.board, boardTags: t.boardTags, status: t.done ? "done" : undefined },
   }));
   setSessions([...data.sessions, ...tickets]);
   setAgents(data.agents || []);
@@ -117,7 +117,12 @@ export async function loadSessions(opts = {}) {
 
 export async function patchMeta(id, patch) {
   const s = sessions.find((x) => x.id === id);
-  if (s) s.meta = { ...s.meta, ...patch };
+  if (s) {
+    // boardTags is a map of independent per-board slots — a plain spread would replace the whole
+    // map with just the incoming key, silently dropping this card's tag in every OTHER board.
+    const boardTags = patch.boardTags ? { ...s.meta?.boardTags, ...patch.boardTags } : undefined;
+    s.meta = { ...s.meta, ...patch, ...(boardTags ? { boardTags } : {}) };
+  }
   render();
   if (s?.isTicket) {
     // tickets persist to their own store; map meta fields onto ticket fields
@@ -125,6 +130,7 @@ export async function patchMeta(id, patch) {
     if ("name" in patch) body.title = patch.name;
     if ("notes" in patch) body.notes = patch.notes;
     if ("board" in patch) body.board = patch.board;
+    if ("boardTags" in patch) body.boardTags = patch.boardTags;
     if ("cwd" in patch) body.cwd = patch.cwd;
     if ("status" in patch) body.done = patch.status === "done";
     if ("startedSessionId" in patch) body.startedSessionId = patch.startedSessionId;

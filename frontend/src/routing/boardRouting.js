@@ -171,7 +171,28 @@ export function boardTagFor(ctx, s) {
   return s.meta?.board ?? null;
 }
 
-export async function setBoardTag(ctx, cardId, colId) {
+// isTicket overrides the sessions-array lookup — needed right after creating a new ticket (or
+// session), when it hasn't landed in local state yet (loadSessions() runs after this call, not
+// before) — "not found locally" alone can't tell a brand-new ticket from a brand-new session.
+export async function setBoardTag(ctx, cardId, colId, isTicket) {
+  const s = sessions.find((x) => x.id === cardId);
+  // Tickets live in their own store (data/tickets/), not meta.json — patchMeta's PUT
+  // /api/sessions/:id/meta silently writes to the wrong place for one (no such session exists),
+  // so a ticket's tag never persisted anywhere the board actually reads it.
+  if (isTicket ?? s?.isTicket) {
+    if (s) {
+      // already loaded (e.g. being dragged) — update local state and render immediately, same as
+      // patchMeta, so it moves on drop instead of waiting for the round-trip to finish
+      s.meta = { ...s.meta, boardTags: { ...s.meta?.boardTags, [ctxKey(ctx)]: colId } };
+      await import("../pages/sessionsPage.js").then((m) => m.render());
+    }
+    await fetch(`/api/tickets/${cardId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ boardTags: { [ctxKey(ctx)]: colId } }),
+    });
+    return;
+  }
   const { patchMeta } = await import("../api/sessionsApi.js");
   await patchMeta(cardId, { boardTags: { [ctxKey(ctx)]: colId } });
 }

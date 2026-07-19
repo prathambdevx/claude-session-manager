@@ -1,7 +1,6 @@
 import { sessions, autoHideEmpty } from "../../state.js";
 import { escapeHtml, escapeAttr, projectName } from "../../ui/format.js";
-import { patchMeta } from "../../api/sessionsApi.js";
-import { setBoardMode, enterProjectBoard, ensureAllProjectColumns, boardTagFor, setBoardTag } from "../../routing/boardRouting.js";
+import { setBoardMode, enterProjectBoard, ensureAllProjectColumns, boardTagFor } from "../../routing/boardRouting.js";
 import { boardCardHtml } from "../../subcomponents/boardCard.js";
 import { wireBoardCards } from "./wireBoardCards.js";
 import { agentsDockHtml, wireAgentsDock } from "../agentsDock/agentsDock.js";
@@ -12,6 +11,7 @@ import { manageColumnsButtonHtml, wireManageColumnsPanel, isManageColumnsMenuOpe
 import { createSavedView } from "../../api/savedViewsApi.js";
 import { openPromptModal } from "../../ui/promptModal.js";
 import { openConfirmModal } from "../../ui/confirmModal.js";
+import { wireBoardDragDrop, reorderColumns } from "./wireBoardDragDrop.js";
 
 // Membership is computed, not bucketed: home column shows everyone, a .cwd column shows matching
 // sessions permanently, everything else is a plain per-board tag (independent per board — see
@@ -109,7 +109,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
         // so it doesn't snap back after a confusing drag.
         const dragLocked = c.id === homeId && !c.hidden;
         return `
-        <div class="board-col${c.hidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c)}" data-col-id="${c.id}">
+        <div class="board-col${dragLocked ? " board-col-sticky" : ""}${c.hidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c)}" data-col-id="${c.id}">
           <div class="board-col-header" draggable="${!c.renaming && !dragLocked}" data-col-drag="${c.id}" title="${dragLocked ? "Always stays first" : c.cwd ? "Drag to reorder" : "Drag to reorder columns"}">
             <span class="drag-handle">⠿</span>
             ${titleHtml}
@@ -133,7 +133,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
             <div class="pill-count">${items.length}</div>
           </div>
           <div class="board-col-body" data-col-drop="${c.id}">
-            ${items.map(boardCardHtml).join("") || '<div class="empty" style="padding:16px 0;">Drop here</div>'}
+            ${items.map((s) => boardCardHtml(s, ctx)).join("") || '<div class="empty" style="padding:16px 0;">Drop here</div>'}
           </div>
         </div>
       `;
@@ -275,47 +275,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     setTimeout(() => { delete created.fresh; }, 500);
   });
 
-  // drag & drop — cards move between columns, column headers reorder columns
-  app.querySelectorAll(".board-card").forEach((card) => {
-    card.addEventListener("dragstart", (e) => {
-      e.stopPropagation();
-      card.classList.add("dragging");
-      e.dataTransfer.setData("text/plain", "card:" + card.dataset.cardId);
-      e.dataTransfer.effectAllowed = "move";
-    });
-    card.addEventListener("dragend", () => card.classList.remove("dragging"));
-  });
-
-  app.querySelectorAll("[data-col-drag]").forEach((handle) => {
-    handle.addEventListener("dragstart", (e) => {
-      if (e.target.closest("[data-add-col-task], [data-rename-col-input], [data-collapse-col], .bc-menu-wrap")) { e.preventDefault(); return; }
-      e.stopPropagation();
-      e.dataTransfer.setData("text/plain", "col:" + handle.dataset.colDrag);
-      e.dataTransfer.effectAllowed = "move";
-      handle.closest(".board-col").classList.add("dragging");
-    });
-    handle.addEventListener("dragend", () => handle.closest(".board-col")?.classList.remove("dragging"));
-  });
-
-  app.querySelectorAll(".board-col").forEach((col) => {
-    col.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      col.classList.add("dragover");
-    });
-    col.addEventListener("dragleave", () => col.classList.remove("dragover"));
-    col.addEventListener("drop", (e) => {
-      e.preventDefault();
-      col.classList.remove("dragover");
-      const payload = e.dataTransfer.getData("text/plain");
-      const colId = col.dataset.colId;
-      if (payload.startsWith("col:")) {
-        reorderColumns(ctx, payload.slice(4), colId, rerender);
-        return;
-      }
-      handleCardDrop(ctx, payload.replace(/^card:/, ""), colId, rerender);
-    });
-  });
-
+  wireBoardDragDrop(app, ctx, rerender);
   wireAgentsDock(app);
 }
 
@@ -353,25 +313,6 @@ function wireInlineRename(app, ctx, rerender) {
   });
 }
 
-function reorderColumns(ctx, fromId, toId, rerender) {
-  if (fromId === toId) return;
-  // The home column stays pinned first while it's actually shown — hidden, there's nothing to
-  // pin, so the remaining visible columns reorder freely (including whichever is now first).
-  const home = ctx.kind === "group" ? null : ctx.cols[0];
-  if (home && !home.hidden && (fromId === home.id || toId === home.id)) {
-    toast(`"${home.title}" always stays first`);
-    return;
-  }
-  const fromIdx = ctx.cols.findIndex((c) => c.id === fromId);
-  const toIdx = ctx.cols.findIndex((c) => c.id === toId);
-  if (fromIdx === -1 || toIdx === -1) return;
-  pushHistory(ctx);
-  const [moved] = ctx.cols.splice(fromIdx, 1);
-  ctx.cols.splice(toIdx, 0, moved);
-  ctx.save();
-  rerender();
-}
-
 async function removeColumn(ctx, id, rerender) {
   if (id === ctx.cols[0]?.id) { toast(`"${ctx.cols[0].title}" can't be deleted — hide it instead`); return; }
   if (ctx.cols.length <= 1) { toast("Need at least one column"); return; }
@@ -391,49 +332,3 @@ async function removeColumn(ctx, id, rerender) {
   rerender();
 }
 
-async function handleCardDrop(ctx, cardId, colId, rerender) {
-  const s = sessions.find((x) => x.id === cardId);
-  if (!s) return;
-  const homeId = ctx.cols[0]?.id;
-  const targetCol = ctx.cols.find((c) => c.id === colId);
-
-  // dropping onto the home column ("All sessions") isn't a move — it clears whatever custom tag
-  // this card has, since home always shows everyone regardless of tag
-  if (colId === homeId) {
-    if (boardTagFor(ctx, s) == null) { toast('Already shown in "All sessions"'); return; }
-    pushHistory(ctx);
-    rerender();
-    await setBoardTag(ctx, cardId, null);
-    return;
-  }
-
-  if (ctx.kind === "main" && targetCol?.cwd) {
-    if (!s.isTicket) {
-      // a session's project is fixed — dropping it on a DIFFERENT project's column is rejected;
-      // dropping it on its OWN project column just clears any custom tag (it's already shown there)
-      if (s.cwd !== targetCol.cwd) {
-        toast(`Can't move — this session belongs to "${projectName(s.cwd)}", not "${projectName(targetCol.cwd)}"`);
-        return;
-      }
-      if (boardTagFor(ctx, s) == null) { toast("Already shown on its own project column"); return; }
-      pushHistory(ctx);
-      rerender();
-      await setBoardTag(ctx, cardId, null);
-      return;
-    }
-    // a ticket has no fixed project — dropping it on a project column adopts that project as its
-    // own (membership there is then computed from its cwd, same as a real session)
-    pushHistory(ctx);
-    s.cwd = targetCol.cwd;
-    rerender();
-    await patchMeta(cardId, { cwd: targetCol.cwd });
-    await setBoardTag(ctx, cardId, null);
-    return;
-  }
-
-  // a plain column (Priority/In Progress/Done/custom, on Main board or inside a project's own
-  // board): tag it here — independently per board, never a shared/global placement
-  pushHistory(ctx);
-  rerender();
-  await setBoardTag(ctx, cardId, colId);
-}

@@ -70,14 +70,17 @@ function doneChipHtml(s) {
   `;
 }
 
-export function boardCardHtml(s) {
-  if (s.isTicket) return ticketCardHtml(s);
+export function boardCardHtml(s, ctx) {
+  if (s.isTicket) return ticketCardHtml(s, ctx);
+  // Projects lens: each column IS a project, matched by the session's own fixed cwd — there's no
+  // "board tag" to drop onto, so dragging a card between columns would never do anything.
+  const draggable = ctx?.kind === "group" ? "false" : "true";
   const title = s.meta?.name || (s.firstMessage ? s.firstMessage.slice(0, 50) : "(untitled)");
   const desc = s.meta?.description;
   const isLive = !!s.running;
   const summarizing = summarizingIds.has(s.id);
   return `
-    <div class="board-card" draggable="true" data-card-id="${s.id}">
+    <div class="board-card" draggable="${draggable}" data-card-id="${s.id}">
       <div class="bc-title">
         <span class="dot ${isLive ? "live" : "idle"}" style="margin-top:0"></span>
         <span style="min-width:0; overflow-wrap:anywhere;">${escapeHtml(title)}</span>
@@ -112,13 +115,14 @@ export function boardCardHtml(s) {
   `;
 }
 
-export function ticketCardHtml(s) {
+export function ticketCardHtml(s, ctx) {
+  const draggable = ctx?.kind === "group" ? "false" : "true";
   const title = s.meta?.name || "(untitled ticket)";
   const notes = s.meta?.notes;
   const done = s.meta?.status === "done";
   const startedSession = s.startedSessionId ? sessions.find((x) => x.id === s.startedSessionId) : null;
   return `
-    <div class="board-card ticket-card ${done ? "ticket-done" : ""}" draggable="true" data-card-id="${s.id}">
+    <div class="board-card ticket-card ${done ? "ticket-done" : ""}" draggable="${draggable}" data-card-id="${s.id}">
       <div class="bc-title">
         <span class="ticket-tag">TICKET</span>
         <span style="min-width:0; overflow-wrap:anywhere; ${done ? "text-decoration:line-through; opacity:0.6;" : ""}">${escapeHtml(title)}</span>
