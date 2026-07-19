@@ -52,9 +52,12 @@ function isAutoHidden(c, count, isHome) {
 function columnRowHtml(c, count, isHome, locked, lockedReason) {
   const autoHidden = isAutoHidden(c, count, isHome);
   const shown = !c.hidden && !autoHidden;
+  // The home column stays pinned first while visible — reorderColumns rejects the drop anyway,
+  // but making the row itself undraggable avoids a confusing drag that silently snaps back.
+  const dragLocked = isHome && !c.hidden;
   return `
-    <div class="drow" draggable="true" data-row-col-id="${c.id}">
-      <span class="row-drag">⠿</span>
+    <div class="drow" draggable="${!dragLocked}" data-row-col-id="${c.id}">
+      <span class="row-drag" ${dragLocked ? `title="Always stays first while shown"` : ""}>⠿</span>
       <button class="sw${shown ? " on" : ""}" data-toggle-hidden="${c.id}" title="${shown ? "Hide" : "Show"} this column"></button>
       <span class="lbl">${escapeHtml(c.title)}</span>
       ${autoHidden ? '<span class="quiet">auto-hidden</span>' : ""}

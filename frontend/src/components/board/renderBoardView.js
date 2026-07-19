@@ -105,9 +105,12 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
         // Header/body and collapsed pill both stay in the DOM; only a .collapsed class (toggled
         // directly, not via rerender) switches them, so the CSS transition has something to animate.
+        // Home column stays pinned first while visible — see reorderColumns; undraggable here too
+        // so it doesn't snap back after a confusing drag.
+        const dragLocked = c.id === homeId && !c.hidden;
         return `
         <div class="board-col${c.hidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c)}" data-col-id="${c.id}">
-          <div class="board-col-header" draggable="${!c.renaming}" data-col-drag="${c.id}" title="${c.cwd ? "Drag to reorder" : "Drag to reorder columns"}">
+          <div class="board-col-header" draggable="${!c.renaming && !dragLocked}" data-col-drag="${c.id}" title="${dragLocked ? "Always stays first" : c.cwd ? "Drag to reorder" : "Drag to reorder columns"}">
             <span class="drag-handle">⠿</span>
             ${titleHtml}
             <span class="board-count">${items.length}</span>
@@ -352,6 +355,13 @@ function wireInlineRename(app, ctx, rerender) {
 
 function reorderColumns(ctx, fromId, toId, rerender) {
   if (fromId === toId) return;
+  // The home column stays pinned first while it's actually shown — hidden, there's nothing to
+  // pin, so the remaining visible columns reorder freely (including whichever is now first).
+  const home = ctx.kind === "group" ? null : ctx.cols[0];
+  if (home && !home.hidden && (fromId === home.id || toId === home.id)) {
+    toast(`"${home.title}" always stays first`);
+    return;
+  }
   const fromIdx = ctx.cols.findIndex((c) => c.id === fromId);
   const toIdx = ctx.cols.findIndex((c) => c.id === toId);
   if (fromIdx === -1 || toIdx === -1) return;
