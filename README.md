@@ -22,6 +22,15 @@ server in the background (auto-starts on login too). Then open `http://127.0.0.1
 
 Already cloned it yourself? `cd` in and run `bash bootstrap.sh` — same thing, skips the clone.
 
+## Updating
+
+Whenever there's a fix or new feature, just **re-run the exact same install command** — it pulls
+the latest code (instead of re-cloning) and restarts the server:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/prathambdevx/claude-session-manager/main/bootstrap.sh | bash
+```
+
 To remove auto-start later: `bun run setup -- --uninstall`
 
 The server runs as a long-lived background process, so editing a file under `backend/` doesn't
