@@ -9,16 +9,18 @@ Reads directly from `~/.claude/` — no database, no cloud, nothing to sync.
 
 ## Install
 
-Requires [Bun](https://bun.sh) and the `claude` CLI on your PATH.
+Requires the `claude` CLI on your PATH. Nothing else needs to be pre-installed — one command on a
+completely fresh Mac:
 
 ```bash
-git clone https://github.com/prathambdevx/claude-session-manager.git ~/tools/claude-sessions
-cd ~/tools/claude-sessions
-bun run setup
+curl -fsSL https://raw.githubusercontent.com/prathambdevx/claude-session-manager/main/bootstrap.sh | bash
 ```
 
-That's it — one command. It starts the server and keeps it running in the background (auto-starts
-on login too), then open `http://127.0.0.1:4321`.
+It installs Bun if it's missing, clones this repo (to `~/tools/claude-sessions`), installs
+Ghostty, checks Accessibility access (prompting you to grant it if it's missing), and starts the
+server in the background (auto-starts on login too). Then open `http://127.0.0.1:4321`.
+
+Already cloned it yourself? `cd` in and run `bash bootstrap.sh` — same thing, skips the clone.
 
 To remove auto-start later: `bun run setup -- --uninstall`
 
