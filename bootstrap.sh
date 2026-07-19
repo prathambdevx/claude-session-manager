@@ -21,6 +21,12 @@ if [ ! -f "backend/setup.ts" ]; then
   if [ ! -d "$REPO_DIR/.git" ]; then
     echo "Cloning claude-session-manager into $REPO_DIR..."
     git clone https://github.com/prathambdevx/claude-session-manager.git "$REPO_DIR"
+  else
+    # A stale clone sitting there from a previous install would otherwise silently run whatever
+    # old code it has and reconfigure launchd to serve it — always bring it up to date first.
+    # --ff-only so this never overwrites real local changes; falls through to use it as-is if not.
+    echo "Found an existing clone at $REPO_DIR — updating it..."
+    git -C "$REPO_DIR" pull --ff-only origin main || echo "⚠ Couldn't update $REPO_DIR (local changes?) — using it as-is."
   fi
   cd "$REPO_DIR"
 fi
