@@ -9,6 +9,10 @@ export let currentTab = localStorage.getItem("currentTab") || "sessions";
 export let collapsedProjects = new Set(JSON.parse(localStorage.getItem("collapsedProjects") || "[]"));
 export let expandedCards = new Set();
 export let summarizingIds = new Set();
+// sessionId -> the exact lastActivity text dismissed — the "done" chip has no backing job record
+// (it's inferred straight from the transcript), so dismissal is a client-side-only marker that
+// naturally clears itself once a new activity line makes the stored value stop matching.
+export let dismissedDoneChips = new Map();
 
 // Home column ("All sessions", id "all-sessions") always shows every session; the rest are status
 // columns. The home column is identified positionally (cols[0]), so its id is just a stable label.
@@ -63,3 +67,4 @@ export function setActiveView(v) { activeView = v; }
 export function setSavedViews(v) { savedViews = v; }
 export function setAutoHideEmpty(v) { autoHideEmpty = v; }
 export function setBoardHistory(v) { boardHistory = v; }
+export function dismissDoneChip(sessionId, activity) { dismissedDoneChips.set(sessionId, activity); }

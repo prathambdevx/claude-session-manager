@@ -35,7 +35,7 @@ export function buildLaunchScript(
   opts: { model?: string | null; sessionId?: string | null; dangerous?: boolean } = {}
 ): string {
   const model = opts.model && KNOWN_MODELS.has(opts.model) ? opts.model : DEFAULT_MODEL;
-  const modelFlag = ` --model ${modelAliasWithContext(model)}`;
+  const modelFlag = ` --model ${shellQuote(modelAliasWithContext(model))}`;
   const sessionFlag = opts.sessionId ? ` --session-id ${opts.sessionId}` : "";
   const dangerFlag = opts.dangerous !== false ? DANGEROUS_FLAG : "";
 

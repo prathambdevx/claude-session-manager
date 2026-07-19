@@ -1,6 +1,6 @@
 // Card action wiring shared by renderBoardView (main/per-project boards) and any other place a
 // board-card's markup gets inserted — click actions, double-click-to-resume, and the 3-dot menu.
-import { sessions } from "../../state.js";
+import { sessions, dismissDoneChip } from "../../state.js";
 import { resumeSession, deleteSession, closeSessionTerminal, summarizeSession, patchMeta, loadSessions } from "../../api/sessionsApi.js";
 import { openReviewModal } from "../modals/reviewModal.js";
 import { openExtractModal } from "../modals/extractModal.js";
@@ -28,6 +28,10 @@ export function wireBoardCards(app) {
       if (action === "ticket-convert") convertTicketToSession(id);
       if (action === "quickprompt") openQuickPromptModal(id);
       if (action === "quickjob-dismiss") { await dismissQuickPrompt(id); await loadSessions(); }
+      if (action === "donechip-dismiss") {
+        dismissDoneChip(id, s?.lastActivity);
+        await import("../../pages/sessionsPage.js").then((m) => m.render());
+      }
       if (action === "rename") {
         openRenameModal(id, s?.meta?.name, s?.isTicket ? "Rename ticket" : "Rename session");
       }

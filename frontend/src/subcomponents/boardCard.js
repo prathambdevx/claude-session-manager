@@ -1,6 +1,6 @@
 // One session/ticket card as it appears on the kanban board (main board, a per-project board,
 // or a "Group by project" column).
-import { summarizingIds, quickPrompts, sessions } from "../state.js";
+import { summarizingIds, quickPrompts, sessions, dismissedDoneChips } from "../state.js";
 import { escapeHtml, timeAgo, projectName } from "../ui/format.js";
 import { ctxBadgeFullHtml } from "../ui/contextBadge.js";
 
@@ -16,11 +16,18 @@ function jobChipHtml(s) {
   const icon = j.status === "error" ? '<span class="jc-icon">⚠</span>'
     : j.status === "done" ? '<span class="jc-icon">✓</span>'
     : '<span class="job-spin"></span>';
-  const label = j.prompt.length > 50 ? j.prompt.slice(0, 50) + "…" : j.prompt;
+  // Once done, show Claude's actual answer (what you'd want at a glance) — you already know what
+  // you asked, so the prompt itself moves to the hover tooltip instead of the visible label.
+  const labelSource = j.status === "done" && j.result ? j.result : j.prompt;
+  const label = labelSource.length > 50 ? labelSource.slice(0, 50) + "…" : labelSource;
   const step = j.status === "done" ? "Done" : j.status === "error" ? (j.error || "Failed")
     : (j.progress?.[j.progress.length - 1] || "Working…");
+  // Still running has no finished state to clear yet — only done/error chips are dismissible.
+  const dismissable = j.status !== "running";
+  const dismissAttrs = dismissable ? `data-action="quickjob-dismiss" data-id="${s.id}"` : "";
+  const titleText = dismissable ? `Prompt: ${j.prompt} — click to dismiss` : j.prompt;
   return `
-    <div class="job-chip ${cls}" data-action="quickjob-dismiss" data-id="${j.id}" title="${escapeHtml(j.prompt)} — click to dismiss">
+    <div class="job-chip ${cls}" ${dismissAttrs} title="${escapeHtml(titleText)}">
       <div class="jc-row">${icon}<span class="jc-text">${escapeHtml(label)}</span></div>
       <div class="jc-step">${escapeHtml(step)}</div>
       <div class="jc-track"><div class="jc-fill"></div></div>
@@ -47,9 +54,10 @@ const DONE_CHIP_WINDOW_MS = 5 * 60 * 1000;
 function doneChipHtml(s) {
   if (s.activelyWorking || !s.lastActivity?.startsWith("💭")) return "";
   if (Date.now() - s.lastActive > DONE_CHIP_WINDOW_MS) return "";
+  if (dismissedDoneChips.get(s.id) === s.lastActivity) return "";
   const msg = s.lastActivity.slice(2).trim();
   return `
-    <div class="job-chip job-done">
+    <div class="job-chip job-done" data-action="donechip-dismiss" data-id="${s.id}" title="click to dismiss">
       <div class="jc-row"><span class="jc-icon">✓</span><span class="jc-text">Done: "${escapeHtml(msg)}"</span></div>
       <div class="jc-track"><div class="jc-fill"></div></div>
     </div>

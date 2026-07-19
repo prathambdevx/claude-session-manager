@@ -19,9 +19,10 @@ export { queryNeedles, matchSnippets, keywordSearchScores } from "./search.ts";
 
 import type { Session } from "./shared.ts";
 
-// Shared with routes/sessions.ts and fsWatcher.ts so both agree: Claude Code's own status file
-// can get stuck on stale "waiting", so a recent transcript write also counts as "actively working".
-export const ACTIVITY_WINDOW_MS = 15_000;
+// Shared with routes/sessions.ts and fsWatcher.ts so both agree. Live testing showed Claude Code's
+// own busy/idle status flips in sync with real completion, so this is just a short crash-safety
+// margin now, not a long stale-status workaround.
+export const ACTIVITY_WINDOW_MS = 3_000;
 export function computeActivelyWorking(s: Session, running: { status?: string } | null | undefined): boolean {
   return running?.status === "busy" || Date.now() - s.lastActive < ACTIVITY_WINDOW_MS;
 }

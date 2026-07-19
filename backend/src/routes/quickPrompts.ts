@@ -45,9 +45,12 @@ function lastAssistantText(raw: string): string | null {
 
 // Polls the transcript for a genuinely final response (plain-text last block, activityLine's 💭)
 // rather than the first change — otherwise a multi-step task flipped "done" after just the first
-// tool call.
+// tool call. baselineEntryUuid must belong to a DIFFERENT assistant entry than whatever was already
+// last in the transcript before this prompt was sent — a bare mtime change can otherwise be the
+// previous turn's write still settling to disk, which reads back as an instant false "done".
 function watchTranscriptForCompletion(
-  record: QuickPromptJob, transcriptPath: string, sinceMtimeMs: number, startedAt: number = Date.now()
+  record: QuickPromptJob, transcriptPath: string, sinceMtimeMs: number,
+  baselineEntryUuid: string | null, startedAt: number = Date.now()
 ) {
   const tick = async () => {
     if (Date.now() - startedAt > QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS) {
@@ -72,8 +75,13 @@ function watchTranscriptForCompletion(
         // fall through with empty text — treated as "still working", not a false "done"
       }
       const entry = lastAssistantEntry(text);
-      const line = entry ? activityLine(entry) : null;
-      if (line?.startsWith("💭")) {
+      const isNewEntry = entry && entry.uuid !== baselineEntryUuid;
+      const line = isNewEntry ? activityLine(entry) : null;
+      // Claude Code's own busy/idle status tracked true in testing (flips the instant real work
+      // finishes) — require it to also agree before trusting the transcript-only signal.
+      const running = await loadRunning();
+      const stillBusy = running[record.sessionId]?.status === "busy";
+      if (line?.startsWith("💭") && !stillBusy) {
         await saveQuickPromptJob({
           ...record, status: "done", finishedAt: Date.now(),
           result: lastAssistantText(text) || "(sent — check the terminal for its response)",
@@ -82,7 +90,7 @@ function watchTranscriptForCompletion(
       }
       record.progress = [...record.progress, line || "Working…"];
       await saveQuickPromptJob(record);
-      setTimeout(() => watchTranscriptForCompletion(record, transcriptPath, mtimeMs, startedAt), WATCH_POLL_MS);
+      setTimeout(() => watchTranscriptForCompletion(record, transcriptPath, mtimeMs, baselineEntryUuid, startedAt), WATCH_POLL_MS);
       return;
     }
     setTimeout(tick, WATCH_POLL_MS);
@@ -127,8 +135,10 @@ export async function handleQuickPromptRoutes(req: Request, url: URL): Promise<R
     const live = running[sessionId];
     if (usingGhostty() || live) {
       let baselineMtimeMs = 0;
+      let baselineEntryUuid: string | null = null;
       try {
         baselineMtimeMs = (await stat(transcriptPath)).mtimeMs;
+        baselineEntryUuid = lastAssistantEntry(await readFile(transcriptPath, "utf-8"))?.uuid ?? null;
       } catch {
         // no transcript on disk yet — any future write counts as new
       }
@@ -136,7 +146,7 @@ export async function handleQuickPromptRoutes(req: Request, url: URL): Promise<R
       if (delivered) {
         const record: QuickPromptJob = { ...baseRecord, progress: ["Sent — waiting for a response in the terminal…"] };
         await saveQuickPromptJob(record); // persist "running" immediately so the chip shows up right away
-        watchTranscriptForCompletion(record, transcriptPath, baselineMtimeMs);
+        watchTranscriptForCompletion(record, transcriptPath, baselineMtimeMs, baselineEntryUuid);
         return json({ ok: true, deliveredTo: "terminal", jobId: id });
       }
       // no open terminal for this session (or delivery failed) — fall through to the background

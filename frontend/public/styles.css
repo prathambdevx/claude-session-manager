@@ -412,11 +412,13 @@
   /* ---------- Quick Prompt's on-card job chip — persists until clicked, never auto-hides ---------- */
   .job-chip {
     display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; border-radius: 7px;
-    font-size: 10.5px; cursor: pointer; border: 1px solid transparent;
+    font-size: 10.5px; border: 1px solid transparent;
   }
+  /* only done/error chips are dismissible — a still-running one has nothing to clear yet */
+  .job-chip[data-action="quickjob-dismiss"], .job-chip[data-action="donechip-dismiss"] { cursor: pointer; }
   /* border-color only — a stale duplicate rule here used to also shrink padding on hover,
      shifting the whole chip's height and everything below it on the card */
-  .job-chip:hover { border-color: var(--accent); }
+  .job-chip[data-action="quickjob-dismiss"]:hover, .job-chip[data-action="donechip-dismiss"]:hover { border-color: var(--accent); }
   .job-chip .jc-row { display: flex; align-items: center; gap: 6px; }
   .job-chip .jc-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .job-chip .jc-icon { flex-shrink: 0; font-size: 10px; }
