@@ -16,11 +16,7 @@ completely fresh Mac:
 curl -fsSL https://raw.githubusercontent.com/prathambdevx/claude-session-manager/main/bootstrap.sh | bash
 ```
 
-It installs Bun if it's missing, clones this repo (to `~/tools/claude-sessions`), installs
-Ghostty, checks Accessibility access (prompting you to grant it if it's missing), and starts the
-server in the background (auto-starts on login too). Then open `http://127.0.0.1:4321`.
-
-Already cloned it yourself? `cd` in and run `bash bootstrap.sh` — same thing, skips the clone.
+Then open `http://127.0.0.1:4321`.
 
 ## Updating
 
