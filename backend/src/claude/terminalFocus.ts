@@ -168,7 +168,18 @@ function closeGhosttyWindowByTag(tag: string): Promise<boolean> {
 // when there's simply nothing to close.
 export async function closeRunningSessionTerminal(pid: number | null, ghosttyTag?: string): Promise<boolean> {
   if (usingGhostty()) {
-    return ghosttyTag ? closeGhosttyWindowByTag(ghosttyTag) : false;
+    const closed = ghosttyTag ? await closeGhosttyWindowByTag(ghosttyTag) : false;
+    // Ghostty's own "close window" scripting command closes the window but doesn't reliably
+    // terminate the underlying claude process (confirmed live: it survives as an orphan, still
+    // reported "running") — kill it directly too so the card's live dot actually goes idle.
+    if (pid != null && pidAlive(pid)) {
+      try {
+        process.kill(pid);
+      } catch {
+        // already gone
+      }
+    }
+    return closed;
   }
   if (pid == null || !pidAlive(pid)) return false;
   const tty = await getTtyForPid(pid);

@@ -135,7 +135,9 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
   const closeTerminalMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/close-terminal$/);
   if (closeTerminalMatch && req.method === "POST") {
     const id = closeTerminalMatch[1];
-    const pid = usingGhostty() ? null : (await loadRunning())[id]?.pid ?? null;
+    // Unlike the resume route, a missing/stale pid here just means we skip the direct kill and
+    // fall back to whatever the window-close action alone accomplishes — never a false veto.
+    const pid = (await loadRunning())[id]?.pid ?? null;
     const closed = await closeRunningSessionTerminal(pid, ghosttyWindowTag(id));
     return json({ ok: true, closed });
   }
