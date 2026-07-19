@@ -164,9 +164,11 @@ export async function retileGhosttyWindows(newTag: string): Promise<void> {
     body += placeByTag(ordered[0], sx, sy, sw / 2, sh);
     body += placeByTag(ordered[1], sx + sw / 2, sy, sw / 2, sh);
   } else if (n === 3) {
-    body += placeByTag(ordered[0], sx, sy, sw / 2, sh / 2);
+    // Oldest gets the full-height left column (like the 2-window case), the other two stack in
+    // the right half — not a plain 2x2 grid, since there's no 4th window yet to fill it out.
+    body += placeByTag(ordered[0], sx, sy, sw / 2, sh);
     body += placeByTag(ordered[1], sx + sw / 2, sy, sw / 2, sh / 2);
-    body += placeByTag(ordered[2], sx, sy + sh / 2, sw / 2, sh / 2);
+    body += placeByTag(ordered[2], sx + sw / 2, sy + sh / 2, sw / 2, sh / 2);
   } else if (n === 4) {
     body += placeByTag(ordered[0], sx, sy, sw / 2, sh / 2);
     body += placeByTag(ordered[1], sx + sw / 2, sy, sw / 2, sh / 2);

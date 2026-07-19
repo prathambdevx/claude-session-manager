@@ -11,8 +11,8 @@ layout as more are open — no manual arranging needed. All of it lives in
 |---|---|
 | 1 | Untouched — wherever Ghostty's own default puts it |
 | 2 | Left half / right half |
-| 3 | Top-left / top-right / bottom-left (bottom-right empty) |
-| 4 | All four quadrants filled |
+| 3 | Oldest gets the full-height left column; the other two stack top-right / bottom-right |
+| 4 | All four quadrants filled (the left column splits into top-left / bottom-left) |
 | 5+ | The newest is centered on top (65% × 75% of the screen); the first 4 are left as-is |
 
 "Oldest"/"newest" is real open order, not window stacking order — see below.

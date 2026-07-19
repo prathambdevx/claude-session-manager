@@ -16,6 +16,28 @@ const PLIST_PATH = join(AGENTS_DIR, `${LABEL}.plist`);
 const LOG_PATH = join(ROOT, "launchd.log");
 const GHOSTTY_APP = "/Applications/Ghostty.app";
 
+// Focusing an existing window and auto-tiling both need Accessibility access via System Events —
+// macOS can't auto-prompt for it once the server runs as a launchd background daemon (no attached
+// UI session), so it fails silently forever unless granted up front. Checked here, interactively,
+// instead. Best-effort, like ensureGhostty below: never blocks setup either way.
+function hasAccessibilityAccess(): boolean {
+  const result = spawnSync("osascript", ["-e", 'tell application "System Events" to UI elements enabled'], { encoding: "utf-8" });
+  return result.stdout.trim() === "true";
+}
+
+function ensureAccessibilityAccess() {
+  if (hasAccessibilityAccess()) {
+    console.log("✓ Accessibility access already granted — resuming an open session will reuse its window.");
+    return;
+  }
+  console.log(
+    "⚠ Accessibility access isn't granted yet — without it, Resume can't find an already-open\n" +
+      "  terminal window and always opens a new one instead. Opening System Settings now; add\n" +
+      "  \"bun\" (or your terminal app) to Privacy & Security → Accessibility, then re-run `bun run setup`."
+  );
+  spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"], { stdio: "ignore" });
+}
+
 // Sessions launch in Ghostty when it's installed (src/claude.ts prefers it over Apple Terminal), so
 // setup installs it via Homebrew if it isn't already there. Best-effort: if Homebrew is missing or
 // the install fails, launches just fall back to Apple Terminal — never blocks the rest of setup.
@@ -55,6 +77,7 @@ async function uninstall() {
 
 async function install() {
   await ensureGhostty();
+  ensureAccessibilityAccess();
 
   // resolve the bun binary running this script; fall back to `which bun`
   let bun = process.execPath;

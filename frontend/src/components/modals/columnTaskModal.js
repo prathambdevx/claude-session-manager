@@ -14,7 +14,7 @@ export function openColumnTaskModal(colId, ctx) {
   // A project's own board, or a project-tagged column on Main board, already knows which project
   // this task belongs to — no need to ask (and no way to get it wrong by picking a different one).
   const lockedCwd = ctx.kind === "project" ? ctx.cwd : col?.cwd || null;
-  const projectOptions = [...new Set(sessions.map((s) => s.cwd))].sort((a, b) => projectName(a).localeCompare(projectName(b)));
+  const projectOptions = [...new Set(sessions.filter((s) => s.cwd).map((s) => s.cwd))].sort((a, b) => projectName(a).localeCompare(projectName(b)));
   const lastCwd = localStorage.getItem(LAST_TASK_PROJECT_KEY);
   // A ticket has no fixed project, so it can never actually show up on a project-dedicated column
   // (membership there is computed purely by cwd) or on home (which shows every real session, not a
