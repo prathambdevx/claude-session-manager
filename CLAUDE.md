@@ -55,6 +55,7 @@ browser refresh.
 
 ## Working here
 
-- **Commit/push only when explicitly asked** — never proactively. Branch first if on `main`.
+- **Commit/push only when explicitly asked** — never proactively. Commit directly on `main` unless
+  the user explicitly asks for a branch. Always open a PR after pushing a branch.
 - Match the surrounding code's style and comment density (comments explain *why*, not *what*).
 - macOS-specific by design (real terminals, `launchd`) — don't try to make it cross-platform.
