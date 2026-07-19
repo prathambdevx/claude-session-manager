@@ -6,10 +6,11 @@
 <title>Claude Sessions</title>
 <link rel="icon" type="image/webp" href="/favicon.webp" />
 <script>
-  // applied before the stylesheet loads so there's no flash of the wrong theme on load
+  // applied before the stylesheet loads so there's no flash of the wrong theme on load —
+  // defaults to dark for a first-time visitor rather than following the OS preference
   (function () {
     var t = localStorage.getItem("theme");
-    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+    document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
   })();
 </script>
 <link rel="stylesheet" href="/styles.css" />

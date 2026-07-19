@@ -1,9 +1,7 @@
-// dark/light toggle — data-theme on <html> overrides prefers-color-scheme; its absence means
-// "follow the OS".
+// dark/light toggle — defaults to dark regardless of OS preference; index.html's inline
+// pre-paint script already stamps data-theme on <html> before this ever runs.
 export function currentTheme() {
-  const override = document.documentElement.getAttribute("data-theme");
-  if (override) return override;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return document.documentElement.getAttribute("data-theme") || "dark";
 }
 
 export function updateThemeIcon() {
@@ -28,10 +26,6 @@ export function initThemeToggle() {
     localStorage.setItem("theme", next);
     updateThemeIcon();
     playThemeSound();
-  });
-  // if the user hasn't explicitly chosen a theme, keep the icon in sync with OS changes
-  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
-    if (!localStorage.getItem("theme")) updateThemeIcon();
   });
   updateThemeIcon();
 }
