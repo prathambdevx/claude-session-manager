@@ -57,5 +57,9 @@ browser refresh.
 
 - **Commit/push only when explicitly asked** — never proactively. Commit directly on `main` unless
   the user explicitly asks for a branch. Always open a PR after pushing a branch.
+- GitHub's branch protection on `main` requires PRs — leave that rule as-is, don't change it. The
+  user's account has admin rights and can bypass it, so pushing/merging directly to `main` (e.g.
+  `git push origin main`, `gh pr merge --admin`) is expected to print a "bypassed rule violations"
+  notice and still succeed — that's normal here, not a sign something's wrong.
 - Match the surrounding code's style and comment density (comments explain *why*, not *what*).
 - macOS-specific by design (real terminals, `launchd`) — don't try to make it cross-platform.
