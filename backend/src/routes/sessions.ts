@@ -128,7 +128,7 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     const meta = await loadMeta();
     const label = meta[id]?.name || s.firstMessage || id.slice(0, 8);
     if (!fork) await writeGhosttyTitle(id, ghosttyWindowTitle(label, id));
-    await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitleFile: ghosttyTitleFilePath(id) });
+    await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitleFile: ghosttyTitleFilePath(id), ghosttyTag: ghosttyWindowTag(id) });
     return json({ ok: true, command: cmd, cwd: s.cwd });
   }
 

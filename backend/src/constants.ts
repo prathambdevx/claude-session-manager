@@ -36,6 +36,10 @@ export const QUICKPROMPTS_DIR = join(DATA_DIR, "quickprompts");
 // title live — Ghostty's window "name" is read-only via AppleScript, so this file is the only way
 // to push a title change into a window that's already running.
 export const GHOSTTY_TITLES_DIR = join(DATA_DIR, "ghostty-titles");
+// Ordered list of currently-open csm-<id8> tags, oldest first — lets auto-tiling assign quadrants
+// by real open order instead of trusting System Events' window list order, which is only reliable
+// for the just-created window (always frontmost); order among the rest isn't dependable.
+export const GHOSTTY_WINDOW_ORDER_PATH = join(DATA_DIR, "ghostty-window-order.json");
 export const PUBLIC_DIR = join(REPO_ROOT, "frontend", "public");
 // Component JS modules (frontend/src/**) are a sibling of public/, not nested under it — served
 // separately since index.html's <script type="module"> requests them at /src/*.

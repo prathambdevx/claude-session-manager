@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { GHOSTTY_TITLES_DIR } from "../constants.ts";
 import { usingGhostty } from "./ghosttyEnv.ts";
+import { retileGhosttyWindows } from "./terminalTile.ts";
 
 export function shellQuote(s: string): string {
   return `'${s.replace(/'/g, `'\\''`)}'`;
@@ -48,7 +49,7 @@ function appleScriptQuote(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-export async function openTerminalRunning(cwd: string, command: string, opts: { ghosttyTitleFile?: string } = {}) {
+export async function openTerminalRunning(cwd: string, command: string, opts: { ghosttyTitleFile?: string; ghosttyTag?: string } = {}) {
   if (usingGhostty()) {
     // A background loop re-reads the title file every second and re-asserts it via OSC — this is
     // what lets a rename in the UI update an already-open window's title live. It's wrapped in a
@@ -79,6 +80,9 @@ export async function openTerminalRunning(cwd: string, command: string, opts: { 
       "end tell",
     ].join("\n");
     spawn("osascript", ["-e", osa], { stdio: "ignore", detached: true }).unref();
+    // Not awaited — retiling does its own osascript round-trips (window-appearance poll included),
+    // and this route already returns before the window itself exists.
+    if (opts.ghosttyTag) retileGhosttyWindows(opts.ghosttyTag);
     return;
   }
 

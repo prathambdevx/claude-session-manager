@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { KNOWN_MODELS, LAUNCH_MODES } from "../constants.ts";
 import { loadMeta, saveMeta } from "../store.ts";
-import { buildLaunchScript, openTerminalRunning, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath } from "../claude/index.ts";
+import { buildLaunchScript, openTerminalRunning, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath, ghosttyWindowTag } from "../claude/index.ts";
 import { json } from "./json.ts";
 
 export async function handleLaunchRoutes(req: Request, url: URL): Promise<Response | null> {
@@ -21,7 +21,7 @@ export async function handleLaunchRoutes(req: Request, url: URL): Promise<Respon
     // window title-polling mechanism as the resume route, otherwise a rename before the first
     // resume/reopen has no running loop to pick it up and silently does nothing
     await writeGhosttyTitle(sessionId, ghosttyWindowTitle(name || task, sessionId));
-    await openTerminalRunning(cwd, script, { ghosttyTitleFile: ghosttyTitleFilePath(sessionId) });
+    await openTerminalRunning(cwd, script, { ghosttyTitleFile: ghosttyTitleFilePath(sessionId), ghosttyTag: ghosttyWindowTag(sessionId) });
     if (name) {
       const meta = await loadMeta();
       meta[sessionId] = { ...meta[sessionId], name };
