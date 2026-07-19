@@ -64,7 +64,10 @@ export async function openTerminalRunning(cwd: string, command: string, opts: { 
     //
     // A temp script file (not an inline command string) sidesteps AppleScript escaping of the
     // title loop and any ambiguity in how Ghostty parses `command`.
-    const script = `#!/bin/zsh\ncd ${shellQuote(cwd)}\n${wrapped}\n`;
+    // Claude Code writes its own terminal title while working, fighting the loop above for control
+    // of it (confirmed live: the title visibly flickered between the two every ~1s) — this opts out
+    // entirely so our own tag is never contended for.
+    const script = `#!/bin/zsh\nexport CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1\ncd ${shellQuote(cwd)}\n${wrapped}\n`;
     const path = join(tmpdir(), `claude-sessions-launch-${crypto.randomUUID()}.sh`);
     await Bun.write(path, script);
     const osa = [

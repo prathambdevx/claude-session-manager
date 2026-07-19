@@ -101,7 +101,9 @@ function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
 // Try to bring this session's existing terminal window to front instead of spawning a duplicate.
 export async function tryFocusRunningSession(pid: number | null, ghosttyTag?: string): Promise<boolean> {
   // Ghostty matches by the session's csm-<id8> title tag, never by pid — Claude Code leaves
-  // stale/orphaned pid files that would wrongly veto a real focus.
+  // stale/orphaned pid files that would wrongly veto a real focus. CLAUDE_CODE_DISABLE_TERMINAL_TITLE
+  // (set in terminalLaunch.ts) keeps Claude Code from ever contending for the title, so a single
+  // check is reliable — this used to retry against a live title flicker before that was found.
   if (usingGhostty()) {
     return ghosttyTag ? focusExistingGhosttyWindow(ghosttyTag) : false;
   }
