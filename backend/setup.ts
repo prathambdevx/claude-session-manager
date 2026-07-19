@@ -26,14 +26,13 @@ function hasAccessibilityAccess(): boolean {
   return result.stdout.trim() === "true";
 }
 
-// Returns true if a warning was printed (permission missing), so the caller knows whether to
-// pause for it to actually be read before setup barrels on to the next step.
+// Returns true if this permission is missing, so the caller knows whether to open Settings and
+// print the reminder below.
 function ensureAccessibilityAccess(): boolean {
   if (hasAccessibilityAccess()) {
-    console.log("✓ Accessibility access already granted — resuming an open session will reuse its window.");
+    console.log("✓ Accessibility permission for \"bun\" already granted.");
     return false;
   }
-  console.log("⚠ Need Accessibility permission for \"bun\" — opening System Settings, please enable it there.");
   spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"], { stdio: "ignore" });
   return true;
 }
@@ -48,10 +47,9 @@ function hasGhosttyAutomationAccess(): boolean {
 
 function ensureGhosttyAutomationAccess(): boolean {
   if (hasGhosttyAutomationAccess()) {
-    console.log("✓ Automation access to Ghostty already granted.");
+    console.log("✓ Automation permission for \"bun\" and \"Ghostty\" already granted.");
     return false;
   }
-  console.log("⚠ Need permission for \"bun\" to control Ghostty — opening System Settings, please enable it there.");
   spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"], { stdio: "ignore" });
   return true;
 }
@@ -97,9 +95,12 @@ async function install() {
   await ensureGhostty();
   const accessibilityWarned = ensureAccessibilityAccess();
   const automationWarned = ensureGhosttyAutomationAccess();
-  // give a real few seconds to actually read the warning(s) above before the rest of setup's own
-  // output scrolls them away — only when there's something to read.
-  if (accessibilityWarned || automationWarned) await Bun.sleep(5000);
+  // one simple line covers both — give a real few seconds to actually read it before the rest of
+  // setup's own output scrolls it away.
+  if (accessibilityWarned || automationWarned) {
+    console.log("⚠ Please grant permission for Ghostty and bun in the System Settings window that just opened.");
+    await Bun.sleep(5000);
+  }
 
   // resolve the bun binary running this script; fall back to `which bun`
   let bun = process.execPath;
