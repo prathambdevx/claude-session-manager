@@ -7,12 +7,6 @@ import { existsSync } from "node:fs";
 import { writeFile, unlink, mkdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
-// OSC 8 — a real terminal hyperlink, not just styled text. Terminal.app/iTerm2/Ghostty/VS Code
-// all auto-style a real OSC 8 link (blue + underlined) on their own — adding SGR codes on top of
-// it here is redundant and risks confusing where the clickable region actually starts/ends.
-function terminalLink(url: string): string {
-  return `\x1b]8;;${url}\x1b\\${url}\x1b]8;;\x1b\\`;
-}
 
 const LABEL = "com.claude-session-manager";
 const LEGACY_LABELS = ["com.pratham.claude-sessions"]; // older hand-installed labels to clean up
@@ -32,10 +26,12 @@ function hasAccessibilityAccess(): boolean {
   return result.stdout.trim() === "true";
 }
 
-function ensureAccessibilityAccess() {
+// Returns true if a warning was printed (permission missing), so the caller knows whether to
+// pause for it to actually be read before setup barrels on to the next step.
+function ensureAccessibilityAccess(): boolean {
   if (hasAccessibilityAccess()) {
     console.log("✓ Accessibility access already granted — resuming an open session will reuse its window.");
-    return;
+    return false;
   }
   console.log(
     "⚠ Accessibility access isn't granted yet — without it, Resume can't find an already-open\n" +
@@ -43,6 +39,29 @@ function ensureAccessibilityAccess() {
       "  \"bun\" (or your terminal app) to Privacy & Security → Accessibility, then re-run `bun run setup`."
   );
   spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"], { stdio: "ignore" });
+  return true;
+}
+
+// Separate TCC category from Accessibility above — this is what governs `tell application
+// "Ghostty" to ...` commands (launching windows, auto-tiling's own script). Launches Ghostty as a
+// side effect if it isn't already running.
+function hasGhosttyAutomationAccess(): boolean {
+  const result = spawnSync("osascript", ["-e", 'tell application "Ghostty" to count windows'], { encoding: "utf-8" });
+  return result.status === 0;
+}
+
+function ensureGhosttyAutomationAccess(): boolean {
+  if (hasGhosttyAutomationAccess()) {
+    console.log("✓ Automation access to Ghostty already granted.");
+    return false;
+  }
+  console.log(
+    "⚠ Automation access to Ghostty isn't granted yet — without it, sessions can't launch in\n" +
+      "  Ghostty at all. Opening System Settings now; add \"bun\" (or your terminal app) under\n" +
+      "  Privacy & Security → Automation, allow it to control Ghostty, then re-run `bun run setup`."
+  );
+  spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"], { stdio: "ignore" });
+  return true;
 }
 
 // Sessions launch in Ghostty when it's installed (src/claude.ts prefers it over Apple Terminal), so
@@ -84,7 +103,11 @@ async function uninstall() {
 
 async function install() {
   await ensureGhostty();
-  ensureAccessibilityAccess();
+  const accessibilityWarned = ensureAccessibilityAccess();
+  const automationWarned = ensureGhosttyAutomationAccess();
+  // give a real few seconds to actually read the warning(s) above before the rest of setup's own
+  // output scrolls them away — only when there's something to read.
+  if (accessibilityWarned || automationWarned) await Bun.sleep(5000);
 
   // resolve the bun binary running this script; fall back to `which bun`
   let bun = process.execPath;
@@ -143,7 +166,7 @@ async function install() {
   console.log(`  folder:  ${ROOT}`);
   console.log(`  logs:    ${LOG_PATH}`);
   console.log("\nIt's running now and will start automatically on every login/reboot.");
-  console.log(`Open:  ${terminalLink("http://127.0.0.1:4321")}`);
+  console.log("Open: http://127.0.0.1:4321");
 }
 
 if (process.argv.includes("--uninstall")) {
