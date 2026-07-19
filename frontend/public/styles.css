@@ -518,6 +518,28 @@
   #delegationModal { display: flex; flex-direction: column; gap: 12px; }
   #delegationModal .modal-actions { margin-top: 2px; }
 
+  /* ---------- First-load overlay — only shown if loadSessions() takes long enough to matter
+     (see main.js's delayed-show timer); #appShell blurs underneath so it isn't a jarring cut. ---------- */
+  #appShell.loading-active { filter: blur(6px); pointer-events: none; user-select: none; }
+  .loading-overlay {
+    position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 55%, transparent);
+    display: flex; align-items: center; justify-content: center; z-index: 30;
+  }
+  .loading-modal {
+    width: 320px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 26px 24px 22px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.35);
+  }
+  .loading-mark { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; margin: 0 auto 14px; display: block; }
+  .loading-modal h2 { font-size: 15px; font-weight: 650; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .loading-sub { font-size: 12px; color: var(--dim); margin: 0 0 18px; line-height: 1.5; }
+  .loading-sub b { color: var(--ink); font-weight: 600; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; }
+  .loading-track { height: 4px; border-radius: 3px; background: var(--chip-bg); overflow: hidden; position: relative; }
+  .loading-fill {
+    position: absolute; inset: 0; width: 40%; border-radius: 3px; background: var(--accent);
+    animation: loading-indeterminate 1.3s ease-in-out infinite;
+  }
+  @keyframes loading-indeterminate { 0% { left: -40%; } 100% { left: 100%; } }
+
   /* ---------- Quick Prompt modal ---------- */
   .qp-hint { font-size: 11px; color: var(--dim); line-height: 1.5; }
   .qp-presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -549,20 +571,64 @@
   .layout { display: flex; align-items: flex-start; }
   .layout-main { flex: 1; min-width: 0; }
   #sidebar {
+    --views-callout-accent: #2f7de0;
     width: 220px; flex-shrink: 0; box-sizing: border-box;
     padding: 16px 10px 24px; display: flex; flex-direction: column; gap: 2px;
     border-right: 1px solid var(--line);
     /* position:sticky always creates its own stacking context, so a z-index inside it (e.g. the
-       view-menu dropdown) only ranks within that context — without an explicit z-index here, the
-       whole sidebar (dropdown included) paints below the unrelated main board content next to it */
-    position: sticky; top: 0; z-index: 1; align-self: flex-start;
+       view-menu dropdown, or the home column's own .board-col-sticky at z-index:3) only ranks
+       within that context — this needs to beat every z-index used elsewhere on the board, or the
+       whole sidebar (dropdown/callout included) paints below that unrelated content instead. */
+    position: sticky; top: 0; z-index: 6; align-self: flex-start;
     max-height: 100vh; overflow-y: auto;
   }
+  @media (prefers-color-scheme: dark) { #sidebar { --views-callout-accent: #5b9bf0; } }
+  :root[data-theme="dark"] #sidebar { --views-callout-accent: #5b9bf0; }
+  :root[data-theme="light"] #sidebar { --views-callout-accent: #2f7de0; }
   .sidebar-group {
     font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
     color: var(--dim); padding: 14px 10px 6px;
+    display: flex; align-items: center; gap: 5px; position: relative;
   }
   .sidebar-group:first-child { padding-top: 4px; }
+  .views-info-btn {
+    width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--dim); background: none;
+    color: var(--dim); font-size: 10px; font-weight: 700; line-height: 1; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, monospace; flex-shrink: 0; text-transform: none;
+  }
+  .views-info-btn:hover, .views-info-btn[aria-expanded="true"] { border-color: var(--views-callout-accent); color: var(--views-callout-accent); }
+  /* Floating popover, matching the reference mock exactly — a dedicated blue (not the app's gold
+     --accent) so it reads as a transient hint, not a permanent piece of UI chrome.
+     position:fixed (not absolute) — #sidebar's overflow-y:auto forces overflow-x to clip too per
+     the CSS overflow spec, so anything positioned to float past its right edge would otherwise be
+     silently cut off. Left/top are set from the info button's real screen position in JS instead. */
+  .views-callout {
+    position: fixed; width: 250px; z-index: 9999;
+    background: var(--panel); border: 1px solid var(--views-callout-accent); border-radius: 10px;
+    padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+    opacity: 0; transform: translateX(-4px) scale(0.98); pointer-events: none;
+    transition: opacity 120ms ease, transform 120ms ease;
+  }
+  .views-callout.show { opacity: 1; transform: none; pointer-events: auto; }
+  .views-callout::before {
+    content: ""; position: absolute; left: -7px; top: 16px; width: 12px; height: 12px;
+    background: var(--panel); border-left: 1px solid var(--views-callout-accent);
+    border-bottom: 1px solid var(--views-callout-accent); transform: rotate(45deg);
+  }
+  .views-callout-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+  .views-callout-head .tag {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--views-callout-accent);
+  }
+  .views-callout-close {
+    width: 16px; height: 16px; border: none; background: none; color: var(--dim); font-size: 13px;
+    line-height: 1; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 4px; flex-shrink: 0;
+  }
+  .views-callout-close:hover { color: var(--ink); background: var(--chip-bg); }
+  .views-callout p { font-size: 12px; line-height: 1.5; color: var(--ink); margin: 0; }
+  .views-callout p + p { margin-top: 6px; color: var(--dim); }
   .sidebar-item {
     display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px;
     font-size: 13px; cursor: pointer; user-select: none; transition: background-color 120ms ease;
@@ -638,8 +704,10 @@
   }
   .sw.on { background: rgba(178,125,20,0.28); }
   .sw.on::after { background: var(--accent); transform: translateX(11px); }
-  /* pinned-on while filtered to this project — not a live control, so it shouldn't invite a click */
-  .sw.locked { cursor: default; opacity: 0.55; }
+  /* pinned-on while filtered to this project — not a live control, so it shouldn't invite a click.
+     Stays gold (still reads as "on", not a different color entirely) but faded enough that it's
+     obviously not a normal, clickable active toggle. */
+  .sw.locked { cursor: default; opacity: 0.45; }
 
   /* ---------- Inline column rename / freshly-added column / hidden state ---------- */
   .col-title-input {

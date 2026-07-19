@@ -67,17 +67,6 @@ export async function loadSessions(opts = {}) {
   }
   setBoardColumns(cols);
 
-  // One-time per browser: adds a column per project without touching existing columns; gated on a
-  // flag so a manually-removed project column isn't resurrected.
-  if (!localStorage.getItem("projectColumnsMigrated")) {
-    const merged = mergeInProjectColumns(cols, data.sessions || []);
-    if (merged.changed) {
-      setBoardColumns(merged.columns);
-      await saveBoardColumns();
-    }
-    localStorage.setItem("projectColumnsMigrated", "1");
-  }
-
   setGroupBoardColumns(Array.isArray(data.groupBoard) ? data.groupBoard : []);
   // no manual "Regroup" button for this view — every project always gets a column, silently,
   // on every load (existing order/hidden/collapsed state for already-present columns untouched)

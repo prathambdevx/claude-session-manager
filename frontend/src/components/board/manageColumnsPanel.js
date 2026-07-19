@@ -105,12 +105,14 @@ export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, s
   // In the "Projects" group lens every column is a real project — draggable/hideable/renameable,
   // but never deletable (there's nothing to "add back" the way a plain custom column has).
   const isGroupLens = ctx.kind === "group";
+  const getIsHome = (c) => isHomeFor ? isHomeFor(c) : c === ctx.cols[0] && !isGroupLens && !ctx.cols[0]?.cwd;
   const orderedCols = orderFor ? orderFor(ctx.cols) : ctx.cols;
   orderedCols.forEach((c) => {
-    const isHome = isHomeFor ? isHomeFor(c) : c === ctx.cols[0] && !isGroupLens && !ctx.cols[0]?.cwd;
+    const isHome = getIsHome(c);
     // The project you're actively filtering to is what you're currently relying on staying put —
-    // deleting it out from under yourself would be surprising, so it's locked only while filtered.
-    const isFilterMatch = !isHome && !isGroupLens && !!lockedFor?.(c);
+    // deleting/hiding it out from under yourself would be surprising, so it's locked only while
+    // filtered. lockedFor already covers home standing in for a project with no dedicated column.
+    const isFilterMatch = !isGroupLens && !!lockedFor?.(c);
     const locked = isHome || isGroupLens || isFilterMatch;
     const lockedReason = isGroupLens
       ? "Project columns can be renamed, reordered, and hidden — but not deleted"
@@ -128,7 +130,7 @@ export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, s
       const c = ctx.cols.find((x) => x.id === btn.dataset.toggleHidden);
       if (!c) return;
       pushHistory(ctx);
-      const isHome = isHomeFor ? isHomeFor(c) : c === ctx.cols[0] && !c.cwd;
+      const isHome = getIsHome(c);
       if (c.hidden) {
         c.hidden = false; // manually hidden -> show
       } else if (isAutoHidden(c, countFor(c), isHome)) {

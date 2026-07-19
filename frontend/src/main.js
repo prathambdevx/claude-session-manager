@@ -76,7 +76,18 @@ wireTabs();
 
 // initBoardStateFromLocation already set the view from the URL; loadSessions renders it (and, for a
 // /views/<id> deep link, re-renders once savedViews arrive so the saved view resolves).
-loadSessions();
+// The overlay only shows if this first load is actually slow (a big ~/.claude to scan) — the timer
+// is cleared as soon as loading finishes, so a normal fast local load never flashes it at all.
+const loadingOverlay = document.getElementById("loadingOverlay");
+const showOverlayTimer = setTimeout(() => {
+  loadingOverlay.style.display = "flex";
+  document.getElementById("appShell").classList.add("loading-active");
+}, 350);
+loadSessions().finally(() => {
+  clearTimeout(showOverlayTimer);
+  loadingOverlay.style.display = "none";
+  document.getElementById("appShell").classList.remove("loading-active");
+});
 initLiveUpdates(); // SSE — pushes a granular refetch within tens of ms of a real change (api/sse.js)
 // Slow backstop only — SSE is the real-time path; this just covers the reconnect gap after e.g. a
 // server restart. background:true so it never rebuilds under an open menu.

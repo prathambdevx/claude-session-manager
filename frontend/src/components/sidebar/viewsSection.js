@@ -32,18 +32,82 @@ function viewRowHtml(id, label, opts = {}) {
   `;
 }
 
+// Shown open the very first time anyone loads the app (fresh install, no flag yet) — closing it
+// (✕, clicking it, or clicking elsewhere) marks the flag so it never auto-opens again.
+const VIEWS_INFO_SEEN_KEY = "viewsInfoSeen";
+
 export function viewsSectionHtml() {
   return `
-    <div class="sidebar-group">Views</div>
+    <div class="sidebar-group">
+      Views
+      <button class="views-info-btn" data-views-info-toggle type="button" aria-expanded="false" title="What's a view?">i</button>
+    </div>
+    <div class="views-callout" data-views-callout>
+      <div class="views-callout-head">
+        <span class="tag">Views</span>
+        <button class="views-callout-close" data-views-info-close type="button" title="Close">✕</button>
+      </div>
+      <p><b>A view is a saved column layout.</b> "Main board" is the one you start with.</p>
+      <p>Arrange your columns how you like, then <b>＋ Save as view</b> to keep that arrangement here
+      — switch between as many as you want, anytime.</p>
+    </div>
     ${viewRowHtml("main", "Main board")}
     ${savedViews.map((v) => viewRowHtml(`saved:${v.id}`, v.title, { renameable: true, rawId: v.id })).join("")}
   `;
 }
 
+// #sidebar has overflow-y:auto, which per the CSS overflow spec forces overflow-x to clip too — an
+// absolutely-positioned popover meant to float past the sidebar's right edge would be silently cut
+// off. Fixed position + real screen coordinates (same trick the saved-view ⋮ menu below already
+// uses) escapes that entirely. Anchored off the sidebar's own right edge (not the tiny icon itself)
+// so it floats well clear of the sidebar, matching the reference mock.
+function positionCallout(anchorBtn, sidebarEl, callout) {
+  const btnRect = anchorBtn.getBoundingClientRect();
+  const sidebarRect = sidebarEl.getBoundingClientRect();
+  callout.style.left = sidebarRect.right + 14 + "px";
+  callout.style.top = btnRect.top - 12 + "px";
+}
+
+// Registered once at module load, not per-render — the sidebar re-renders wholesale on every
+// change, so a per-render listener would stack a fresh one each time. Queries the live element
+// fresh on every click instead of holding a stale reference.
+document.addEventListener("click", (e) => {
+  const callout = document.querySelector("[data-views-callout]");
+  const toggleBtn = document.querySelector("[data-views-info-toggle]");
+  if (!callout?.classList.contains("show")) return;
+  if (callout.contains(e.target) || e.target === toggleBtn) return;
+  callout.classList.remove("show");
+  toggleBtn?.setAttribute("aria-expanded", "false");
+  localStorage.setItem(VIEWS_INFO_SEEN_KEY, "1");
+});
+
 export function wireViewsSection(root) {
   root.querySelectorAll("[data-switch-view]").forEach((el) => {
     el.addEventListener("click", () => switchToView(el.dataset.switchView));
   });
+
+  const infoBtn = root.querySelector("[data-views-info-toggle]");
+  const callout = root.querySelector("[data-views-callout]");
+  const openCallout = () => {
+    positionCallout(infoBtn, root, callout);
+    callout.classList.add("show");
+    infoBtn.setAttribute("aria-expanded", "true");
+  };
+  const closeCallout = () => {
+    callout.classList.remove("show");
+    infoBtn.setAttribute("aria-expanded", "false");
+    localStorage.setItem(VIEWS_INFO_SEEN_KEY, "1");
+  };
+  infoBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (callout.classList.contains("show")) closeCallout();
+    else openCallout();
+  });
+  callout?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeCallout();
+  });
+  if (infoBtn && callout && !localStorage.getItem(VIEWS_INFO_SEEN_KEY)) openCallout();
 
   // same viewport-rect positioning as board card/column menus — the sidebar is too narrow for a
   // dropdown to just fall into its natural flow position without getting clipped by the board panel

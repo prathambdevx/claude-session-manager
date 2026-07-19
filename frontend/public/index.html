@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+<div id="appShell">
 <header>
   <h1><img src="/favicon.webp" alt="" style="width:22px; height:22px; vertical-align:-4px; margin-right:8px; border-radius:5px;" />Claude Sessions</h1>
   <div class="toolbar">
@@ -55,6 +56,17 @@
 </div>
 <div class="toast" id="toast"></div>
 <div id="modalRoot"></div>
+</div>
+
+<!-- Shown only while the very first loadSessions() is still in flight — see main.js. -->
+<div id="loadingOverlay" class="loading-overlay" style="display:none">
+  <div class="loading-modal">
+    <img src="/favicon.webp" alt="" class="loading-mark" />
+    <h2>Loading your sessions</h2>
+    <p class="loading-sub">Scanning <b>~/.claude/projects</b> for your Claude Code sessions&hellip;</p>
+    <div class="loading-track"><div class="loading-fill"></div></div>
+  </div>
+</div>
 
 <script type="module" src="/src/main.js"></script>
 </body>

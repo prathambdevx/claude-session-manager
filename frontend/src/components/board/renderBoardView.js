@@ -89,8 +89,7 @@ function reorderForFilter(cols, homeId, projectFilter, homeBorrowsProjectName) {
 // (see ui/projectColors.js), so a project's column header and its own cards always match. A plain
 // custom column has no chip to match, so it keeps the old order-independent id-sort rank instead.
 const PILL_PALETTE_SIZE = 9;
-function pillColorClass(ctx, c) {
-  const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
+function pillColorClass(ctx, c, homeId) {
   if (c.id === homeId) return "col-pill-neutral";
   if (c.cwd) {
     const rank = projectColorRank(c.cwd);
@@ -106,11 +105,11 @@ function pillColorClass(ctx, c) {
 
 export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilter = "") {
   const app = document.getElementById("app");
-  // the "Projects" group lens has no home column — every one of its columns is a real project.
-  // A saved view shares kind:"main" for rendering regardless of where it was saved FROM, though —
-  // one saved from the group lens has a real project column sitting at [0], not a genuine home
-  // column, so also check for .cwd (a real home column never carries one).
-  const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
+  // Identified by its stable id, not position — a saved view's snapshot drops whatever was hidden
+  // at save time, so if "all-sessions" itself was hidden, an ordinary column can slide into index
+  // 0. Treating that as home would wrongly show it every session instead of its own tagged subset.
+  // The "Projects" group lens never has a home column — every one of its columns is a real project.
+  const homeId = ctx.kind === "group" ? null : ctx.cols.find((c) => c.id === "all-sessions")?.id ?? null;
   // A dedicated project column already carries the filtered project's identity once Regroup has
   // run (and it's the one that moves to the front — see reorderForFilter) — home only borrows the
   // name when no such column exists yet, so the two never show the same label at once.
@@ -197,10 +196,13 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
         const dragLocked = (c.id === homeId && !c.hidden) || (projectFilter && c.cwd === projectFilter);
         // A column only forced into view by the active filter (still c.hidden underneath) reads as
         // a normal, fully-visible column — the dashed/dimmed treatment is reserved for the
-        // "N hidden columns" chip's own members, which this one currently isn't.
-        const stillHidden = c.hidden && !(projectFilter && (c.cwd === projectFilter || (c.id === homeId && homeBorrowsProjectName)));
+        // "N hidden columns" chip's own members, which this one currently isn't. Auto-hidden-empty
+        // columns get the same dimmed treatment as manually-hidden ones while the menu holds them
+        // visible — otherwise they looked identical to a normal column despite being "hidden".
+        const isAutoHiddenNow = autoHideEmpty && c.id !== homeId && !c.neverPopulated && items.length === 0;
+        const stillHidden = (c.hidden || isAutoHiddenNow) && !(projectFilter && (c.cwd === projectFilter || (c.id === homeId && homeBorrowsProjectName)));
         return `
-        <div class="board-col${dragLocked ? " board-col-sticky" : ""}${stillHidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c)}" data-col-id="${c.id}">
+        <div class="board-col${dragLocked ? " board-col-sticky" : ""}${stillHidden ? " board-col-hidden" : ""}${c.fresh ? " new-col" : ""}${c.collapsed ? " collapsed" : ""} ${pillColorClass(ctx, c, homeId)}" data-col-id="${c.id}">
           <div class="board-col-header" draggable="${!c.renaming && !dragLocked}" data-col-drag="${c.id}" title="${dragLocked ? "Always stays first" : c.cwd ? "Drag to reorder" : "Drag to reorder columns"}">
             <span class="drag-handle">⠿</span>
             ${titleHtml}
@@ -282,7 +284,10 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
       cols.filter((c) => isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName)),
       homeId, projectFilter, homeBorrowsProjectName
     ),
-    lockedFor: (c) => Boolean(projectFilter) && c.cwd === projectFilter,
+    // Home counts as the filter match too when it's standing in for a project with no dedicated
+    // column yet (homeBorrowsProjectName) — hiding it in that case would strand you with nothing
+    // representing the very project you filtered to, same as hiding a real dedicated column would.
+    lockedFor: (c) => Boolean(projectFilter) && (c.cwd === projectFilter || (c.id === homeId && homeBorrowsProjectName)),
     onRename: (id) => startColumnRename(ctx, id, rerender),
     onDeleteColumn: (id) => removeColumn(ctx, id, rerender),
     onReorder: (fromId, toId) => reorderColumns(ctx, fromId, toId, rerender),
@@ -386,7 +391,12 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
     ctx.cols.splice(insertAt, 0, created);
     ctx.save();
     rerender().then(() => {
-      document.querySelector(`[data-col-id="${created.id}"]`)?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+      // The new column always lands right after the sticky home column — but scrollIntoView()
+      // doesn't know home is sticky, so if the board was already scrolled right, it can decide
+      // the new column is "visible enough" while it's actually rendering directly underneath
+      // home's pinned position. Scrolling the board fully left guarantees home and the new
+      // column both sit in the clear, un-occluded part of the viewport.
+      document.querySelector(".board")?.scrollTo({ left: 0, behavior: "smooth" });
     });
     setTimeout(() => { delete created.fresh; }, 500);
   });
