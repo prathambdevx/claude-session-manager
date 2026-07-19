@@ -17,6 +17,7 @@ export type Session = {
   contextWindow: number | null; // the denominator actually used for contextPct
   changedFiles: string[];
   lastActivity: string | null; // last tool-use/thinking/text line seen — "what is it doing" for a running session
+  lastUserMessage: string | null; // most recent real user turn — what a running session is working ON
 };
 
 // machine-generated user-role turns that aren't real human intent — task/tool notifications,

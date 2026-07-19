@@ -117,6 +117,7 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
     lastActive: st.mtimeMs,
     sizeBytes: st.size,
     lastActivity,
+    lastUserMessage: allUserMessages[allUserMessages.length - 1] ?? null,
   };
 
   transcriptCache.set(path, st.mtimeMs, st.size, session);

@@ -37,11 +37,17 @@ function jobChipHtml(s) {
 
 // Reuses Quick Prompt's .job-chip/.job-running for any actively-working session — s.activelyWorking
 // checks a recent transcript write too, since Claude Code's own "busy" status can get stuck stale.
+// Shows what you're WORKING ON (your own typed prompt) even for a message typed straight into the
+// terminal, not just Quick Prompt jobs — the current tool/thinking activity goes in the step line.
 function workingChipHtml(s) {
   if (!s.activelyWorking) return "";
+  const label = s.lastUserMessage
+    ? (s.lastUserMessage.length > 50 ? s.lastUserMessage.slice(0, 50) + "…" : s.lastUserMessage)
+    : (s.lastActivity || "Working…");
   return `
-    <div class="job-chip job-running">
-      <div class="jc-row"><span class="job-spin"></span><span class="jc-text">${escapeHtml(s.lastActivity || "Working…")}</span></div>
+    <div class="job-chip job-running" title="${escapeHtml(s.lastUserMessage || "")}">
+      <div class="jc-row"><span class="job-spin"></span><span class="jc-text">${escapeHtml(label)}</span></div>
+      ${s.lastActivity ? `<div class="jc-step">${escapeHtml(s.lastActivity)}</div>` : ""}
       <div class="jc-track"><div class="jc-fill"></div></div>
     </div>
   `;
