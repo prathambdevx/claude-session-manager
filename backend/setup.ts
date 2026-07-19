@@ -17,40 +17,28 @@ const PLIST_PATH = join(AGENTS_DIR, `${LABEL}.plist`);
 const LOG_PATH = join(ROOT, "launchd.log");
 const GHOSTTY_APP = "/Applications/Ghostty.app";
 
-// Focusing an existing window and auto-tiling both need Accessibility access via System Events —
-// macOS can't auto-prompt for it once the server runs as a launchd background daemon (no attached
-// UI session), so it fails silently forever unless granted up front. Checked here, interactively,
-// instead. Best-effort, like ensureGhostty below: never blocks setup either way.
-function hasAccessibilityAccess(): boolean {
-  const result = spawnSync("osascript", ["-e", 'tell application "System Events" to UI elements enabled'], { encoding: "utf-8" });
-  return result.stdout.trim() === "true";
+// Asks the REAL running server (not this interactive script) whether it has Accessibility/
+// Automation access — see routes/permissions.ts for why that distinction matters. Retries briefly
+// since the server has only just started.
+async function fetchServerPermissions(): Promise<{ accessibility: boolean; ghosttyAutomation: boolean } | null> {
+  for (let i = 0; i < 10; i++) {
+    try {
+      const res = await fetch("http://127.0.0.1:4321/api/permissions");
+      if (res.ok) return await res.json();
+    } catch {
+      // server may not be accepting connections yet
+    }
+    await Bun.sleep(300);
+  }
+  return null;
 }
 
-// Returns true if this permission is missing, so the caller knows whether to open Settings and
-// print the reminder below.
-function ensureAccessibilityAccess(): boolean {
-  if (hasAccessibilityAccess()) {
-    console.log("✓ Accessibility permission for \"bun\" already granted.");
+function reportPermission(granted: boolean, grantedLabel: string, settingsPane: string): boolean {
+  if (granted) {
+    console.log(`✓ ${grantedLabel}`);
     return false;
   }
-  spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"], { stdio: "ignore" });
-  return true;
-}
-
-// Separate TCC category from Accessibility above — this is what governs `tell application
-// "Ghostty" to ...` commands (launching windows, auto-tiling's own script). Launches Ghostty as a
-// side effect if it isn't already running.
-function hasGhosttyAutomationAccess(): boolean {
-  const result = spawnSync("osascript", ["-e", 'tell application "Ghostty" to count windows'], { encoding: "utf-8" });
-  return result.status === 0;
-}
-
-function ensureGhosttyAutomationAccess(): boolean {
-  if (hasGhosttyAutomationAccess()) {
-    console.log("✓ Automation permission for \"bun\" and \"Ghostty\" already granted.");
-    return false;
-  }
-  spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"], { stdio: "ignore" });
+  spawnSync("open", [`x-apple.systempreferences:com.apple.preference.security?Privacy_${settingsPane}`], { stdio: "ignore" });
   return true;
 }
 
@@ -93,14 +81,6 @@ async function uninstall() {
 
 async function install() {
   await ensureGhostty();
-  const accessibilityWarned = ensureAccessibilityAccess();
-  const automationWarned = ensureGhosttyAutomationAccess();
-  // one simple line covers both — give a real few seconds to actually read it before the rest of
-  // setup's own output scrolls it away.
-  if (accessibilityWarned || automationWarned) {
-    console.log("⚠ Please grant permission for Ghostty and bun in the System Settings window that just opened.");
-    await Bun.sleep(5000);
-  }
 
   // resolve the bun binary running this script; fall back to `which bun`
   let bun = process.execPath;
@@ -158,6 +138,19 @@ async function install() {
   console.log(`  bun:     ${bun}`);
   console.log(`  folder:  ${ROOT}`);
   console.log(`  logs:    ${LOG_PATH}`);
+
+  const perms = await fetchServerPermissions();
+  if (!perms) {
+    console.log("⚠ Couldn't reach the server yet to check permissions — run `bun run setup` again in a few seconds.");
+  } else {
+    const accessibilityMissing = reportPermission(perms.accessibility, "Accessibility permission for \"bun\" already granted.", "Accessibility");
+    const automationMissing = reportPermission(perms.ghosttyAutomation, "Automation permission for \"bun\" and \"Ghostty\" already granted.", "Automation");
+    if (accessibilityMissing || automationMissing) {
+      console.log("⚠ Please grant permission for Ghostty and bun in the System Settings window that just opened.");
+      await Bun.sleep(5000);
+    }
+  }
+
   console.log("\nIt's running now and will start automatically on every login/reboot.");
   console.log("Open: http://127.0.0.1:4321");
 }
