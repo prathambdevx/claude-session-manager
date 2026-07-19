@@ -41,7 +41,7 @@ export async function loadSessions(opts = {}) {
   const tickets = (data.tickets || []).map((t) => ({
     id: t.id,
     isTicket: true,
-    cwd: t.cwd || "🎫 Tickets", // sentinel so list-view grouping shows them under one header
+    cwd: t.cwd, // undefined when the ticket has no project — it just isn't in any project column
     lastActive: t.createdAt,
     firstMessage: t.title,
     changedFiles: [],
