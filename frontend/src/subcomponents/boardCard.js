@@ -86,7 +86,7 @@ export function boardCardHtml(s, ctx) {
         <span style="min-width:0; overflow-wrap:anywhere;">${escapeHtml(title)}</span>
         <span class="rename-pencil" data-action="rename" data-id="${s.id}" title="Rename">✎</span>
         <span class="bc-title-spacer"></span>
-        <span class="quick-prompt-btn" data-action="quickprompt" data-id="${s.id}" title="Quick prompt — run something in the background, no terminal">⚡</span>
+        <span class="quick-prompt-btn" data-action="quickprompt" data-id="${s.id}" data-tooltip="Quick prompt — send a task without opening a terminal">⚡</span>
         <div class="bc-menu-wrap">
           <button class="bc-menu-btn" data-menu-toggle="${s.id}" title="Options">⋮</button>
           <div class="bc-dropdown" id="menu-${s.id}">
@@ -102,7 +102,7 @@ export function boardCardHtml(s, ctx) {
       </div>
       <div class="bc-desc ${desc ? "" : "no-desc"}">
         <span class="bc-desc-text">${escapeHtml(desc || "no description")}</span>
-        ${desc && !summarizing ? "" : `<button class="summarize-btn ${summarizing ? "loading" : ""}" data-action="summarize" data-id="${s.id}" title="Auto-generate description">${summarizing ? "" : "✦"}</button>`}
+        ${desc && !summarizing ? "" : `<button class="summarize-btn ${summarizing ? "loading" : ""}" data-action="summarize" data-id="${s.id}" data-tooltip="Auto-generate description">${summarizing ? "" : "✦"}</button>`}
       </div>
       <div class="bc-meta">
         <span class="chip">${escapeHtml(projectName(s.cwd))}</span>
@@ -128,7 +128,7 @@ export function ticketCardHtml(s, ctx) {
         <span style="min-width:0; overflow-wrap:anywhere; ${done ? "text-decoration:line-through; opacity:0.6;" : ""}">${escapeHtml(title)}</span>
         <span class="rename-pencil" data-action="rename" data-id="${s.id}" title="Rename">✎</span>
         <span class="bc-title-spacer"></span>
-        ${s.startedSessionId ? `<span class="quick-prompt-btn" data-action="quickprompt" data-id="${s.startedSessionId}" title="Quick prompt — run something in the background, no terminal">⚡</span>` : ""}
+        ${s.startedSessionId ? `<span class="quick-prompt-btn" data-action="quickprompt" data-id="${s.startedSessionId}" data-tooltip="Quick prompt — send a task without opening a terminal">⚡</span>` : ""}
         <div class="bc-menu-wrap">
           <button class="bc-menu-btn" data-menu-toggle="${s.id}" title="Options">⋮</button>
           <div class="bc-dropdown" id="menu-${s.id}">

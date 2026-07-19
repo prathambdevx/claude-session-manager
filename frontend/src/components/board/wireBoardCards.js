@@ -9,8 +9,10 @@ import { convertTicketToSession } from "../modals/columnTaskModal.js";
 import { openPromptModal } from "../../ui/promptModal.js";
 import { openQuickPromptModal } from "../modals/quickPromptModal.js";
 import { dismissQuickPrompt } from "../../api/quickPromptsApi.js";
+import { wireTooltips } from "../../ui/tooltip.js";
 
 export function wireBoardCards(app) {
+  wireTooltips(app);
   app.querySelectorAll("[data-action]").forEach((el) => {
     el.addEventListener("click", async (e) => {
       e.stopPropagation();
