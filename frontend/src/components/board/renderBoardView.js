@@ -105,11 +105,14 @@ function pillColorClass(ctx, c, homeId) {
 
 export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilter = "") {
   const app = document.getElementById("app");
-  // Identified by its stable id, not position — a saved view's snapshot drops whatever was hidden
-  // at save time, so if "all-sessions" itself was hidden, an ordinary column can slide into index
-  // 0. Treating that as home would wrongly show it every session instead of its own tagged subset.
-  // The "Projects" group lens never has a home column — every one of its columns is a real project.
-  const homeId = ctx.kind === "group" ? null : ctx.cols.find((c) => c.id === "all-sessions")?.id ?? null;
+  // the "Projects" group lens has no home column — every one of its columns is a real project.
+  // A saved view shares kind:"main" for rendering regardless of where it was saved FROM, though —
+  // one saved from the group lens has a real project column sitting at [0], not a genuine home
+  // column, so also check for .cwd (a real home column never carries one). Home's own id isn't a
+  // reliable marker on its own — older boards kept a legacy id (e.g. "todo") from before it was
+  // renamed — so position is what identifies it; createSavedView keeps every column (hidden ones
+  // included) in place so a saved view's home never loses its slot.
+  const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
   // A dedicated project column already carries the filtered project's identity once Regroup has
   // run (and it's the one that moves to the front — see reorderForFilter) — home only borrows the
   // name when no such column exists yet, so the two never show the same label at once.
@@ -157,10 +160,15 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
     <div class="board-actions">
       ${ctx.kind === "group" ? "" : `
         ${showProjectFilter ? `
-          <select id="boardProjectFilter" title="Narrow the home column down to one project">
-            <option value="">All sessions</option>
-            ${projectCwds.map((cwd) => `<option value="${escapeAttr(cwd)}" ${cwd === projectFilter ? "selected" : ""}>${escapeHtml(projectName(cwd))}</option>`).join("")}
-          </select>` : ""}
+          <div class="project-filter-wrap">
+            <button class="btn ghost" id="projectFilterToggle" title="Narrow the home column down to one project">
+              ${escapeHtml(projectFilter ? projectName(projectFilter) : "All sessions")} <span class="pf-caret">▾</span>
+            </button>
+            <div class="bc-dropdown project-filter-dropdown" id="projectFilterDropdown">
+              <button data-project-filter-option="" class="${!projectFilter ? "active" : ""}">All sessions</button>
+              ${projectCwds.map((cwd) => `<button data-project-filter-option="${escapeAttr(cwd)}" class="${cwd === projectFilter ? "active" : ""}">${escapeHtml(projectName(cwd))}</button>`).join("")}
+            </div>
+          </div>` : ""}
         <button class="btn ghost" id="addColBtn">+ Add column</button>
       `}
       <span style="flex:1"></span>
@@ -246,26 +254,38 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
 
   const rerender = () => import("../../pages/sessionsPage.js").then((m) => m.render());
 
-  document.getElementById("boardProjectFilter")?.addEventListener("change", (e) => {
-    setProjectFilter(e.target.value);
-    // Selecting "All sessions" is the one point where you're explicitly asking to see everything
-    // again — un-hide home for good if it had been hidden, rather than leaving it invisible with
-    // no obvious way back short of a trip to Manage Columns.
-    if (!e.target.value) {
-      const home = ctx.cols.find((c) => c.id === homeId);
-      if (home?.hidden) {
-        pushHistory(ctx);
-        home.hidden = false;
-        ctx.save();
+  document.getElementById("projectFilterToggle")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const dropdown = document.getElementById("projectFilterDropdown");
+    const wasOpen = dropdown.classList.contains("open");
+    document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+    if (!wasOpen) dropdown.classList.add("open");
+  });
+  document.querySelectorAll("[data-project-filter-option]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const value = btn.dataset.projectFilterOption;
+      setProjectFilter(value);
+      // Selecting "All sessions" is the one point where you're explicitly asking to see everything
+      // again — un-hide home for good if it had been hidden, rather than leaving it invisible with
+      // no obvious way back short of a trip to Manage Columns.
+      if (!value) {
+        const home = ctx.cols.find((c) => c.id === homeId);
+        if (home?.hidden) {
+          pushHistory(ctx);
+          home.hidden = false;
+          ctx.save();
+        }
       }
-    }
-    rerender();
+      rerender();
+    });
   });
   document.getElementById("boardUndoBtn")?.addEventListener("click", () => undoLast(ctx));
   document.getElementById("saveViewBtn")?.addEventListener("click", async () => {
     const title = await openPromptModal({ title: "Save as view", label: "View name" });
-    // snapshot only what's actually on screen — hidden columns aren't part of the saved layout
-    if (title && title.trim()) createSavedView(title.trim(), ctx.cols.filter((c) => !c.hidden));
+    // Every column comes along, hidden ones included, in their existing order/positions — dropping
+    // hidden columns here would let an ordinary column slide into home's slot (index 0), and the
+    // view would then wrongly show it every session instead of its own tagged subset.
+    if (title && title.trim()) createSavedView(title.trim(), ctx.cols);
   });
 
   wireManageColumnsPanel(app, ctx, {

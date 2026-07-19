@@ -7,12 +7,15 @@ import { launchTask, patchMeta, loadSessions } from "../../api/sessionsApi.js";
 import { wireImagePaste } from "../../ui/pasteImage.js";
 import { setBoardTag } from "../../routing/boardRouting.js";
 
+const LAST_TASK_PROJECT_KEY = "lastTaskProjectCwd";
+
 export function openColumnTaskModal(colId, ctx) {
   const col = ctx.cols.find((c) => c.id === colId);
   // A project's own board, or a project-tagged column on Main board, already knows which project
   // this task belongs to — no need to ask (and no way to get it wrong by picking a different one).
   const lockedCwd = ctx.kind === "project" ? ctx.cwd : col?.cwd || null;
   const projectOptions = [...new Set(sessions.map((s) => s.cwd))].sort((a, b) => projectName(a).localeCompare(projectName(b)));
+  const lastCwd = localStorage.getItem(LAST_TASK_PROJECT_KEY);
   // A ticket has no fixed project, so it can never actually show up on a project-dedicated column
   // (membership there is computed purely by cwd) or on home (which shows every real session, not a
   // ticket) — offering the checkbox there would silently create a ticket with nowhere to land.
@@ -37,7 +40,7 @@ export function openColumnTaskModal(colId, ctx) {
         <label for="colTaskProject">Project${lockedCwd ? ` <span title="Set by the column this task was created from — can't be changed here" style="opacity:0.7; font-size:11px;">🔒</span>` : ""}</label>
         ${lockedCwd
           ? `<input type="text" id="colTaskProject" value="${escapeAttr(projectName(lockedCwd))}" data-locked-cwd="${escapeAttr(lockedCwd)}" disabled />`
-          : `<select id="colTaskProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}">${escapeHtml(projectName(p))}</option>`).join("")}</select>`}
+          : `<select id="colTaskProject">${projectOptions.map((p) => `<option value="${escapeAttr(p)}" ${p === lastCwd ? "selected" : ""}>${escapeHtml(projectName(p))}</option>`).join("")}</select>`}
       </div>
       <div class="modal-row">
         <label for="colTaskModel">Model</label>
@@ -51,6 +54,13 @@ export function openColumnTaskModal(colId, ctx) {
     </div>
   `);
   const { resolvePromptText } = wireImagePaste(document.getElementById("colTaskDesc"));
+  // Persisted as soon as you pick a project — not deferred until launch — so it's remembered even
+  // if you close the modal without ever hitting Launch.
+  if (!lockedCwd) {
+    document.getElementById("colTaskProject").addEventListener("change", (e) => {
+      localStorage.setItem(LAST_TASK_PROJECT_KEY, e.target.value);
+    });
+  }
   const isTicketBox = document.getElementById("colIsTicket");
   if (isTicketBox) {
     const syncTicketMode = () => {

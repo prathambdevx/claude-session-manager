@@ -660,14 +660,18 @@
   .btn:disabled { opacity: 0.4; cursor: default; }
   .btn:disabled:hover { border-color: var(--line); }
   .board-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-  #boardProjectFilter {
-    font-size: 12px; padding: 7px 30px 7px 10px; border-color: var(--accent);
-    /* the native select arrow ignores padding-right in most browsers and sits flush against the
-       border regardless — draw our own so there's real breathing room before the edge */
-    appearance: none; -webkit-appearance: none;
-    background-repeat: no-repeat; background-position: right 12px center;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23B27D14' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  .project-filter-wrap { position: relative; flex-shrink: 0; }
+  #projectFilterToggle {
+    border-color: var(--accent); color: var(--accent); display: flex; align-items: center;
+    gap: 6px; min-width: 150px; justify-content: space-between;
   }
+  #projectFilterToggle:hover { background: var(--chip-bg); }
+  .pf-caret { font-size: 9px; opacity: 0.8; }
+  .project-filter-dropdown {
+    position: absolute; top: 100%; left: 0; margin-top: 6px;
+    min-width: 180px; max-height: 60vh; overflow-y: auto;
+  }
+  .project-filter-dropdown button.active { color: var(--accent); font-weight: 600; }
   /* ---------- Manage Columns dropdown ----------
      Unlike the card ⋮ menus (shown via a JS-positioned .open class toggle), this one is only ever
      in the DOM while its panel is open (see manageColumnsPanel.js), so it must override the base
