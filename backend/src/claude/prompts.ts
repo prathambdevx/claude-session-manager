@@ -3,7 +3,7 @@
 import { EFFORT_FLAG, DEFAULT_MODEL, EXTENDED_CONTEXT } from "../config.ts";
 import { KNOWN_MODELS, DANGEROUS_FLAG, CLAUDE_BIN } from "../constants.ts";
 import type { ReviewRecord, ContextRecord, Agent } from "../store.ts";
-import { shellQuote } from "./terminalLaunch.ts";
+import { shellQuote } from "./terminal/terminalLaunch.ts";
 
 const REVIEW_PROMPT =
   "Review the uncommitted changes in this repo (git diff, plus any new untracked files) as a senior " +

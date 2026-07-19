@@ -69,7 +69,7 @@ There does exist a lower-level mechanism for targeting a specific PID
 (`NSAppleEventDescriptor(processIdentifier:)`), but that requires writing and compiling a small
 native Objective-C/Swift helper — it is **not reachable from a plain shell-level `osascript -e
 "<script text>"` call**, which is the only mechanism this codebase uses to talk to Ghostty
-(see `backend/src/claude/terminalFocus.ts`, `terminalLaunch.ts`). The generic UI-scripting bridge
+(see `backend/src/claude/terminal/terminalFocus.ts`, `terminalLaunch.ts`). The generic UI-scripting bridge
 (`tell application "System Events" to tell process "Ghostty"`) can distinguish multiple
 same-named processes in its process list, but it can only simulate clicks/keystrokes — it cannot
 invoke Ghostty's own custom scripting commands (`new window`, `tabs of window`, etc.) on a specific
@@ -123,11 +123,11 @@ arrow with no fork at all.
   same scriptable instance instead of a new invisible one.
 
 ## Files involved (for the session building the HTML to reference, not to re-read from scratch)
-- `backend/src/claude/terminalLaunch.ts` — `openTerminalRunning()`, the launcher (this is where
-  `open -na` was replaced).
-- `backend/src/claude/terminalFocus.ts` — `focusExistingGhosttyWindow()`, the search/focus logic
-  (unchanged in its core idea, now searches tabs within windows too since sessions can be tabs OR
-  windows).
+- `backend/src/claude/terminal/` — every AppleScript/JXA (`osascript`) file that drives a terminal
+  window lives here: `terminalLaunch.ts` (`openTerminalRunning()`, the launcher — this is where
+  `open -na` was replaced), `terminalFocus.ts` (`focusExistingGhosttyWindow()`, the search/focus
+  logic — unchanged in its core idea, now searches tabs within windows too since sessions can be
+  tabs OR windows), `terminalInject.ts`, `terminalTile.ts`, `ghosttyEnv.ts`.
 - `backend/src/routes/sessions.ts` — the `/resume` route that decides focus-vs-launch.
 
 ## What the HTML deliverable should probably include

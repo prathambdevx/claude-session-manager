@@ -2,7 +2,7 @@
 // duplicate — used by "Resume" (double-click on a running card) and as the fallback half of Quick
 // Prompt's terminal-delivery path (see terminalInject.ts).
 import { spawn } from "node:child_process";
-import { pidAlive } from "../store.ts";
+import { pidAlive } from "../../store.ts";
 import { usingGhostty } from "./ghosttyEnv.ts";
 
 function getTtyForPid(pid: number): Promise<string | null> {

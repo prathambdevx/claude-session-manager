@@ -1,7 +1,7 @@
 // Quick Prompt's "terminal already open" path — types the prompt in as if the user did, no
 // subprocess. Ghostty gets true no-focus delivery; Terminal.app falls back to focus-and-restore.
 import { spawn } from "node:child_process";
-import { pidAlive } from "../store.ts";
+import { pidAlive } from "../../store.ts";
 import { usingGhostty } from "./ghosttyEnv.ts";
 import { tryFocusRunningSession } from "./terminalFocus.ts";
 

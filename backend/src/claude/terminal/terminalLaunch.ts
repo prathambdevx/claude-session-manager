@@ -5,7 +5,7 @@ import { chmod, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
-import { GHOSTTY_TITLES_DIR } from "../constants.ts";
+import { GHOSTTY_TITLES_DIR } from "../../constants.ts";
 import { usingGhostty } from "./ghosttyEnv.ts";
 import { retileGhosttyWindows } from "./terminalTile.ts";
 
