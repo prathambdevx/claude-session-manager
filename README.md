@@ -9,8 +9,7 @@ Reads directly from `~/.claude/` — no database, no cloud, nothing to sync.
 
 ## Install
 
-Requires the `claude` CLI on your PATH. Nothing else needs to be pre-installed — one command on a
-completely fresh Mac:
+Just run this in your terminal:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/prathambdevx/claude-session-manager/main/bootstrap.sh | bash
