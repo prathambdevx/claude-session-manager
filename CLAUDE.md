@@ -16,8 +16,8 @@ Always run the relevant build + `bun test backend/tests` before claiming a chang
 
 **Backend changes need a server restart to go live.** The server runs as a long-lived `launchd`
 process and `bun run` does NOT hot-reload, so editing a `backend/**` file does nothing until the
-process restarts: `launchctl kickstart -k "gui/$(id -u)/com.claude-session-manager"`. Frontend
-files are served raw from disk, so those just need a browser refresh.
+process restarts: `bun run restart`. Frontend files are served raw from disk, so those just need a
+browser refresh.
 
 ## Architecture
 

@@ -22,6 +22,10 @@ on login too), then open `http://127.0.0.1:4321`.
 
 To remove auto-start later: `bun run setup -- --uninstall`
 
+The server runs as a long-lived background process, so editing a file under `backend/` doesn't
+take effect until it restarts: `bun run restart`. Frontend files (`frontend/`) don't need this —
+they're served raw from disk, so a browser refresh alone picks up the change.
+
 ## Features
 
 - **Resume** — double-click any session card to resume it in a real terminal.

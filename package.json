@@ -6,6 +6,7 @@
     "start": "bun run backend/server.ts",
     "setup": "bun run backend/setup.ts",
     "config": "bun run backend/syncClaudeSettings.ts",
+    "restart": "launchctl kickstart -k \"gui/$(id -u)/com.claude-session-manager\"",
     "test": "bun test backend/tests"
   }
 }
