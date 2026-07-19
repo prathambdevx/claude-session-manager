@@ -101,8 +101,10 @@ export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDelete
   // In the "Projects" group lens every column is a real project — draggable/hideable/renameable,
   // but never deletable (there's nothing to "add back" the way a plain custom column has).
   const isGroupLens = ctx.kind === "group";
+  // A saved view from the group lens still renders kind:"main", but has a real project column at
+  // [0] instead of a genuine home column — a real home column never carries a .cwd.
   ctx.cols.forEach((c, i) => {
-    const isHome = i === 0 && !isGroupLens;
+    const isHome = i === 0 && !isGroupLens && !ctx.cols[0]?.cwd;
     const locked = isHome || isGroupLens;
     const lockedReason = isGroupLens
       ? "Project columns can be renamed, reordered, and hidden — but not deleted"
@@ -117,7 +119,7 @@ export function wireManageColumnsPanel(root, ctx, { countFor, onRename, onDelete
       const c = ctx.cols.find((x) => x.id === btn.dataset.toggleHidden);
       if (!c) return;
       pushHistory(ctx);
-      const isHome = c === ctx.cols[0];
+      const isHome = c === ctx.cols[0] && !c.cwd;
       if (c.hidden) {
         c.hidden = false; // manually hidden -> show
       } else if (isAutoHidden(c, countFor(c), isHome)) {

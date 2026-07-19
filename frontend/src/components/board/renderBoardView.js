@@ -32,7 +32,7 @@ function missingProjectCount(ctx) {
 // so dragging columns never reassigns colors.
 const PILL_PALETTE_SIZE = 9;
 function pillColorClass(ctx, c) {
-  const homeId = ctx.kind === "group" ? null : ctx.cols[0]?.id;
+  const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
   if (c.id === homeId) return "col-pill-neutral";
   const rank = [...ctx.cols]
     .filter((x) => x.id !== homeId)
@@ -44,8 +44,11 @@ function pillColorClass(ctx, c) {
 
 export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   const app = document.getElementById("app");
-  // the "Projects" group lens has no home column — every one of its columns is a real project
-  const homeId = ctx.kind === "group" ? null : ctx.cols[0]?.id;
+  // the "Projects" group lens has no home column — every one of its columns is a real project.
+  // A saved view shares kind:"main" for rendering regardless of where it was saved FROM, though —
+  // one saved from the group lens has a real project column sitting at [0], not a genuine home
+  // column, so also check for .cwd (a real home column never carries one).
+  const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
   const menuOpen = isManageColumnsMenuOpen();
   const visibleCols = ctx.cols.filter((c) => {
     if (menuOpen) return true;

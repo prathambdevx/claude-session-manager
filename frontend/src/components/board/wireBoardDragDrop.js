@@ -10,8 +10,10 @@ import { pushHistory } from "./boardUndo.js";
 export function reorderColumns(ctx, fromId, toId, rerender) {
   if (fromId === toId) return;
   // The home column stays pinned first while it's actually shown — hidden, there's nothing to
-  // pin, so the remaining visible columns reorder freely (including whichever is now first).
-  const home = ctx.kind === "group" ? null : ctx.cols[0];
+  // pin, so the remaining visible columns reorder freely (including whichever is now first). A
+  // saved view from the group lens has a real project column at [0] instead (still kind:"main"
+  // for rendering) — a real home column never carries a .cwd, so exclude that case too.
+  const home = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0];
   if (home && !home.hidden && (fromId === home.id || toId === home.id)) {
     toast(`"${home.title}" always stays first`);
     return;

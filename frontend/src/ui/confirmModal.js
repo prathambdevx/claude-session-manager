@@ -20,9 +20,20 @@ export function openConfirmModal({ title = "Are you sure?", message = "", confir
     document.getElementById("confirmModalCancel").addEventListener("click", () => { settle(false); closeReviewModal(); });
     document.getElementById("confirmModalOk").addEventListener("click", () => { settle(true); closeReviewModal(); });
 
+    // Enter confirms (matches clicking the primary button) — no text input to worry about
+    // stealing Enter from, this modal is just the message + two buttons.
+    const onKeydown = (e) => {
+      if (e.key === "Enter") document.getElementById("confirmModalOk")?.click();
+    };
+    document.addEventListener("keydown", onKeydown);
+
     const root = document.getElementById("modalRoot");
     const observer = new MutationObserver(() => {
-      if (!root.firstChild) { settle(false); observer.disconnect(); }
+      if (!root.firstChild) {
+        settle(false);
+        observer.disconnect();
+        document.removeEventListener("keydown", onKeydown);
+      }
     });
     observer.observe(root, { childList: true });
   });
