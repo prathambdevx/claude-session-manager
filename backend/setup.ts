@@ -33,11 +33,7 @@ function ensureAccessibilityAccess(): boolean {
     console.log("✓ Accessibility access already granted — resuming an open session will reuse its window.");
     return false;
   }
-  console.log(
-    "⚠ Accessibility access isn't granted yet — without it, Resume can't find an already-open\n" +
-      "  terminal window and always opens a new one instead. Opening System Settings now; add\n" +
-      "  \"bun\" (or your terminal app) to Privacy & Security → Accessibility, then re-run `bun run setup`."
-  );
+  console.log("⚠ Need Accessibility permission for \"bun\" — opening System Settings, please enable it there.");
   spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"], { stdio: "ignore" });
   return true;
 }
@@ -55,11 +51,7 @@ function ensureGhosttyAutomationAccess(): boolean {
     console.log("✓ Automation access to Ghostty already granted.");
     return false;
   }
-  console.log(
-    "⚠ Automation access to Ghostty isn't granted yet — without it, sessions can't launch in\n" +
-      "  Ghostty at all. Opening System Settings now; add \"bun\" (or your terminal app) under\n" +
-      "  Privacy & Security → Automation, allow it to control Ghostty, then re-run `bun run setup`."
-  );
+  console.log("⚠ Need permission for \"bun\" to control Ghostty — opening System Settings, please enable it there.");
   spawnSync("open", ["x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"], { stdio: "ignore" });
   return true;
 }
