@@ -1,17 +1,16 @@
-// The board's left sidebar — Views (Main board / Projects lens / saved views) above Projects
-// (one row per project, drag-to-tag). Rendered on every page pass alongside the board itself.
+// The board's left sidebar — just two things: All Projects (the group lens) and Views (saved
+// column layouts). Rendered on every page pass alongside the board itself.
+import { allProjectsNavHtml } from "./allProjectsNav.js";
 import { viewsSectionHtml, wireViewsSection } from "./viewsSection.js";
-import { projectsSectionHtml, wireProjectsSection } from "./projectsSection.js";
 
 export function renderSidebar() {
   const root = document.getElementById("sidebar");
   if (!root) return;
 
   root.innerHTML = `
+    ${allProjectsNavHtml()}
     ${viewsSectionHtml()}
-    ${projectsSectionHtml()}
   `;
 
   wireViewsSection(root);
-  wireProjectsSection(root);
 }

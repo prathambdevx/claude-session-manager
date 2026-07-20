@@ -1,5 +1,5 @@
 import { delegationPoll, setDelegationPoll } from "../../state.js";
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml, projectName } from "../../ui/format.js";
 import { toast } from "../../ui/toast.js";
 import { loadSessions } from "../../api/sessionsApi.js";
@@ -21,7 +21,7 @@ export async function openDelegationModal(id) {
     } catch {
       return;
     }
-    if (!d) { closeReviewModal(); toast("Delegation not found"); return; }
+    if (!d) { closeModal(); toast("Delegation not found"); return; }
 
     const dot = d.status === "running" ? "⏳" : d.status === "done" ? "✓" : "✗";
     const elapsed = fmtElapsed((d.finishedAt || Date.now()) - d.createdAt);
@@ -59,7 +59,7 @@ export async function openDelegationModal(id) {
       </div>`,
       620
     );
-    document.getElementById("delClose")?.addEventListener("click", closeReviewModal);
+    document.getElementById("delClose")?.addEventListener("click", closeModal);
     document.getElementById("delKill")?.addEventListener("click", async () => {
       await fetch(`/api/delegations/${id}/cancel`, { method: "POST" });
       toast("Delegation killed");

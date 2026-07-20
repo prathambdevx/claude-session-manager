@@ -14,35 +14,26 @@ export let summarizingIds = new Set();
 // naturally clears itself once a new activity line makes the stored value stop matching.
 export let dismissedDoneChips = new Map();
 
-// Home column ("All sessions") always shows every session; the rest are status columns. Home is
-// identified by its isAll flag, not position or id — either can change without losing identity.
-export const DEFAULT_COLUMNS = [
-  { id: "all-sessions", title: "All sessions", isAll: true },
+// Todos board's own columns — separate from the sessions board entirely, mirrors server's
+// todo-board.json. Seeded on a brand-new install only (nothing saved yet).
+export const DEFAULT_TODO_COLUMNS = [
   { id: "to-do", title: "Todo" },
   { id: "in-progress", title: "In Progress" },
   { id: "done", title: "Done" },
 ];
-// Individual project boards start with just the home column — only Main board gets the full
-// starter set (Todo/In Progress/Done); you add your own from there if you want more.
-export const PROJECT_DEFAULT_COLUMNS = [{ id: "all-sessions", title: "All sessions", isAll: true }];
-export let boardColumns = DEFAULT_COLUMNS.slice();
+export let todoBoardColumns = DEFAULT_TODO_COLUMNS.slice();
 
-export let boardMode = "main"; // "main" | "project" — set for real by routing/boardRouting.js at boot
-export let activeProjectCwd = null;
-export let projectBoards = {}; // Record<cwd, BoardColumn[]> — mirrors server's project-boards.json
-export let currentProjectColumns = null; // BoardColumn[] for whichever project is currently drilled into
-export let groupBoardColumns = []; // BoardColumn[] for the "Projects" sidebar view — mirrors server's group-board.json
+export let groupBoardColumns = []; // BoardColumn[] for the "All Projects" lens — mirrors server's group-board.json
 
 // Which view is showing — kept in sync with the URL by routing/boardRouting.js (every view is a
 // real route now, so a refresh stays put).
-export let activeView = "main"; // "main" | "project" | "group" | "saved:<id>"
+export let activeView = "group"; // "group" | "saved:<id>"
 export let savedViews = []; // SavedView[] — mirrors server's saved-views.json
-export let autoHideEmpty = false; // mirrors server's board-settings.json
+// false until the first GET /api/sessions resolves — a /views/<id> deep link's very first render()
+// call happens before that, when savedViews is still empty, so a missing-view check must wait for
+// this or it misreads "not loaded yet" as "that view was deleted."
+export let sessionsLoaded = false;
 export let boardHistory = []; // in-memory undo stack — transient, not persisted
-// Narrows the home column only (see renderBoardView's cardsForColumn) — kept as real state, not
-// just a DOM element's own value, since the board's action bar re-renders wholesale on every
-// change and would otherwise reset a plain <select> back to its default each time.
-export let projectFilter = "";
 
 export let contentMatchIds = new Set();
 export let contentSearchTimer = null;
@@ -57,18 +48,13 @@ export function setQuickPrompts(v) { quickPrompts = v; }
 export function setTodos(v) { todos = v; }
 export function setCurrentTab(v) { currentTab = v; }
 export function setExpandedCards(v) { expandedCards = v; }
-export function setBoardColumns(v) { boardColumns = v; }
-export function setBoardModeState(v) { boardMode = v; }
-export function setActiveProjectCwd(v) { activeProjectCwd = v; }
-export function setProjectBoards(v) { projectBoards = v; }
-export function setCurrentProjectColumns(v) { currentProjectColumns = v; }
+export function setTodoBoardColumns(v) { todoBoardColumns = v; }
 export function setGroupBoardColumns(v) { groupBoardColumns = v; }
 export function setContentMatchIds(v) { contentMatchIds = v; }
 export function setContentSearchTimer(v) { contentSearchTimer = v; }
 export function setDelegationPoll(v) { delegationPoll = v; }
 export function setActiveView(v) { activeView = v; }
+export function setSessionsLoaded(v) { sessionsLoaded = v; }
 export function setSavedViews(v) { savedViews = v; }
-export function setAutoHideEmpty(v) { autoHideEmpty = v; }
 export function setBoardHistory(v) { boardHistory = v; }
-export function setProjectFilter(v) { projectFilter = v; }
 export function dismissDoneChip(sessionId, activity) { dismissedDoneChips.set(sessionId, activity); }

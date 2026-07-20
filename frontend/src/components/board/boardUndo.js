@@ -1,5 +1,5 @@
-// Global undo for board-structure edits, scoped per board (ctxKey) so undoing on Main board never
-// touches a project board's or saved view's own history.
+// Global undo for board-structure edits, scoped per board (ctxKey) so undoing on the group lens
+// never touches a saved view's own history, or vice versa.
 import { sessions, boardHistory, setBoardHistory } from "../../state.js";
 import { toast } from "../../ui/toast.js";
 import { ctxKey, boardTagFor, setBoardTag } from "../../routing/boardRouting.js";

@@ -1,5 +1,5 @@
 import { sessions } from "../../state.js";
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml, fmtTime, projectName } from "../../ui/format.js";
 import { resumeSession } from "../../api/sessionsApi.js";
 import { openExtractModal } from "./extractModal.js";
@@ -64,9 +64,9 @@ export function openGlobalSearchModal() {
     results.querySelectorAll("[data-gsearch-action]").forEach((el) => {
       el.addEventListener("click", () => {
         const { gsearchAction, id } = el.dataset;
-        if (gsearchAction === "resume") { closeReviewModal(); resumeSession(id, false); }
-        if (gsearchAction === "fork") { closeReviewModal(); resumeSession(id, true); }
-        if (gsearchAction === "extract") { closeReviewModal(); openExtractModal(id); }
+        if (gsearchAction === "resume") { closeModal(); resumeSession(id, false); }
+        if (gsearchAction === "fork") { closeModal(); resumeSession(id, true); }
+        if (gsearchAction === "extract") { closeModal(); openExtractModal(id); }
       });
     });
   };

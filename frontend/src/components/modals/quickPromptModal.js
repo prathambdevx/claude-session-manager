@@ -2,7 +2,7 @@
 // api/quickPromptsApi.js). Chip row is ranked from this session's own promptHistory, not a shared
 // preset list.
 import { sessions } from "../../state.js";
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml, escapeAttr } from "../../ui/format.js";
 import { patchMeta, loadSessions } from "../../api/sessionsApi.js";
 import { sendQuickPrompt } from "../../api/quickPromptsApi.js";
@@ -75,16 +75,16 @@ export function openQuickPromptModal(id) {
       const removed = chips[Number(btn.dataset.del)];
       const nextHistory = (s.meta?.promptHistory || []).filter((p) => p.text !== removed.text);
       await patchMeta(id, { promptHistory: nextHistory });
-      closeReviewModal();
+      closeModal();
       openQuickPromptModal(id); // reopen fresh so the chip row reflects the removal
     });
   });
 
-  document.getElementById("qpCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("qpCancel").addEventListener("click", closeModal);
   document.getElementById("qpGo").addEventListener("click", async () => {
     const text = textEl.value.trim();
     if (!text) return;
-    closeReviewModal();
+    closeModal();
     await patchMeta(id, { promptHistory: nextPromptHistory(s, text) });
     await sendQuickPrompt(id, resolvePromptText(text));
     loadSessions();

@@ -15,7 +15,6 @@ import { handleTicketsRoutes } from "./tickets.ts";
 import { handleProjectsRoutes } from "./projects.ts";
 import { handleSearchRoutes } from "./search.ts";
 import { handleLaunchRoutes } from "./launch.ts";
-import { handleReviewsRoutes } from "./reviews.ts";
 import { handleContextsRoutes } from "./contexts.ts";
 import { handleTodosRoutes } from "./todos.ts";
 import { handlePermissionsRoutes } from "./permissions.ts";
@@ -34,7 +33,6 @@ const ROUTE_HANDLERS = [
   handleProjectsRoutes,
   handleSearchRoutes,
   handleLaunchRoutes,
-  handleReviewsRoutes,
   handleContextsRoutes,
   handleTodosRoutes,
   handlePermissionsRoutes,

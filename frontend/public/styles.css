@@ -304,9 +304,6 @@
                 max-width 220ms cubic-bezier(.4,0,.2,1), background 220ms ease, border-color 220ms ease;
   }
   .board-col.dragover { border-color: var(--accent); background: var(--chip-bg); }
-  .board-col.board-col-sticky {
-    position: sticky; left: 0; z-index: 3; box-shadow: 4px 0 8px -4px rgba(0,0,0,0.3);
-  }
   .board-col-header {
     display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-bottom: 1px solid var(--line);
     font-size: 13px; font-weight: 600; cursor: grab;
@@ -485,14 +482,6 @@
     background: var(--accent); border-radius: 4px; padding: 1px 5px; flex-shrink: 0;
   }
   .add-col-btn { min-width: 160px; flex-shrink: 0; }
-  .reviewer-zone {
-    background: var(--panel); border: 2px dashed var(--line); border-radius: var(--radius);
-    min-width: 200px; max-width: 220px; flex-shrink: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; text-align: center; gap: 6px; padding: 20px 14px;
-    color: var(--dim); font-size: 12px; align-self: stretch;
-  }
-  .reviewer-zone.dragover { border-color: var(--accent); color: var(--accent); background: var(--chip-bg); }
-  .reviewer-zone .big { font-size: 22px; }
   .modal-overlay {
     position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 20;
   }
@@ -577,9 +566,9 @@
     padding: 16px 10px 24px; display: flex; flex-direction: column; gap: 2px;
     border-right: 1px solid var(--line);
     /* position:sticky always creates its own stacking context, so a z-index inside it (e.g. the
-       view-menu dropdown, or the home column's own .board-col-sticky at z-index:3) only ranks
-       within that context — this needs to beat every z-index used elsewhere on the board, or the
-       whole sidebar (dropdown/callout included) paints below that unrelated content instead. */
+       view-menu dropdown) only ranks within that context — this needs to beat every z-index used
+       elsewhere on the board, or the whole sidebar (dropdown/callout included) paints below that
+       unrelated content instead. */
     position: sticky; top: 0; z-index: 6; align-self: flex-start;
     max-height: 100vh; overflow-y: auto;
   }
@@ -652,6 +641,68 @@
   }
   .star:hover { transform: scale(1.15); }
   .star.set, .star:hover { color: var(--accent); }
+  .sidebar-group-spacer { flex: 1; }
+  .add-view-btn {
+    width: 18px; height: 18px; border-radius: 6px; border: 1px solid var(--line); background: none;
+    color: var(--dim); font-size: 13px; line-height: 1; display: inline-flex; align-items: center;
+    justify-content: center; cursor: pointer; flex-shrink: 0; padding: 0;
+  }
+  .add-view-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--chip-bg); }
+  .sidebar-empty-hint { padding: 6px 10px 2px; color: var(--dim); font-size: 12px; font-style: italic; }
+
+  /* ---------- board's own inline-editable view title ---------- */
+  .view-title {
+    font-size: 18px; font-weight: 700; margin: 4px 0 12px; padding: 2px 6px; margin-left: -6px;
+    border-radius: 6px; outline: none;
+  }
+  .view-title[contenteditable="true"]:hover, .view-title[contenteditable="true"]:focus { background: var(--chip-bg); }
+  .read-only-badge { font-size: 12px; font-weight: 400; color: var(--dim); }
+
+  /* ---------- "Filter projects" — replaces the old single-select project narrowing ---------- */
+  .filter-projects-btn {
+    background: var(--accent); color: #1c1200; border-color: var(--accent); font-weight: 600;
+  }
+  .filter-projects-btn:hover { filter: brightness(1.06); }
+  .filter-projects-btn .pf-count {
+    background: rgba(0,0,0,0.18); border-radius: 6px; padding: 1px 7px; font-variant-numeric: tabular-nums; font-weight: 700;
+  }
+  .pf-label {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--dim); padding: 2px 8px 8px;
+  }
+  .pf-row {
+    display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 7px; cursor: pointer; font-size: 13px;
+  }
+  .pf-row:hover { background: var(--chip-bg); }
+  .pf-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .pf-swatch { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+  .pf-swatch.col-pill-neutral { background: #5b6470; }
+  .pf-swatch.col-pill-1 { background: var(--accent); }
+  .pf-swatch.col-pill-2 { background: #5b7a9e; }
+  .pf-swatch.col-pill-3 { background: #5a9e7a; }
+  .pf-swatch.col-pill-4 { background: #b4695a; }
+  .pf-swatch.col-pill-5 { background: #8570b0; }
+  .pf-swatch.col-pill-6 { background: #a8607a; }
+  .pf-swatch.col-pill-7 { background: #4f9a9a; }
+  .pf-swatch.col-pill-8 { background: #9a8a4a; }
+  .pf-swatch.col-pill-9 { background: #5f6bb0; }
+  .pf-name { flex: 1; min-width: 0; }
+  .pf-row .pf-count { color: var(--dim); font-size: 11.5px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+  /* ---------- empty view — nothing checked in Filter projects yet ---------- */
+  .empty-board {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 50vh; gap: 12px; text-align: center; color: var(--dim);
+  }
+  .empty-board .glyph { font-size: 28px; opacity: 0.45; }
+  .empty-board h3 { margin: 0; font-size: 15px; color: var(--ink); font-weight: 600; }
+  .empty-board p { margin: 0; font-size: 12.5px; max-width: 320px; line-height: 1.55; }
+
+  .col-close {
+    color: var(--dim); cursor: pointer; font-size: 13px; flex-shrink: 0;
+    padding: 5px; margin: -5px; border-radius: 7px; transition: background 0.12s, color 0.12s;
+  }
+  .col-close:hover { color: var(--danger); background: rgba(192,57,43,0.14); }
 
   /* ---------- Generic toolbar buttons (board-actions row, manage-columns trigger, undo) ---------- */
   .btn { font-size: 12px; padding: 7px 12px; }
@@ -662,35 +713,47 @@
   .btn:disabled:hover { border-color: var(--line); }
   .board-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
   .project-filter-wrap { position: relative; flex-shrink: 0; }
-  #projectFilterToggle {
-    border-color: var(--accent); color: var(--accent); display: flex; align-items: center;
-    gap: 6px; min-width: 150px; justify-content: space-between;
-  }
-  #projectFilterToggle:hover { background: var(--chip-bg); }
-  .pf-caret { font-size: 9px; opacity: 0.8; }
   .project-filter-dropdown {
     position: absolute; top: 100%; left: 0; margin-top: 6px;
-    min-width: 180px; max-height: 60vh; overflow-y: auto;
+    min-width: 260px; padding: 8px 6px; flex-direction: column; max-height: 60vh; overflow-y: auto;
   }
-  .project-filter-dropdown button.active { color: var(--accent); font-weight: 600; }
   /* ---------- Manage Columns dropdown ----------
      Unlike the card ⋮ menus (shown via a JS-positioned .open class toggle), this one is only ever
      in the DOM while its panel is open (see manageColumnsPanel.js), so it must override the base
      .bc-dropdown's default `display:none; position:fixed` rather than relying on `.open`. */
   .manage-columns-dropdown {
     display: flex !important; position: absolute; top: 100%; right: 0; margin-top: 6px;
-    min-width: 260px; padding: 6px; gap: 2px; max-height: 60vh; overflow-y: auto;
+    min-width: 300px; padding: 8px; gap: 2px; max-height: 60vh; overflow-y: auto;
+  }
+  /* section grouping — separates "fixed by Filter projects" from "yours to rename/delete" */
+  .mc-section + .mc-section { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .mc-section-label {
+    display: flex; align-items: center; gap: 7px; padding: 2px 6px 6px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--dim);
   }
   .drow {
     display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 12px;
+    cursor: pointer;
   }
   .drow:hover { background: var(--chip-bg); }
-  .drow.rule { border-bottom: 1px solid var(--line); margin-bottom: 4px; padding-bottom: 9px; border-radius: 0; }
   .drow.dragging-row { opacity: 0.4; }
   .drow.dragover-row { outline: 1px dashed var(--accent); }
+  .drow.is-hidden .lbl { color: var(--dim); }
   .drow .row-drag { color: var(--dim); cursor: grab; font-size: 12px; }
-  .drow .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .drow .lbl[data-toggle-hidden], .drow .lbl[data-toggle-auto-hide] { cursor: pointer; }
+  .mc-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .mc-swatch.col-pill-1 { background: var(--accent); }
+  .mc-swatch.col-pill-2 { background: #5b7a9e; }
+  .mc-swatch.col-pill-3 { background: #5a9e7a; }
+  .mc-swatch.col-pill-4 { background: #b4695a; }
+  .mc-swatch.col-pill-5 { background: #8570b0; }
+  .mc-swatch.col-pill-6 { background: #a8607a; }
+  .mc-swatch.col-pill-7 { background: #4f9a9a; }
+  .mc-swatch.col-pill-8 { background: #9a8a4a; }
+  .mc-swatch.col-pill-9 { background: #5f6bb0; }
+  .mc-custom-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; border: 1.5px dashed var(--dim); opacity: 0.85; }
+  .drow .lbl { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drow-spacer { flex: 1; }
+  .drow .lbl[data-toggle-auto-hide] { cursor: pointer; }
   .drow .quiet { font-size: 10px; color: var(--dim); font-style: italic; flex-shrink: 0; }
   .drow .row-rename { color: var(--dim); cursor: pointer; font-size: 12px; flex-shrink: 0; }
   .drow .row-rename:hover { color: var(--accent); }
@@ -709,10 +772,21 @@
   }
   .sw.on { background: rgba(178,125,20,0.28); }
   .sw.on::after { background: var(--accent); transform: translateX(11px); }
-  /* pinned-on while filtered to this project — not a live control, so it shouldn't invite a click.
-     Stays gold (still reads as "on", not a different color entirely) but faded enough that it's
-     obviously not a normal, clickable active toggle. */
-  .sw.locked { cursor: default; opacity: 0.45; }
+
+  /* ---------- section-level "Hide all / Show all" chip — the only eye-icon control; individual
+     rows use the plain circle switch (.sw) above instead ---------- */
+  .mc-bulk-toggle {
+    margin-left: auto; display: flex; align-items: center; gap: 5px; flex-shrink: 0;
+    border: 1px solid var(--line); background: var(--chip-bg); color: var(--dim);
+    border-radius: 999px; padding: 3px 9px 3px 7px; font-size: 10.5px; font-weight: 600;
+    line-height: 1; cursor: pointer;
+  }
+  .mc-bulk-toggle svg { width: 13px; height: 13px; flex-shrink: 0; }
+  .mc-bulk-toggle .icon-open { display: none; }
+  .mc-bulk-toggle.on { border-color: rgba(178,125,20,0.4); background: rgba(178,125,20,0.14); color: var(--accent); }
+  .mc-bulk-toggle.on .icon-open { display: inline-flex; }
+  .mc-bulk-toggle.on .icon-closed { display: none; }
+  .mc-bulk-toggle:hover { filter: brightness(1.08); border-color: var(--accent); }
 
   /* ---------- Inline column rename / freshly-added column / hidden state ---------- */
   .col-title-input {

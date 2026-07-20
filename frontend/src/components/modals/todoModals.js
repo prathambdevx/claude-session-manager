@@ -1,5 +1,5 @@
-import { todos, boardColumns, sessions } from "../../state.js";
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+import { todos, todoBoardColumns, sessions } from "../../state.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml, escapeAttr } from "../../ui/format.js";
 import { modelSelectHtml, dangerousCheckboxHtml, dangerousDefault } from "../../ui/formFragments.js";
 import { toast } from "../../ui/toast.js";
@@ -23,7 +23,7 @@ export function openTodoCreateModal(colId) {
       <button class="primary" id="todoCreateSave">Create</button>
     </div>
   `);
-  document.getElementById("todoCreateCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("todoCreateCancel").addEventListener("click", closeModal);
   document.getElementById("todoCreateSave").addEventListener("click", async () => {
     const title = document.getElementById("todoTitle").value.trim();
     if (!title) { toast("Give it a title"); return; }
@@ -36,7 +36,7 @@ export function openTodoCreateModal(colId) {
     const data = await res.json();
     if (data.ok) {
       todos.push(data.todo);
-      closeReviewModal();
+      closeModal();
       renderTodoBoard();
       toast("Todo created");
     } else {
@@ -71,7 +71,7 @@ export function openTodoEditModal(id) {
       <button class="primary" id="todoEditSave">Save</button>
     </div>
   `);
-  document.getElementById("todoEditCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("todoEditCancel").addEventListener("click", closeModal);
   document.getElementById("todoEditSave").addEventListener("click", async () => {
     const title = document.getElementById("todoEditTitle").value.trim();
     if (!title) { toast("Title is required"); return; }
@@ -80,7 +80,7 @@ export function openTodoEditModal(id) {
       description: document.getElementById("todoEditDesc").value.trim() || undefined,
       status: document.getElementById("todoEditStatus").value,
     });
-    closeReviewModal();
+    closeModal();
     toast("Todo updated");
   });
 }
@@ -89,7 +89,7 @@ export function openTodoAssignModal(id) {
   const t = todos.find((x) => x.id === id);
   if (!t) return;
   // auto-detect project from column's cwd
-  const col = t.board ? boardColumns.find((c) => c.id === t.board) : null;
+  const col = t.board ? todoBoardColumns.find((c) => c.id === t.board) : null;
   const colCwd = col?.cwd || "";
   const projectOptions = [...new Set(sessions.filter((s) => s.cwd && !s.isTicket).map((s) => s.cwd))].sort();
   const recentSessions = sessions
@@ -144,7 +144,7 @@ export function openTodoAssignModal(id) {
     document.getElementById("assignNewFields").style.display = "none";
     document.getElementById("assignExistingFields").style.display = "";
   });
-  document.getElementById("assignCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("assignCancel").addEventListener("click", closeModal);
   document.getElementById("assignGo").addEventListener("click", async () => {
     let body;
     if (mode === "new") {
@@ -167,7 +167,7 @@ export function openTodoAssignModal(id) {
     if (data.ok) {
       const t2 = todos.find((x) => x.id === id);
       if (t2) { t2.assignedSessionId = data.sessionId; t2.status = "in-progress"; }
-      closeReviewModal();
+      closeModal();
       renderTodoBoard();
       toast("Assigned to Claude — session launched");
       loadSessions();

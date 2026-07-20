@@ -1,4 +1,4 @@
-// Server-rendered HTML pages: the standalone review/context/delegation reports and index lists.
+// Server-rendered HTML pages: the standalone context/delegation reports and index lists.
 import type { Delegation } from "./store.ts";
 
 export function escapeHtmlServer(s: string): string {
@@ -32,21 +32,8 @@ export function delegationsIndexHtml(delegations: Delegation[]): string {
   return `<!doctype html><html><head><meta charset='utf-8'><title>Delegations</title><style>${INDEX_STYLE}</style></head><body>${body}</body></html>`;
 }
 
-export function reviewsIndexHtml(body: string): string {
-  return (
-    "<!doctype html><html><head><meta charset='utf-8'><title>Reviews</title><style>" +
-    "body{font-family:-apple-system,sans-serif;max-width:820px;margin:40px auto;padding:0 20px;color:#151515;background:#fff}" +
-    "h1{font-size:20px}.list{display:flex;flex-direction:column;gap:10px}" +
-    ".card{display:block;text-decoration:none;color:inherit;border:1px solid #e2e2e0;border-radius:10px;padding:12px 14px}" +
-    ".card:hover{border-color:#B27D14}.card .t{font-weight:600;font-size:14px}.card .m{font-size:12px;color:#6b6b6b;margin:2px 0}" +
-    ".card .s{font-size:12.5px;color:#444;margin-top:4px}.empty{color:#6b6b6b}" +
-    "@media(prefers-color-scheme:dark){body{background:#111;color:#eee}.card{border-color:#2c2c2a}.card .s{color:#bbb}}" +
-    "</style></head><body>" + body + "</body></html>"
-  );
-}
-
 // crude Markdown → HTML for opening a report in a new browser tab
-export function markdownToHtml(md: string, title = "Review report"): string {
+export function markdownToHtml(md: string, title = "Report"): string {
   const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
   const lines = esc(md).split("\n");
   let html = "";

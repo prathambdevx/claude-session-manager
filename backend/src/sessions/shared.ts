@@ -18,6 +18,7 @@ export type Session = {
   changedFiles: string[];
   lastActivity: string | null; // last tool-use/thinking/text line seen — "what is it doing" for a running session
   lastUserMessage: string | null; // most recent real user turn — what a running session is working ON
+  isProjectDir: boolean; // false for scratch/temp cwds — gates auto-adding a "Projects" column, see projectDetection.ts
 };
 
 // machine-generated user-role turns that aren't real human intent — task/tool notifications,

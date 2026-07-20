@@ -1,12 +1,12 @@
-// Persistence for all on-disk state: sidecar metadata, tickets, review reports, context
-// briefings, and live-process tracking read from ~/.claude/sessions/*.json.
+// Persistence for all on-disk state: sidecar metadata, tickets, context briefings, and
+// live-process tracking read from ~/.claude/sessions/*.json.
 import { readdir, readFile, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
-  META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, BOARD_PATH, TODO_BOARD_PATH, PROJECT_BOARDS_PATH,
-  GROUP_BOARD_PATH, SAVED_VIEWS_PATH, BOARD_SETTINGS_PATH,
-  REVIEWS_DIR, CONTEXTS_DIR, DELEGATIONS_DIR, QUICKPROMPTS_DIR, RUNNING_DIR, PID_LINKS_PATH,
+  META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, TODO_BOARD_PATH,
+  GROUP_BOARD_PATH, SAVED_VIEWS_PATH,
+  CONTEXTS_DIR, DELEGATIONS_DIR, QUICKPROMPTS_DIR, RUNNING_DIR, PID_LINKS_PATH,
   QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS,
 } from "./constants.ts";
 
@@ -18,34 +18,7 @@ export type BoardColumn = {
   cwd?: string;
   hidden?: boolean;
   collapsed?: boolean;
-  neverPopulated?: boolean; // exempts a brand-new column from auto-hide-empty until it holds a card
-  isAll?: boolean; // the one column that always shows every session — identity, not position
 };
-
-/** One-time backfill for boards saved before isAll existed — "todo"/"all-sessions" were the only ids a real home column ever used; a view with neither correctly gets no home at all. Also folds the legacy "todo" id into "all-sessions" for good, so home only ever has one id going forward. */
-function backfillHomeFlag(cols: BoardColumn[]): boolean {
-  if (!cols.length || cols.some((c) => c.isAll)) return false;
-  const legacyHome = cols.find((c) => c.id === "todo" || c.id === "all-sessions");
-  if (!legacyHome) return false;
-  if (legacyHome.id === "todo" && !cols.some((c) => c.id === "all-sessions")) legacyHome.id = "all-sessions";
-  legacyHome.isAll = true;
-  return true;
-}
-
-export async function loadBoard(): Promise<BoardColumn[] | null> {
-  try {
-    const j = JSON.parse(await readFile(BOARD_PATH, "utf-8"));
-    if (!Array.isArray(j.columns)) return null;
-    if (backfillHomeFlag(j.columns)) await saveBoard(j.columns);
-    return j.columns;
-  } catch {
-    return null;
-  }
-}
-
-export async function saveBoard(columns: BoardColumn[]) {
-  await Bun.write(BOARD_PATH, JSON.stringify({ columns }, null, 2));
-}
 
 export async function loadTodoBoard(): Promise<BoardColumn[] | null> {
   try {
@@ -60,8 +33,7 @@ export async function saveTodoBoard(columns: BoardColumn[]) {
   await Bun.write(TODO_BOARD_PATH, JSON.stringify({ columns }, null, 2));
 }
 
-// "Projects" sidebar view — one persisted, manageable column set auto-seeded with a column per
-// project (unlike the per-project boards below, which are keyed by cwd, this is a single list).
+// "Projects" sidebar view — one persisted, manageable column set auto-seeded with a column per project.
 export async function loadGroupBoard(): Promise<BoardColumn[] | null> {
   try {
     const j = JSON.parse(await readFile(GROUP_BOARD_PATH, "utf-8"));
@@ -75,44 +47,14 @@ export async function saveGroupBoard(columns: BoardColumn[]) {
   await Bun.write(GROUP_BOARD_PATH, JSON.stringify({ columns }, null, 2));
 }
 
-// Per-project board columns (keyed by raw cwd) — each project owns its own independent set.
-
-export type ProjectBoards = Record<string, BoardColumn[]>;
-
-export async function loadProjectBoards(): Promise<ProjectBoards> {
-  try {
-    const j = JSON.parse(await readFile(PROJECT_BOARDS_PATH, "utf-8"));
-    if (!j || typeof j !== "object" || Array.isArray(j)) return {};
-    let changed = false;
-    for (const cols of Object.values(j) as BoardColumn[][]) {
-      if (backfillHomeFlag(cols)) changed = true;
-    }
-    if (changed) await saveProjectBoards(j);
-    return j;
-  } catch {
-    return {};
-  }
-}
-
-export async function saveProjectBoards(boards: ProjectBoards) {
-  await Bun.write(PROJECT_BOARDS_PATH, JSON.stringify(boards, null, 2));
-}
-
-// Saved views — a named snapshot of the Main board's column layout, switchable from the sidebar
-// without disturbing the live Main board.
+// Saved views — a named, independent column layout you can switch between from the sidebar.
 
 export type SavedView = { id: string; title: string; columns: BoardColumn[] };
 
 export async function loadSavedViews(): Promise<SavedView[]> {
   try {
     const j = JSON.parse(await readFile(SAVED_VIEWS_PATH, "utf-8"));
-    if (!Array.isArray(j.views)) return [];
-    let changed = false;
-    for (const view of j.views as SavedView[]) {
-      if (backfillHomeFlag(view.columns)) changed = true;
-    }
-    if (changed) await saveSavedViews(j.views);
-    return j.views;
+    return Array.isArray(j.views) ? j.views : [];
   } catch {
     return [];
   }
@@ -122,22 +64,42 @@ export async function saveSavedViews(views: SavedView[]) {
   await Bun.write(SAVED_VIEWS_PATH, JSON.stringify({ views }, null, 2));
 }
 
-// Board settings — small per-installation display preferences, server-side like everything else
-// here rather than left in one browser's localStorage.
+const LEGACY_COLUMN_FIELDS = ["isAll", "neverPopulated"];
 
-export type BoardSettings = { autoHideEmpty?: boolean };
+// Strips legacy column fields (isAll, neverPopulated) left over from older app versions out of
+// group-board.json/saved-views.json — a no-op if a file has none. See docs/data-migrations.md.
+export async function sanitizeLegacyBoardData(): Promise<void> {
+  const stripLegacy = (cols: BoardColumn[]): { cols: BoardColumn[]; changed: boolean } => {
+    let changed = false;
+    const cleaned = cols.map((c) => {
+      const raw = c as Record<string, unknown>;
+      if (LEGACY_COLUMN_FIELDS.some((f) => f in raw)) changed = true;
+      const { isAll: _isAll, neverPopulated: _neverPopulated, ...rest } = raw;
+      return rest as BoardColumn;
+    });
+    return { cols: cleaned, changed };
+  };
 
-export async function loadBoardSettings(): Promise<BoardSettings> {
-  try {
-    const j = JSON.parse(await readFile(BOARD_SETTINGS_PATH, "utf-8"));
-    return j && typeof j === "object" ? j : {};
-  } catch {
-    return {};
+  const group = await loadGroupBoard();
+  if (group) {
+    const { cols, changed } = stripLegacy(group);
+    if (changed) {
+      await saveGroupBoard(cols);
+      console.log("[startup] cleaned legacy column fields from group-board.json");
+    }
   }
-}
 
-export async function saveBoardSettings(settings: BoardSettings) {
-  await Bun.write(BOARD_SETTINGS_PATH, JSON.stringify(settings, null, 2));
+  const views = await loadSavedViews();
+  let viewsChanged = false;
+  const cleanedViews = views.map((v) => {
+    const { cols, changed } = stripLegacy(v.columns);
+    if (changed) viewsChanged = true;
+    return { ...v, columns: cols };
+  });
+  if (viewsChanged) {
+    await saveSavedViews(cleanedViews);
+    console.log("[startup] cleaned legacy column fields from saved-views.json");
+  }
 }
 
 // Sidecar metadata (names, tags, notes, status, pinned, archived).
@@ -151,9 +113,8 @@ export type Meta = {
   status?: "idle" | "in-progress" | "blocked" | "done";
   pinned?: boolean;
   archived?: boolean;
-  board?: string; // legacy flat tag — kept only as the "main" board's fallback; boardTags is authoritative
+  board?: string; // legacy flat tag, superseded by boardTags — kept for old sessions' meta.json entries
   boardTags?: Record<string, string | null>; // per-board-context column tag, keyed by ctxKey(ctx)
-  lastReviewId?: string;
   lastContextId?: string;
   promptHistory?: { text: string; count: number }[]; // Quick Prompt's per-session recency/frequency chips
 };
@@ -177,7 +138,7 @@ export type Ticket = {
   title: string;
   notes?: string;
   cwd?: string;
-  board?: string; // legacy flat tag — kept only as the "main" board's fallback; boardTags is authoritative
+  board?: string; // legacy flat tag, superseded by boardTags — kept for old sessions' meta.json entries
   boardTags?: Record<string, string | null>; // per-board-context column tag, keyed by ctxKey(ctx)
   done?: boolean;
   startedSessionId?: string;
@@ -219,30 +180,6 @@ export async function loadTodos(): Promise<Record<string, Todo>> {
 
 export async function saveTodos(todos: Record<string, Todo>) {
   await Bun.write(TODOS_PATH, JSON.stringify(todos, null, 2));
-}
-
-// Review reports.
-
-export type ReviewRecord = {
-  id: string;
-  sessionId: string;
-  cwd: string;
-  files: string[];
-  model: string | null;
-  createdAt: number;
-  markdown: string;
-};
-
-export async function saveReview(review: ReviewRecord) {
-  await Bun.write(join(REVIEWS_DIR, `${review.id}.json`), JSON.stringify(review, null, 2));
-}
-
-export async function loadReview(id: string): Promise<ReviewRecord | null> {
-  try {
-    return JSON.parse(await readFile(join(REVIEWS_DIR, `${id}.json`), "utf-8"));
-  } catch {
-    return null;
-  }
 }
 
 // Context briefings.

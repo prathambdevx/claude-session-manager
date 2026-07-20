@@ -20,14 +20,10 @@ export const META_PATH = join(DATA_DIR, "meta.json");
 export const TICKETS_PATH = join(DATA_DIR, "tickets.json");
 export const TODOS_PATH = join(DATA_DIR, "todos.json");
 export const AGENTS_PATH = join(DATA_DIR, "agents.json");
-export const BOARD_PATH = join(DATA_DIR, "board.json");
 export const TODO_BOARD_PATH = join(DATA_DIR, "todo-board.json");
-export const PROJECT_BOARDS_PATH = join(DATA_DIR, "project-boards.json");
 export const GROUP_BOARD_PATH = join(DATA_DIR, "group-board.json");
 export const SAVED_VIEWS_PATH = join(DATA_DIR, "saved-views.json");
-export const BOARD_SETTINGS_PATH = join(DATA_DIR, "board-settings.json");
 export const PID_LINKS_PATH = join(DATA_DIR, "pid-links.json");
-export const REVIEWS_DIR = join(DATA_DIR, "reviews");
 export const CONTEXTS_DIR = join(DATA_DIR, "contexts");
 export const DELEGATIONS_DIR = join(DATA_DIR, "delegations");
 export const QUICKPROMPTS_DIR = join(DATA_DIR, "quickprompts");
@@ -46,14 +42,12 @@ export const PUBLIC_DIR = join(REPO_ROOT, "frontend", "public");
 export const FRONTEND_SRC_DIR = join(REPO_ROOT, "frontend", "src");
 export const ROOT = REPO_ROOT;
 
-await mkdir(REVIEWS_DIR, { recursive: true });
 await mkdir(CONTEXTS_DIR, { recursive: true });
 await mkdir(DELEGATIONS_DIR, { recursive: true });
 await mkdir(QUICKPROMPTS_DIR, { recursive: true });
 await mkdir(GHOSTTY_TITLES_DIR, { recursive: true });
 
 export const KNOWN_MODELS = new Set(["sonnet", "opus", "haiku", "fable"]);
-export const LAUNCH_MODES = new Set(["solo", "implement-review", "research"]);
 
 // every session this tool launches skips permission prompts, at the user's explicit request
 export const DANGEROUS_FLAG = " --dangerously-skip-permissions";

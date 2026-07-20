@@ -5,11 +5,11 @@ export function modalShell(inner, width) {
   const widthStyle = width ? ` style="width:${width}px;"` : "";
   root.innerHTML = `<div class="modal-overlay" id="modalOverlay"><div class="modal"${widthStyle}>${inner}</div></div>`;
   document.getElementById("modalOverlay").addEventListener("click", (e) => {
-    if (e.target.id === "modalOverlay") closeReviewModal();
+    if (e.target.id === "modalOverlay") closeModal();
   });
 }
 
-export function closeReviewModal() {
+export function closeModal() {
   if (delegationPoll) { clearInterval(delegationPoll); setDelegationPoll(null); }
   document.getElementById("modalRoot").innerHTML = "";
 }

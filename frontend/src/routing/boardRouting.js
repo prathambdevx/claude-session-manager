@@ -1,17 +1,10 @@
 // Board column state + the URL routing state machine. The URL (not localStorage) is the source of
 // truth for which view is showing, so a refresh/back/forward stays put:
-//   "/"                = Main board
-//   "/projects"        = All Projects (the group lens)
-//   "/projects/<cwd>"  = a drilled-in project's own board
+//   "/"                = All Projects (the group lens) — default landing page
 //   "/views/<id>"      = a saved view
-import {
-  boardColumns, setBoardColumns, boardMode, setBoardModeState, activeProjectCwd,
-  setActiveProjectCwd, projectBoards, setProjectBoards, currentProjectColumns,
-  setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns, setActiveView,
-  PROJECT_DEFAULT_COLUMNS, sessions, savedViews,
-} from "../state.js";
-import { escapeHtml, projectName } from "../ui/format.js";
-import { toast } from "../ui/toast.js";
+// Any other/legacy path (old "/projects" or "/projects/<cwd>" bookmarks) falls back to "/".
+import { groupBoardColumns, setGroupBoardColumns, setActiveView, activeView, sessions, savedViews } from "../state.js";
+import { projectName } from "../ui/format.js";
 
 export function projectColumnId(cwd) {
   return "proj-" + projectName(cwd).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -33,7 +26,9 @@ export function projectRecency(cwd, sessionList) {
 // state is never touched here, so a manual expand/collapse survives a later re-run.
 export function mergeInProjectColumns(cols, sessionList) {
   const existingCwds = new Set(cols.filter((c) => c.cwd).map((c) => c.cwd));
-  const cwds = [...new Set(sessionList.filter((s) => s.cwd && !existingCwds.has(s.cwd)).map((s) => s.cwd))]
+  // isProjectDir (backend/src/sessions/projectDetection.ts) keeps a scratch/temp cwd from ever
+  // getting its own auto-added column — an existing column for one is left alone, never removed.
+  const cwds = [...new Set(sessionList.filter((s) => s.cwd && s.isProjectDir && !existingCwds.has(s.cwd)).map((s) => s.cwd))]
     .sort((a, b) => projectName(a).localeCompare(projectName(b)));
   if (!cwds.length) return { columns: cols, changed: false };
   const seenIds = new Set(cols.map((c) => c.id));
@@ -50,79 +45,47 @@ export function mergeInProjectColumns(cols, sessionList) {
   return { columns: [...cols, ...added], changed: true };
 }
 
-export function boardModeFromLocation() {
-  const path = location.pathname;
-  const proj = path.match(/^\/projects\/(.+)$/);
-  if (proj) return { mode: "project", cwd: decodeURIComponent(proj[1]), activeView: "project" };
-  if (path === "/projects") return { mode: "main", cwd: null, activeView: "group" };
-  const view = path.match(/^\/views\/(.+)$/);
-  if (view) return { mode: "main", cwd: null, activeView: "saved:" + decodeURIComponent(view[1]) };
-  return { mode: "main", cwd: null, activeView: "main" };
+// Derives the current view from the URL — "/" and any legacy "/projects*" link both land on the
+// group lens, so an old bookmark degrades gracefully instead of 404ing.
+export function parseView() {
+  const view = location.pathname.match(/^\/views\/(.+)$/);
+  return view ? "saved:" + decodeURIComponent(view[1]) : "group";
 }
 
-// The URL a given view should live at — inverse of boardModeFromLocation.
-export function pathForActiveView(view) {
-  if (view === "group") return "/projects";
-  if (view?.startsWith("saved:")) return "/views/" + encodeURIComponent(view.slice(6));
-  return "/";
+// The URL a given view should live at — inverse of parseView.
+export function pathForView(view) {
+  return view?.startsWith("saved:") ? "/views/" + encodeURIComponent(view.slice(6)) : "/";
 }
 
-// Called once at boot (main.js) to seed state.js's boardMode/activeProjectCwd/currentProjectColumns
-// from the current URL, mirroring what the old top-level module-init code did synchronously.
+// Called once at boot (main.js) to seed state.js's activeView from the current URL.
 export function initBoardStateFromLocation() {
-  const initial = boardModeFromLocation();
-  setBoardModeState(initial.mode);
-  setActiveProjectCwd(initial.cwd);
-  setActiveView(initial.activeView);
-  // Seeded synchronously with PROJECT_DEFAULT_COLUMNS so a hard reload into /projects/<cwd> has
-  // something to render before loadSessions() resolves with the real columns.
-  setCurrentProjectColumns(initial.mode === "project" ? PROJECT_DEFAULT_COLUMNS.slice() : null);
+  setActiveView(parseView());
 }
 
-// Canonical view navigation for the non-project views (Main / All Projects / a saved view):
-// updates state, pushes the matching URL, and re-renders. Project boards go through
-// enterProjectBoard instead (they also load that project's columns).
+// Canonical view navigation: updates state, pushes the matching URL, and re-renders.
 export async function switchToView(view) {
-  setBoardModeState("main");
-  setActiveProjectCwd(null);
   setActiveView(view);
-  history.pushState({}, "", pathForActiveView(view));
+  history.pushState({}, "", pathForView(view));
   await import("../pages/sessionsPage.js").then((m) => m.render());
 }
 
-export async function saveProjectBoardColumns(cwd) {
-  await fetch("/api/project-board", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cwd, columns: currentProjectColumns }),
-  });
+// The saved view the URL currently points at, or undefined if it's been deleted (or activeView
+// isn't a saved view at all) — the one place every other module resolves this instead of
+// re-deriving activeView.slice(6) themselves.
+export function currentSavedView() {
+  return activeView.startsWith("saved:") ? savedViews.find((v) => v.id === activeView.slice(6)) : undefined;
 }
 
-// ctx objects let renderBoardView target either board without duplicating its column/drag-drop
-// code — cols is a getter/setter so reassignment writes through to the right global.
-export function mainBoardCtx() {
-  return {
-    kind: "main",
-    get cols() { return boardColumns; },
-    set cols(v) { setBoardColumns(v); },
-    save: () => import("../api/sessionsApi.js").then((m) => m.saveBoardColumns()),
-  };
-}
-export function projectBoardCtx(cwd) {
-  return {
-    kind: "project",
-    cwd,
-    get cols() { return currentProjectColumns; },
-    set cols(v) {
-      setCurrentProjectColumns(v);
-      setProjectBoards({ ...projectBoards, [cwd]: v });
-    },
-    save: () => saveProjectBoardColumns(cwd),
-  };
+// Creates a brand-new, empty view and switches straight into it — no snapshot step, unlike the
+// old "Save as view" flow this replaces.
+export async function createView() {
+  const { createSavedView } = await import("../api/savedViewsApi.js");
+  const data = await createSavedView(`Untitled view ${savedViews.length + 1}`, []);
+  if (data.ok) await switchToView("saved:" + data.view.id);
 }
 
-// The "Projects" sidebar view — auto-seeded with one column per project (see loadSessions), then
-// manageable exactly like Main board's own project columns: draggable, hideable, renameable.
+// The "All Projects" lens — auto-seeded with one column per project (see loadSessions), then
+// manageable exactly like a saved view's project columns: draggable, hideable, renameable.
 export function groupBoardCtx() {
   return {
     kind: "group",
@@ -132,9 +95,8 @@ export function groupBoardCtx() {
   };
 }
 
-// A saved view previews as its own board (same rules as kind:"main"), but edits persist to its own
-// column snapshot, never the live Main board. viewId is what lets ctxKey tell it apart from the
-// real Main board, since both share kind:"main" purely for rendering purposes.
+// A saved view renders through the same board UI as the group lens (kind:"main"), but edits
+// persist to its own column snapshot. viewId is what lets ctxKey give each saved view its own slot.
 export function savedViewCtx(view) {
   const id = view.id;
   // Resolve fresh by id on every access, never close over the passed-in object — a poll can swap
@@ -149,19 +111,17 @@ export function savedViewCtx(view) {
   };
 }
 
-// Identifies which board a custom-column card placement belongs to — Main board, a saved view, or
-// a per-project board each get their own independent slot in a card's boardTags map.
+// Identifies which board a custom-column card placement belongs to — the group lens or a saved
+// view each get their own independent slot in a card's boardTags map.
 export function ctxKey(ctx) {
-  if (ctx.viewId) return `saved:${ctx.viewId}`;
-  if (ctx.kind === "group") return "group";
-  return ctx.kind === "main" ? "main" : `project:${ctx.cwd}`;
+  return ctx.viewId ? `saved:${ctx.viewId}` : "group";
 }
 
-// board (the legacy flat field) is read as a fallback for EVERY context, not just "main" — every
-// board/view historically shared that one field indiscriminately, so a saved view or per-project
-// board that already had cards tagged before this change must keep seeing them. Once a card gets
-// tagged in a specific context going forward, its boardTags entry for that key takes over and this
-// fallback is no longer consulted for it.
+// board (the legacy flat field) is read as a fallback for every context — every board/view
+// historically shared that one field indiscriminately, so a view that already had cards tagged
+// before boardTags existed must keep seeing them. Once a card gets tagged in a specific context
+// going forward, its boardTags entry for that key takes over and this fallback is no longer
+// consulted for it.
 export function boardTagFor(ctx, s) {
   const fromMap = s.meta?.boardTags?.[ctxKey(ctx)];
   if (fromMap !== undefined) return fromMap;
@@ -194,74 +154,11 @@ export async function setBoardTag(ctx, cardId, colId, isTicket) {
   await patchMeta(cardId, { boardTags: { [ctxKey(ctx)]: colId } });
 }
 
-export function pathForBoardMode(mode, cwd) {
-  if (mode === "project") return "/projects/" + encodeURIComponent(cwd);
-  return "/";
-}
-
-export function setBoardMode(mode, { skipPush = false } = {}) {
-  setBoardModeState(mode);
-  if (mode !== "project") setActiveProjectCwd(null);
-  if (!skipPush) history.pushState({ boardMode: mode, activeProjectCwd }, "", pathForBoardMode(mode, activeProjectCwd));
-  return import("../pages/sessionsPage.js").then((m) => m.render());
-}
-
-export async function enterProjectBoard(cwd) {
-  setActiveProjectCwd(cwd);
-  setActiveView("project");
-  const isFirstVisit = !projectBoards[cwd];
-  if (isFirstVisit) setProjectBoards({ ...projectBoards, [cwd]: PROJECT_DEFAULT_COLUMNS.slice() });
-  setCurrentProjectColumns(projectBoards[cwd]);
-  if (isFirstVisit) await saveProjectBoardColumns(cwd);
-  await setBoardMode("project");
-}
-
 // browser back/forward — re-derive state from the URL bar rather than trusting popstate's
 // event.state (works even if the user typed/edited the URL directly, not just navigated via it)
 export function wirePopstate() {
   window.addEventListener("popstate", () => {
-    const { mode, cwd, activeView } = boardModeFromLocation();
-    setBoardModeState(mode);
-    setActiveProjectCwd(cwd);
-    setActiveView(activeView);
-    if (mode === "project" && cwd) {
-      setCurrentProjectColumns(projectBoards[cwd] || PROJECT_DEFAULT_COLUMNS.slice());
-    }
+    setActiveView(parseView());
     import("../pages/sessionsPage.js").then((m) => m.render());
   });
-}
-
-// Drop a card onto a sidebar project entry — a session's cwd is fixed, so this only ever
-// re-confirms it's already there. A ticket has no fixed project and is never allowed onto one.
-async function ensureProjectColumnFor(cwd) {
-  const merged = mergeInProjectColumns(boardColumns, sessions);
-  if (merged.changed) {
-    setBoardColumns(merged.columns);
-    await import("../api/sessionsApi.js").then((m) => m.saveBoardColumns());
-  }
-  return boardColumns.find((c) => c.cwd === cwd);
-}
-
-export async function assignCardToProjectColumn(cardId, cwd) {
-  const card = sessions.find((s) => s.id === cardId);
-  if (!card) return;
-
-  if (card.isTicket) { toast("Tickets can't be moved onto a project column"); return; }
-
-  if (card.cwd !== cwd) {
-    toast(`Can't move — this session belongs to "${projectName(card.cwd)}", not "${projectName(cwd)}"`);
-    return;
-  }
-  await ensureProjectColumnFor(cwd);
-  toast(`Already belongs to "${projectName(cwd)}"`);
-  await import("../pages/sessionsPage.js").then((m) => m.render());
-}
-
-// Breadcrumb header shown atop a drilled-in project's board.
-export function projectBreadcrumbHtml() {
-  return `
-    <div class="board-breadcrumb">
-      <h2>${escapeHtml(projectName(activeProjectCwd))}</h2>
-    </div>
-  `;
 }

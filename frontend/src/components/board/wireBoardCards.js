@@ -2,7 +2,6 @@
 // board-card's markup gets inserted — click actions, double-click-to-resume, and the 3-dot menu.
 import { sessions, dismissDoneChip } from "../../state.js";
 import { resumeSession, deleteSession, closeSessionTerminal, summarizeSession, patchMeta, loadSessions } from "../../api/sessionsApi.js";
-import { openReviewModal } from "../modals/reviewModal.js";
 import { openExtractModal } from "../modals/extractModal.js";
 import { openRenameModal } from "../modals/renameModal.js";
 import { convertTicketToSession } from "../modals/columnTaskModal.js";
@@ -27,7 +26,6 @@ export function wireBoardCards(app) {
       if (action === "fork") resumeSession(id, true);
       if (action === "delete") deleteSession(id, title);
       if (action === "closeTerminal") closeSessionTerminal(id, title);
-      if (action === "review") openReviewModal(id);
       if (action === "extract") openExtractModal(id);
       if (action === "summarize") summarizeSession(id);
       if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? null : "done" });

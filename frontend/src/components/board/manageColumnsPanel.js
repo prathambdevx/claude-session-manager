@@ -1,10 +1,8 @@
 // The "⋮ Manage columns" dropdown — reuses the same .bc-menu-wrap/.bc-dropdown language the card ⋮
 // menus already use.
-import { autoHideEmpty } from "../../state.js";
 import { escapeHtml, escapeAttr } from "../../ui/format.js";
-import { toast } from "../../ui/toast.js";
-import { saveAutoHideEmpty } from "../../api/boardSettingsApi.js";
 import { pushHistory } from "./boardUndo.js";
+import { projectColorRank } from "../../ui/projectColors.js";
 
 let menuOpen = false;
 
@@ -39,33 +37,40 @@ function manageColumnsDropdownHtml() {
   return `<div class="bc-dropdown manage-columns-dropdown" id="manageColumnsDropdown"></div>`;
 }
 
-// A column is invisible either because c.hidden is set, or auto-hide swept it for being empty —
-// the switch treats both as one "shown?" state.
-function isAutoHidden(c, count, isAll) {
-  return autoHideEmpty && !isAll && count === 0 && !c.neverPopulated && !c.hidden;
+const EYE_ICON = `
+  <svg class="icon-open" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M1 8s2.7-4.6 7-4.6S15 8 15 8s-2.7 4.6-7 4.6S1 8 1 8Z" fill="none" stroke="currentColor" stroke-width="1.3"/>
+    <circle cx="8" cy="8" r="2.1" fill="currentColor"/>
+  </svg>
+  <svg class="icon-closed" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M2 7.6c1.6 2 3.9 3.1 6 3.1s4.4-1.1 6-3.1" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+    <path d="M8 10.7v1.7M4.6 9.7l-1.1 1.5M11.4 9.7l1.1 1.5" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+  </svg>
+`;
+
+function bulkToggleHtml(anyVisible, group) {
+  return `
+    <button class="mc-bulk-toggle ${anyVisible ? "on" : ""}" data-bulk-vis="${group}" title="${anyVisible ? "Hide every column in this section" : "Show every column in this section"}">
+      ${EYE_ICON}
+      <span>${anyVisible ? "Hide all" : "Show all"}</span>
+    </button>`;
 }
 
 // Rows are built and wired separately from the initial HTML string above since they depend on
 // `ctx.cols` at wiring time (columns can change between renders without a full board re-render).
-// `locked` (home column, or every column in the "Projects" group lens) shows 🔒 instead of a
-// delete button — separate from `isAll`, which only controls the auto-hide-empty exemption.
-function columnRowHtml(c, count, isAll, locked, lockedReason, displayTitle, shown, pinnedFirst, isSavedView) {
-  const autoHidden = isAutoHidden(c, count, isAll);
-  // The home column stays pinned first while visible — reorderColumns rejects the drop anyway,
-  // but making the row itself undraggable avoids a confusing drag that silently snaps back. The
-  // filtered project's own column is pinned the same way (reorderForFilter re-front-loads it), and
-  // its switch is inert too — it's force-shown as the filter match, so toggling it does nothing.
-  // A saved view is a frozen snapshot, not a live board, so home's pin doesn't apply there either.
-  const dragLocked = (isAll && !c.hidden && !isSavedView) || pinnedFirst;
-  const toggleTitle = pinnedFirst ? "Pinned while filtered to this project" : `${shown ? "Hide" : "Show"} this column`;
-  const toggleAttr = pinnedFirst ? "" : ` data-toggle-hidden="${c.id}"`;
+// `locked` (every column in the "All Projects" group lens) shows 🔒 instead of a delete button.
+function columnRowHtml(c, locked, lockedReason, displayTitle, shown) {
+  const swatch = c.cwd
+    ? `<span class="mc-swatch col-pill-${projectColorRank(c.cwd) ?? 1}"></span>`
+    : `<span class="mc-custom-dot"></span>`;
   return `
-    <div class="drow" draggable="${!dragLocked}" data-row-col-id="${c.id}">
-      <span class="row-drag" ${dragLocked ? `title="Always stays first while shown"` : ""}>⠿</span>
-      <button class="sw${shown ? " on" : ""}${pinnedFirst ? " locked" : ""}"${toggleAttr} title="${toggleTitle}"></button>
-      <span class="lbl"${toggleAttr} title="${toggleTitle}">${escapeHtml(displayTitle ?? c.title)}</span>
-      ${autoHidden ? '<span class="quiet">auto-hidden</span>' : ""}
-      <span class="row-rename" data-rename-col="${c.id}" title="Rename &quot;${escapeHtml(c.title)}&quot;">✎</span>
+    <div class="drow ${shown ? "" : "is-hidden"}" draggable="true" data-row-col-id="${c.id}">
+      <span class="row-drag">⠿</span>
+      ${swatch}
+      <span class="lbl">${escapeHtml(displayTitle ?? c.title)}</span>
+      ${c.cwd ? "" : `<span class="row-rename" data-rename-col="${c.id}" title="Rename &quot;${escapeHtml(c.title)}&quot;">✎</span>`}
+      <span class="drow-spacer"></span>
+      <button class="sw${shown ? " on" : ""}" data-toggle-hidden="${c.id}" title="${shown ? "Hide" : "Show"} this column"></button>
       ${locked
         ? `<span class="row-locked" title="${escapeAttr(lockedReason)}">🔒</span>`
         : `<button class="del-col" data-delete-col="${c.id}" title="Remove &quot;${escapeHtml(c.title)}&quot;">✕</button>`}
@@ -73,10 +78,22 @@ function columnRowHtml(c, count, isAll, locked, lockedReason, displayTitle, show
   `;
 }
 
-// countFor(c)/displayTitleFor(c)/shownFor(c)/isAllFor(c)/orderFor(cols) come from the caller
-// (renderBoardView.js) — avoids duplicating its column-membership/project-filter-naming/
-// visibility/ordering rules here, so the panel never disagrees with what's actually on the board.
-export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, shownFor, isAllFor, orderFor, lockedFor, onRename, onDeleteColumn, onReorder, rerender }) {
+// Reflects c.hidden onto its already-rendered row before the next full rerender() lands — a
+// rerender can take a beat on a large board, so without this the flip would lag visibly behind the click.
+function patchRowVisibility(dropdown, c) {
+  const row = dropdown.querySelector(`[data-row-col-id="${c.id}"]`);
+  row?.classList.toggle("is-hidden", c.hidden);
+  const sw = row?.querySelector(".sw");
+  if (sw) {
+    sw.classList.toggle("on", !c.hidden);
+    sw.title = `${c.hidden ? "Show" : "Hide"} this column`;
+  }
+}
+
+// countFor(c)/displayTitleFor(c)/shownFor(c)/orderFor(cols) come from the caller
+// (renderBoardView.js) — avoids duplicating its column-membership/visibility/ordering rules here,
+// so the panel never disagrees with what's actually on the board.
+export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, shownFor, orderFor, onRename, onDeleteColumn, onReorder, rerender }) {
   const toggleBtn = root.querySelector("[data-manage-columns-toggle]");
   toggleBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -89,61 +106,83 @@ export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, s
   if (!dropdown) return;
   dropdown.addEventListener("click", (e) => e.stopPropagation());
 
-  const ruleRow = document.createElement("div");
-  ruleRow.className = "drow rule";
-  ruleRow.innerHTML = `<button class="sw${autoHideEmpty ? " on" : ""}" data-toggle-auto-hide></button><span class="lbl" data-toggle-auto-hide>Auto-hide empty columns</span>`;
-  dropdown.appendChild(ruleRow);
-  ruleRow.querySelectorAll("[data-toggle-auto-hide]").forEach((el) => el.addEventListener("click", async () => {
-    await saveAutoHideEmpty(!autoHideEmpty);
-    // flipping this re-evaluates every column fresh — "stay visible while empty" isn't permanent,
-    // but it only changes when you touch this switch
-    for (const c of ctx.cols) delete c.neverPopulated;
-    toast(autoHideEmpty ? "Empty columns will hide automatically" : "Auto-hide turned off");
-    menuOpen = true;
-    rerender();
-  }));
-
-  // In the "Projects" group lens every column is a real project — draggable/hideable/renameable,
-  // but never deletable (there's nothing to "add back" the way a plain custom column has).
+  // In "All Projects" every column is a real project — draggable/hideable/renameable, but never
+  // deletable (there's nothing to "add back" the way a plain custom column has).
   const isGroupLens = ctx.kind === "group";
-  const getIsAll = (c) => isAllFor ? isAllFor(c) : Boolean(c.isAll);
-  // A saved view is a frozen snapshot, not a live board — it can be fully torn down, "All sessions"
-  // included, so nothing about it needs the undeletable protection real boards keep.
-  const isSavedView = Boolean(ctx.viewId);
   const orderedCols = orderFor ? orderFor(ctx.cols) : ctx.cols;
-  orderedCols.forEach((c) => {
-    const isAll = getIsAll(c);
-    // The project you're actively filtering to is what you're currently relying on staying put —
-    // deleting/hiding it out from under yourself would be surprising, so it's locked only while
-    // filtered. lockedFor already covers home standing in for a project with no dedicated column.
-    const isFilterMatch = !isGroupLens && !!lockedFor?.(c);
-    const locked = (isAll && !isSavedView) || isGroupLens || isFilterMatch;
-    const lockedReason = isGroupLens
-      ? "Project columns can be renamed, reordered, and hidden — but not deleted"
-      : isAll
-        ? "The home column always shows every session — it can be hidden but never deleted"
-        : "Clear the project filter before deleting this column";
-    const count = countFor(c);
-    const row = document.createElement("div");
-    row.innerHTML = columnRowHtml(c, count, isAll, locked, lockedReason, displayTitleFor?.(c), shownFor ? shownFor(c) : !c.hidden && !isAutoHidden(c, count, isAll), isFilterMatch, isSavedView);
-    dropdown.appendChild(row.firstElementChild);
-  });
+  const rowsOf = (cols) => cols.map((c) => ({ c, shown: shownFor ? shownFor(c) : !c.hidden }));
+  // Grouped separately (project columns vs. your own) so it's immediately clear which are fixed
+  // by Filter projects and which are freely yours to rename/delete.
+  const projectRows = rowsOf(orderedCols.filter((c) => c.cwd));
+  const customRows = rowsOf(orderedCols.filter((c) => !c.cwd));
+
+  const renderSection = (label, rows, group) => {
+    if (!rows.length) return;
+    const section = document.createElement("div");
+    section.className = "mc-section";
+    const anyVisible = rows.some((r) => r.shown);
+    section.innerHTML = `<div class="mc-section-label">${escapeHtml(label)}${bulkToggleHtml(anyVisible, group)}</div>`;
+    dropdown.appendChild(section);
+    for (const { c, shown } of rows) {
+      const row = document.createElement("div");
+      row.innerHTML = columnRowHtml(
+        c, isGroupLens,
+        "Project columns can be renamed, reordered, and hidden — but not deleted",
+        displayTitleFor?.(c), shown,
+      );
+      dropdown.appendChild(row.firstElementChild);
+    }
+  };
+  renderSection("Project columns", projectRows, "project");
+  renderSection("Your columns", customRows, "custom");
+  if (!projectRows.length && !customRows.length) {
+    dropdown.innerHTML += `<div class="drow"><span class="quiet">No columns yet.</span></div>`;
+  }
 
   dropdown.querySelectorAll("[data-toggle-hidden]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const c = ctx.cols.find((x) => x.id === btn.dataset.toggleHidden);
       if (!c) return;
       pushHistory(ctx);
-      const isAll = getIsAll(c);
-      if (c.hidden) {
-        c.hidden = false; // manually hidden -> show
-      } else if (isAutoHidden(c, countFor(c), isAll)) {
-        c.neverPopulated = true; // only auto-hidden for being empty -> exempt it, show it
-      } else {
-        c.hidden = true; // currently shown -> hide it
-      }
+      c.hidden = !c.hidden;
       ctx.save();
       menuOpen = true;
+      patchRowVisibility(dropdown, c);
+      rerender();
+    });
+  });
+
+  // Tapping anywhere on the row does the same thing as its .sw switch — excluded elements have
+  // their own job (rename, delete, drag) and would otherwise fight this for the click.
+  dropdown.querySelectorAll(".drow[data-row-col-id]").forEach((row) => {
+    row.addEventListener("click", (e) => {
+      if (e.target.closest(".row-rename, .del-col, .row-locked, .row-drag, .sw")) return;
+      row.querySelector("[data-toggle-hidden]")?.click();
+    });
+  });
+
+  // Bulk hide/show for one whole section — flips by current aggregate state, same as the board's
+  // own "« Collapse all / » Expand all" button, just scoped to this section's columns.
+  dropdown.querySelectorAll("[data-bulk-vis]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const group = btn.dataset.bulkVis;
+      const rows = group === "project" ? projectRows : customRows;
+      const anyVisible = rows.some((r) => r.shown);
+      pushHistory(ctx);
+      // ctx.cols re-resolves the view by id on every access (a poll can swap savedViews for fresh
+      // objects between renders) — re-fetch it now and mutate THESE objects, not the ones captured
+      // in `rows` at panel-mount time, or the flip silently no-ops once that swap has happened.
+      const ids = new Set(rows.map((r) => r.c.id));
+      const freshCols = ctx.cols.filter((c) => ids.has(c.id));
+      for (const c of freshCols) c.hidden = anyVisible;
+      ctx.save();
+      menuOpen = true;
+      for (const c of freshCols) patchRowVisibility(dropdown, c);
+      const nowAnyVisible = !anyVisible;
+      btn.classList.toggle("on", nowAnyVisible);
+      btn.title = nowAnyVisible ? "Hide every column in this section" : "Show every column in this section";
+      const label = btn.querySelector("span");
+      if (label) label.textContent = nowAnyVisible ? "Hide all" : "Show all";
       rerender();
     });
   });

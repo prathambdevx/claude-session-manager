@@ -1,9 +1,6 @@
-// Saved board views (named column-layout snapshots switchable from the sidebar) and small
-// board-level display settings (default view, auto-hide-empty-columns) — both shared server-side
-// across browsers like everything else here, not left in one browser's localStorage.
-import {
-  loadSavedViews, saveSavedViews, loadBoardSettings, saveBoardSettings,
-} from "../store.ts";
+// Saved board views — named column-layout snapshots switchable from the sidebar, shared
+// server-side across browsers like everything else here, not left in one browser's localStorage.
+import { loadSavedViews, saveSavedViews } from "../store.ts";
 import type { SavedView, BoardColumn } from "../store.ts";
 import { json } from "./json.ts";
 
@@ -16,8 +13,6 @@ function cleanColumns(cols: any): BoardColumn[] | null {
       ...(c.cwd ? { cwd: String(c.cwd).slice(0, 500) } : {}),
       ...(c.hidden ? { hidden: true } : {}),
       ...(c.collapsed ? { collapsed: true } : {}),
-      ...(c.neverPopulated ? { neverPopulated: true } : {}),
-      ...(c.isAll ? { isAll: true } : {}),
     }));
 }
 
@@ -62,19 +57,6 @@ export async function handleSavedViewsRoutes(req: Request, url: URL): Promise<Re
     const next = views.filter((v) => v.id !== id);
     await saveSavedViews(next);
     return json({ ok: true });
-  }
-
-  if (url.pathname === "/api/board-settings" && req.method === "GET") {
-    return json({ settings: await loadBoardSettings() });
-  }
-
-  if (url.pathname === "/api/board-settings" && req.method === "PUT") {
-    const body = await req.json().catch(() => ({}));
-    const current = await loadBoardSettings();
-    const next = { ...current };
-    if ("autoHideEmpty" in body) next.autoHideEmpty = Boolean(body.autoHideEmpty);
-    await saveBoardSettings(next);
-    return json({ ok: true, settings: next });
   }
 
   return null;

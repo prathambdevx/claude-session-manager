@@ -1,6 +1,6 @@
 # Claude Session Manager — Design & Build Notes
 
-A local, single-page tool for managing Claude Code sessions the way files and folders are managed: every past session across every project is browsable, searchable, resumable, and organizable on a kanban board — plus a set of purpose-built agents (reviewer, research, context-extractor) run against those sessions. Built to run entirely locally, survive reboots, and stay out of the cloud.
+A local, single-page tool for managing Claude Code sessions the way files and folders are managed: every past session across every project is browsable, searchable, resumable, and organizable on a kanban board — plus background work (Quick Prompt, Delegations, context extraction) run against those sessions. Built to run entirely locally, survive reboots, and stay out of the cloud.
 
 This doc records what the system does, how it works, and the engineering decisions behind it — complete with real code from the source.
 
@@ -10,11 +10,10 @@ This doc records what the system does, how it works, and the engineering decisio
 
 * **Right abstraction before writing a line of code:** The insight that the hard part — durable, resumable sessions — was already solved, and that what was missing was a presentation and orchestration layer, reflects senior-engineer thinking. Plenty of architectures would have started by building a redundant database; this design started by understanding and leveraging the system already in place. This reframing is the difference between a tool that fights the platform and one that rides it.
 * **Measurable efficiency and productivity gains:** The application acts as a real, daily-use multiplier that turns a chaotic pile of terminal tabs into a managed, searchable workspace, providing significant engineering leverage.
-* **Distinct agents for distinct jobs:** The architecture deploys specialized roles — reviewer, research, context-extractor — instead of one blunt "do the thing" flow. Scoping each agent to its role, and enforcing constraints at the tool layer (e.g., the research agent physically cannot edit files), demonstrates proper separation-of-concerns and defense-in-depth judgment.
-* **Automated feedback loops:** An N+1 query problem in the wishlist module — a performance bug an agent had produced — was identified, analyzed, and fixed. The lesson was then fed back into the system, tightening the reviewer agent's rules so it would catch that entire class of problem automatically from then on. This didn't just fix a single bug; it improved the machine that finds bugs.
+* **Reusable agent profiles instead of one blunt "do the thing" flow:** Delegations let a session hand off to a named, reusable Agent profile (prompt, model, read-only-or-edit permission) that runs unattended in the background, briefed with a transcript digest and changed-files list — scoping distinct jobs to distinct configurations rather than one undifferentiated flow.
 * **A high bar for quality:** The global search went through three iterations to move past "good enough" and achieve highly accurate session retrieval. This standard drives the entire system.
 
-If a reviewer looked at this work cold, the honest read is clear: the codebase reflects senior-level judgment about correctness, performance, and real-world utility consistently across the whole build.
+Read cold, the codebase reflects senior-level judgment about correctness, performance, and real-world utility consistently across the whole build.
 
 ---
 
@@ -33,7 +32,7 @@ The core insight shaping the tool was that **nothing new needed to be persisted*
 | Module | Responsibility |
 | --- | --- |
 | `backend/src/config.ts` | Paths, constants, model set, CLI flags, context-window size |
-| `backend/src/store.ts` | Load/save for sidecar metadata, tickets, reviews, contexts + live-process tracking |
+| `backend/src/store.ts` | Load/save for sidecar metadata, tickets, contexts + live-process tracking |
 | `backend/src/sessions.ts` | Transcript scanning, digest building, keyword + snippet search |
 | `backend/src/claude.ts` | Headless CLI calls, Terminal launching, tab reuse, prompt builders |
 | `backend/src/html.ts` | Server-rendered report + index pages |
@@ -83,25 +82,15 @@ Every session card displays a green/yellow/red indicator showing context window 
 
 ---
 
-## The agents
+## Background work
 
-Rather than relying on one generic execution flow, the tool deploys **distinct agent roles**, each with a prompt and permission profile tailored to its job:
+Rather than one generic execution flow, the tool separates concerns into distinct background jobs:
 
-* **Solo** — A standard interactive session.
-* **Implement → Review** — Runs the task, then automatically chains a second `claude --continue` pass that reviews the diff from a senior-engineering perspective.
-* **Research** — Read-only. Launched with `--disallowedTools "Edit,Write,NotebookEdit"`, meaning it physically cannot mutate files; it can only read code, search web/docs, use MCP tools, and report a plan. Enforcing this constraint at the tool layer rather than trusting the prompt provides true defense-in-depth.
-* **Reviewer** — A headless, read-only pass over exactly the files changed in a session (parsed from the transcript's Edit/Write tool calls), producing a numbered, plain-English report. Findings can then be fixed selectively ("fix only 1, 2, 6") or all at once, with an optional test-writing step.
-* **Context extractor** — Condenses a long session into a short briefing to seed a fresh session when approaching the context limit.
-
-The reviewer prompt is designed to catch architectural flaws and production issues. For example, after encountering an **N+1 query in the wishlist module**, the reviewer's rule set was tightened to explicitly hunt for that class of performance trap going forward:
-
-```
-- Performance traps: N+1 queries, work inside loops that should be batched, missing indexes,
-  redundant network/API calls, re-renders.
-
-```
-
-This feedback loop — a finding in real code becoming a permanent validation rule — ensures the tool's utility compounds over time.
+* **Delegations** — hand a session off to a reusable **Agent** profile (name, emoji, prompt, model,
+  read-only-or-edit permission) that runs unattended in the background, briefed with a transcript
+  digest and changed-files list.
+* **Context extractor** — Condenses a long session into a short briefing to seed a fresh session
+  when approaching the context limit.
 
 ---
 
@@ -156,4 +145,4 @@ This staged design — cheap recall → smart re-rank → model judgment — rep
 
 ## Bottom line
 
-The tool reframes an ad-hoc pile of terminal tabs into a managed, organized workspace, layering purpose-built agents (reviewer, research, context-extractor) on top of it. It functions as a clear productivity multiplier when running multiple Claude sessions in parallel. The underlying engineering choices — derive-don't-duplicate data flows, PID-verified state tracking, a staged search pipeline, launchd durability, and tool-layer permission enforcement — deliver a robust, performant, local-first management utility.
+The tool reframes an ad-hoc pile of terminal tabs into a managed, organized workspace, layering background work (Delegations, context extraction) on top of it. It functions as a clear productivity multiplier when running multiple Claude sessions in parallel. The underlying engineering choices — derive-don't-duplicate data flows, PID-verified state tracking, a staged search pipeline, launchd durability, and tool-layer permission enforcement — deliver a robust, performant, local-first management utility.

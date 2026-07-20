@@ -1,6 +1,6 @@
-import { todos, setTodos, boardColumns, setBoardColumns } from "../../state.js";
+import { todos, setTodos, todoBoardColumns, setTodoBoardColumns } from "../../state.js";
 import { toast } from "../../ui/toast.js";
-import { saveBoardColumns } from "../../api/sessionsApi.js";
+import { saveTodoBoardColumns } from "../../api/sessionsApi.js";
 import { openTodoCreateModal, openTodoEditModal, openTodoAssignModal } from "../modals/todoModals.js";
 import { patchTodo } from "./patchTodo.js";
 import { renderTodoBoard } from "./renderTodoBoard.js";
@@ -77,19 +77,19 @@ export function wireTodoBoard(app) {
       const colId = el.dataset.col;
       if (action === "add") openTodoCreateModal(colId);
       if (action === "rename") {
-        const col = boardColumns.find((c) => c.id === colId);
+        const col = todoBoardColumns.find((c) => c.id === colId);
         const next = await openPromptModal({ title: "Rename column", value: col?.title || "" });
-        if (next && next.trim()) { col.title = next.trim(); saveBoardColumns(); renderTodoBoard(); }
+        if (next && next.trim()) { col.title = next.trim(); saveTodoBoardColumns(); renderTodoBoard(); }
       }
       if (action === "remove") {
-        const col = boardColumns.find((c) => c.id === colId);
-        if (boardColumns.length <= 1) { toast("Need at least one column"); return; }
+        const col = todoBoardColumns.find((c) => c.id === colId);
+        if (todoBoardColumns.length <= 1) { toast("Need at least one column"); return; }
         const ok = await openConfirmModal({ title: `Remove column "${col?.title}"?`, confirmLabel: "Remove", danger: true });
         if (!ok) return;
         // move todos to first column
-        todos.forEach((t) => { if (t.board === colId) patchTodo(t.id, { board: boardColumns[0].id }); });
-        setBoardColumns(boardColumns.filter((c) => c.id !== colId));
-        saveBoardColumns();
+        todos.forEach((t) => { if (t.board === colId) patchTodo(t.id, { board: todoBoardColumns[0].id }); });
+        setTodoBoardColumns(todoBoardColumns.filter((c) => c.id !== colId));
+        saveTodoBoardColumns();
         renderTodoBoard();
       }
     });
@@ -100,9 +100,9 @@ export function wireTodoBoard(app) {
     const title = await openPromptModal({ title: "New column", label: "Column name" });
     if (!title?.trim()) return;
     const id = title.trim().toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
-    if (boardColumns.some((c) => c.id === id)) { toast("Column already exists"); return; }
-    boardColumns.push({ id: id || crypto.randomUUID(), title: title.trim() });
-    saveBoardColumns();
+    if (todoBoardColumns.some((c) => c.id === id)) { toast("Column already exists"); return; }
+    todoBoardColumns.push({ id: id || crypto.randomUUID(), title: title.trim() });
+    saveTodoBoardColumns();
     renderTodoBoard();
   });
 
@@ -146,11 +146,11 @@ export function wireTodoBoard(app) {
       if (!fromId) return;
       const toId = col.dataset.todoColId;
       if (fromId === toId) return;
-      const fromIdx = boardColumns.findIndex((c) => c.id === fromId);
-      const toIdx = boardColumns.findIndex((c) => c.id === toId);
-      const [moved] = boardColumns.splice(fromIdx, 1);
-      boardColumns.splice(toIdx, 0, moved);
-      saveBoardColumns();
+      const fromIdx = todoBoardColumns.findIndex((c) => c.id === fromId);
+      const toIdx = todoBoardColumns.findIndex((c) => c.id === toId);
+      const [moved] = todoBoardColumns.splice(fromIdx, 1);
+      todoBoardColumns.splice(toIdx, 0, moved);
+      saveTodoBoardColumns();
       renderTodoBoard();
     });
   });

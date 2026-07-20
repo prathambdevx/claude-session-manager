@@ -1,5 +1,5 @@
 # Personal / local state — never publish. Contains your session names, tickets, notes,
-# review reports, context briefings, and agent-job outputs.
+# context briefings, and agent-job outputs.
 data/
 
 # Logs

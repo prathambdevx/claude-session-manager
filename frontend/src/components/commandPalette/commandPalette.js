@@ -1,19 +1,14 @@
-// ⌘K / Ctrl+K — a filterable jump list over views (Main board, Projects lens, saved views) and
-// projects. Bound in main.js; deliberately not "/" since that's already the search-focus shortcut.
-import { sessions, savedViews } from "../../state.js";
-import { escapeHtml, projectName } from "../../ui/format.js";
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+// ⌘K / Ctrl+K — a filterable jump list over views (All Projects + saved views). Bound in main.js;
+// deliberately not "/" since that's already the search-focus shortcut.
+import { savedViews } from "../../state.js";
+import { escapeHtml } from "../../ui/format.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { switchToView } from "../sidebar/viewsSection.js";
-import { enterProjectBoard } from "../../routing/boardRouting.js";
 
 function entries() {
-  const cwds = [...new Set(sessions.filter((s) => !s.isTicket).map((s) => s.cwd))]
-    .sort((a, b) => projectName(a).localeCompare(projectName(b)));
   return [
-    { group: "Views", label: "Main board", go: () => switchToView("main") },
-    { group: "Views", label: "Projects", go: () => switchToView("group") },
+    { group: "Views", label: "All Projects", go: () => switchToView("group") },
     ...savedViews.map((v) => ({ group: "Views", label: v.title, go: () => switchToView(`saved:${v.id}`) })),
-    ...cwds.map((cwd) => ({ group: "Projects", label: projectName(cwd), go: () => enterProjectBoard(cwd) })),
   ];
 }
 
@@ -28,7 +23,7 @@ export function openCommandPalette() {
   let items = entries();
   let selected = 0;
 
-  const go = (item) => { closeReviewModal(); item.go(); };
+  const go = (item) => { closeModal(); item.go(); };
 
   const renderList = () => {
     if (!items.length) { list.innerHTML = '<div class="empty">No matches</div>'; return; }

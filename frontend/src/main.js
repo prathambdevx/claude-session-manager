@@ -1,7 +1,7 @@
 // Entry point — derives board routing from the URL first (must happen before the first render()),
 // then wires DOM controls and starts polling.
-import { currentTab, contentSearchTimer, setContentSearchTimer, boardColumns } from "./state.js";
-import { initBoardStateFromLocation, wirePopstate } from "./routing/boardRouting.js";
+import { currentTab, contentSearchTimer, setContentSearchTimer } from "./state.js";
+import { initBoardStateFromLocation, wirePopstate, savedViewCtx, currentSavedView } from "./routing/boardRouting.js";
 import { loadSessions, fetchContentMatches } from "./api/sessionsApi.js";
 import { initLiveUpdates } from "./api/sse.js";
 import { dangerousDefault } from "./ui/formFragments.js";
@@ -11,10 +11,8 @@ import { renderTodoBoard } from "./components/todoBoard/renderTodoBoard.js";
 import { openGlobalSearchModal } from "./components/modals/globalSearchModal.js";
 import { openColumnTaskModal } from "./components/modals/columnTaskModal.js";
 import { openCommandPalette } from "./components/commandPalette/commandPalette.js";
-import { mainBoardCtx } from "./routing/boardRouting.js";
-import { closeReviewModal } from "./ui/modalShell.js";
+import { closeModal } from "./ui/modalShell.js";
 import { initThemeToggle } from "./components/theme/themeToggle.js";
-import { boardMode } from "./state.js";
 
 initBoardStateFromLocation();
 wirePopstate();
@@ -40,16 +38,20 @@ document.getElementById("globalSearchBtn")?.addEventListener("click", openGlobal
 
 initThemeToggle();
 
-// close card menus on outside click
-document.addEventListener("click", () => {
-  document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+// close card menus on outside click — except the Filter projects dropdown, which is meant to stay
+// open across several checkbox clicks in a row (its own module-level state/rerender handles it)
+document.addEventListener("click", (e) => {
+  document.querySelectorAll(".bc-dropdown.open").forEach((d) => {
+    if (d.classList.contains("project-filter-dropdown") && d.contains(e.target)) return;
+    d.classList.remove("open");
+  });
 });
 
 document.addEventListener("keydown", (e) => {
   const tag = document.activeElement?.tagName;
   const typing = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
   if (e.key === "Escape") {
-    if (document.getElementById("modalRoot").innerHTML.trim()) { closeReviewModal(); return; }
+    if (document.getElementById("modalRoot").innerHTML.trim()) { closeModal(); return; }
     if (typing) document.activeElement.blur();
     return;
   }
@@ -63,9 +65,12 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     document.getElementById("search").focus();
   } else if (e.key === "n") {
-    if (boardMode !== "main") return; // global shortcut only targets the main board, not a drilled-in project board
+    // only a saved view has a place to drop a new task into — the group lens's columns are locked
+    // project columns, not a spot to add one-off work
+    const view = currentSavedView();
+    if (!view?.columns.length) return;
     e.preventDefault();
-    openColumnTaskModal(boardColumns[0]?.id, mainBoardCtx()); // same New Task modal the column "+" opens
+    openColumnTaskModal(view.columns[0].id, savedViewCtx(view)); // same New Task modal the column "+" opens
   }
 });
 

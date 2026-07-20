@@ -7,7 +7,7 @@ export function dangerousDefault() {
   return localStorage.getItem("globalDangerous") !== "0";
 }
 
-export const REVIEW_MODELS = [
+export const MODEL_OPTIONS = [
   { value: "", label: "Inherit default" },
   { value: "sonnet", label: "Sonnet 5" },
   { value: "opus", label: "Opus 4.8" },
@@ -16,7 +16,7 @@ export const REVIEW_MODELS = [
 ];
 
 export function modelSelectHtml(id, selectedValue = "") {
-  return `<select id="${id}">${REVIEW_MODELS.map(
+  return `<select id="${id}">${MODEL_OPTIONS.map(
     (m) => `<option value="${m.value}"${(selectedValue || "") === m.value ? " selected" : ""}>${m.label}</option>`
   ).join("")}</select>`;
 }

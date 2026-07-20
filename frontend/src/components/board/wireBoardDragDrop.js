@@ -8,14 +8,6 @@ import { pushHistory } from "./boardUndo.js";
 
 export function reorderColumns(ctx, fromId, toId, rerender) {
   if (fromId === toId) return;
-  // The home column stays pinned first while it's actually shown — hidden, there's nothing to
-  // pin, so the remaining visible columns reorder freely (including whichever is now first). A
-  // saved view is a frozen snapshot, not a live board, so this pin doesn't apply there either.
-  const home = ctx.viewId ? null : ctx.cols.find((c) => c.isAll);
-  if (home && !home.hidden && (fromId === home.id || toId === home.id)) {
-    toast(`"${home.title}" always stays first`);
-    return;
-  }
   const fromIdx = ctx.cols.findIndex((c) => c.id === fromId);
   const toIdx = ctx.cols.findIndex((c) => c.id === toId);
   if (fromIdx === -1 || toIdx === -1) return;
@@ -29,24 +21,10 @@ export function reorderColumns(ctx, fromId, toId, rerender) {
 async function handleCardDrop(ctx, cardId, colId, rerender) {
   const s = sessions.find((x) => x.id === cardId);
   if (!s) return;
-  const homeId = ctx.cols.find((c) => c.isAll)?.id ?? null;
   const targetCol = ctx.cols.find((c) => c.id === colId);
 
-  // dropping onto the home column ("All sessions") isn't a move — it clears whatever custom tag
-  // this card has, since home always shows everyone regardless of tag. Tickets are work items, not
-  // real Claude sessions, so they're not part of "every session" at all — never allowed there.
-  if (colId === homeId) {
-    if (s.isTicket) { toast('Tickets can\'t move to "All sessions" — it\'s for real sessions only'); return; }
-    if (boardTagFor(ctx, s) == null) { toast('Already shown in "All sessions"'); return; }
-    pushHistory(ctx);
-    rerender();
-    await setBoardTag(ctx, cardId, null);
-    return;
-  }
-
   if (ctx.kind === "main" && targetCol?.cwd) {
-    // a ticket has no fixed project of its own — it never belongs on a project-dedicated column,
-    // same as it never belongs on "All sessions".
+    // a ticket has no fixed project of its own — it never belongs on a project-dedicated column
     if (s.isTicket) { toast("Tickets can't be moved onto a project column"); return; }
     // a session's project is fixed — dropping it on a DIFFERENT project's column is rejected;
     // dropping it on its OWN project column just clears any custom tag (it's already shown there)
@@ -61,8 +39,8 @@ async function handleCardDrop(ctx, cardId, colId, rerender) {
     return;
   }
 
-  // a plain column (Priority/In Progress/Done/custom, on Main board or inside a project's own
-  // board): tag it here — independently per board, never a shared/global placement
+  // a plain column (Priority/In Progress/Done/custom): tag it here — independently per board,
+  // never a shared/global placement
   pushHistory(ctx);
   rerender();
   await setBoardTag(ctx, cardId, colId);

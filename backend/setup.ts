@@ -174,6 +174,10 @@ async function install() {
   }
 
   console.log("\nIt's running now and will start automatically on every login/reboot.");
+  console.log(
+    "Make sure \"bun\" and \"Ghostty\" are both checked on in System Settings → Privacy & Security → " +
+      "Accessibility and → Automation — Resume session won't work properly without it."
+  );
   console.log("Open: http://127.0.0.1:4321");
 }
 

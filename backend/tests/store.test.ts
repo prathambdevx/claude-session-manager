@@ -43,31 +43,12 @@ test("tickets round-trip through save/load, including startedSessionId", async (
   expect(reloaded.t1.startedSessionId).toBe("session-abc");
 });
 
-test("board columns default to null before the first save, then persist", async () => {
-  expect(await store.loadBoard()).toBeNull(); // no board.json written yet in this temp data dir
+test("group board columns default to null before the first save, then persist", async () => {
+  expect(await store.loadGroupBoard()).toBeNull(); // no group-board.json written yet in this temp data dir
 
-  const columns = [{ id: "todo", title: "All sessions" }, { id: "done", title: "Done" }];
-  await store.saveBoard(columns);
-  // loadBoard backfills the legacy "todo" id to "all-sessions" + isAll:true on first read
-  expect(await store.loadBoard()).toEqual([{ id: "all-sessions", title: "All sessions", isAll: true }, { id: "done", title: "Done" }]);
-});
-
-test("project boards default to an empty map, then persist independently per cwd", async () => {
-  expect(await store.loadProjectBoards()).toEqual({});
-
-  const cols = [{ id: "todo", title: "All sessions" }, { id: "done", title: "Done" }];
-  const backfilledCols = [{ id: "all-sessions", title: "All sessions", isAll: true }, { id: "done", title: "Done" }];
-  await store.saveProjectBoards({ "/Users/x/proj-a": cols });
-  expect(await store.loadProjectBoards()).toEqual({ "/Users/x/proj-a": backfilledCols });
-
-  // a second project's columns don't clobber the first — keyed independently
-  const cols2 = [{ id: "backlog", title: "Backlog" }];
-  const all = await store.loadProjectBoards();
-  all["/Users/x/proj-b"] = cols2;
-  await store.saveProjectBoards(all);
-  const reloaded = await store.loadProjectBoards();
-  expect(reloaded["/Users/x/proj-a"]).toEqual(backfilledCols);
-  expect(reloaded["/Users/x/proj-b"]).toEqual(cols2);
+  const columns = [{ id: "proj-a", title: "proj-a", cwd: "/Users/x/proj-a" }];
+  await store.saveGroupBoard(columns);
+  expect(await store.loadGroupBoard()).toEqual(columns);
 });
 
 test("reconcileClearedSessions carries a running session's name/board to its new post-/clear id", async () => {

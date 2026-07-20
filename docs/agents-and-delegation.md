@@ -128,7 +128,7 @@ Run via a new `runClaudeHeadlessDetached(...)` in `claude.ts` (spawn + return ch
 | `POST /api/delegations` | start one: `{agentId, sessionId}` → builds briefing, spawns detached, returns `{delegationId}` |
 | `GET /api/delegations/:id` | one delegation record (for polling / result) |
 | `GET /delegations/:id` | server-rendered result page (reuses `markdownToHtml`), opened in a new tab |
-| `GET /delegations` | server-rendered history index (like `/reviews`) |
+| `GET /delegations` | server-rendered history index |
 
 `GET /api/sessions` additionally returns `agents` and `delegations` arrays so the board renders in one round-trip (same pattern as `tickets`).
 
@@ -163,7 +163,7 @@ Colors: agent tiles use the accent/ticket palette to read as "actions," visually
 - **Execution model:** fully autonomous headless (chosen option A). No interactive terminal for delegations.
 - **Chaining:** one-shot only (chosen option A). To publish a reviewed change, drop the session onto Publish yourself. No auto-pipelines in v1.
 - **Custom agents:** yes — user-definable via the ＋ New agent form (4 fields).
-- **Open decision #4 (resolved):** the existing specialized **🔎 Review → Fix (all/selected)** flow stays exactly as-is — it has a richer report+fix loop than a generic agent. The Agents system is **additive** for other delegated work. We therefore do **not** seed a generic "Reviewer" agent (would duplicate the existing button); presets are Research + Publish-to-npm.
+- **Open decision #4 (resolved, since superseded):** at the time this was written, a specialized 🔎 Review → Fix (all/selected) flow existed separately with a richer report+fix loop than a generic agent, so the Agents system stayed additive rather than seeding a generic "Reviewer" preset. That standalone review feature has since been removed entirely (unused); presets remain Research + Publish-to-npm.
 - **Cost note:** multi-agent delegation multiplies token spend (Anthropic saw ~15x for their research fan-out). One-shot single delegations are far cheaper than that, but each still runs a full agent — worth surfacing in the UI copy ("runs a full Claude session in the background").
 
 ---
@@ -176,7 +176,7 @@ Colors: agent tiles use the accent/ticket palette to read as "actions," visually
 | changed files | `Session.changedFiles` (exists) |
 | command flags (model[1m], effort, dangerous, disallowed) | `claude.ts` builders (exist) |
 | result page HTML | `markdownToHtml` (exists) |
-| history index page | mirror `/reviews` page (exists) |
+| history index page | modeled on the now-removed `/reviews` page's index-list pattern |
 | sidecar CRUD pattern | mirror tickets store (exists) |
 | board drag + poll | existing board dnd + 15s refresh (exists) |
 

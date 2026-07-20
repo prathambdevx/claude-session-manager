@@ -15,6 +15,6 @@ export { tryFocusRunningSession, closeRunningSessionTerminal } from "./terminal/
 export { usingGhostty } from "./terminal/ghosttyEnv.ts";
 export { sendPromptToRunningTerminal } from "./terminal/terminalInject.ts";
 export {
-  modelAliasWithContext, buildLaunchScript, buildFileReviewPrompt, buildFixPrompt,
+  modelAliasWithContext, buildLaunchScript,
   buildContextExtractionPrompt, buildContinuationPrompt, buildDelegationPrompt,
 } from "./prompts.ts";

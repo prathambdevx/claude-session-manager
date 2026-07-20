@@ -1,4 +1,4 @@
-export function toast(msg, durationMs = 1800) {
+export function toast(msg, durationMs = 3200) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.add("show");

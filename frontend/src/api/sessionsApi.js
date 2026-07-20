@@ -2,24 +2,22 @@
 // afterward — loading, resuming, deleting, launching, delegating.
 import {
   sessions, setSessions, agents, setAgents, delegations, setDelegations, todos, setTodos,
-  boardMode, activeProjectCwd, boardColumns, projectBoards, setBoardColumns, setProjectBoards,
-  currentProjectColumns, setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns,
+  todoBoardColumns, setTodoBoardColumns, groupBoardColumns, setGroupBoardColumns,
   summarizingIds, setContentMatchIds, currentTab,
-  PROJECT_DEFAULT_COLUMNS, DEFAULT_COLUMNS, setSavedViews, setQuickPrompts,
+  DEFAULT_TODO_COLUMNS, setSavedViews, setQuickPrompts, setSessionsLoaded,
 } from "../state.js";
 import { mergeInProjectColumns } from "../routing/boardRouting.js";
 import { toast } from "../ui/toast.js";
 import { dangerousDefault } from "../ui/formFragments.js";
 import { render, isTransientUiOpen } from "../pages/sessionsPage.js";
 import { renderTodoBoard } from "../components/todoBoard/renderTodoBoard.js";
-import { applyBoardSettings } from "./boardSettingsApi.js";
 import { openConfirmModal } from "../ui/confirmModal.js";
 
-export async function saveBoardColumns() {
-  await fetch("/api/board", {
+export async function saveTodoBoardColumns() {
+  await fetch("/api/todo-board", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ columns: boardColumns }),
+    body: JSON.stringify({ columns: todoBoardColumns }),
   });
 }
 
@@ -55,17 +53,13 @@ export async function loadSessions(opts = {}) {
   setDelegations(data.delegations || []);
   setTodos(data.todos || []);
 
-  // session board columns: server is the sole source of truth — seed the defaults on a brand-new
-  // install only (nothing saved yet)
-  let cols;
-  if (Array.isArray(data.board) && data.board.length) {
-    cols = data.board;
+  // seed the default todo columns only on a brand-new install (nothing saved yet)
+  if (Array.isArray(data.todoBoard) && data.todoBoard.length) {
+    setTodoBoardColumns(data.todoBoard);
   } else {
-    cols = DEFAULT_COLUMNS.slice();
-    setBoardColumns(cols);
-    await saveBoardColumns();
+    setTodoBoardColumns(DEFAULT_TODO_COLUMNS.slice());
+    await saveTodoBoardColumns();
   }
-  setBoardColumns(cols);
 
   setGroupBoardColumns(Array.isArray(data.groupBoard) ? data.groupBoard : []);
   // no manual "Regroup" button for this view — every project always gets a column, silently,
@@ -76,14 +70,9 @@ export async function loadSessions(opts = {}) {
     await saveGroupBoardColumns();
   }
 
-  setProjectBoards((data.projectBoards && typeof data.projectBoards === "object") ? data.projectBoards : {});
-  if (boardMode === "project" && activeProjectCwd) {
-    setCurrentProjectColumns(projectBoards[activeProjectCwd] || PROJECT_DEFAULT_COLUMNS.slice());
-  }
-
   setSavedViews(Array.isArray(data.savedViews) ? data.savedViews : []);
-  applyBoardSettings(data.boardSettings);
   setQuickPrompts(Array.isArray(data.quickPrompts) ? data.quickPrompts : []);
+  setSessionsLoaded(true);
 
   if (opts.background && isTransientUiOpen()) return; // don't rebuild under an open menu/rename
   render();
@@ -224,17 +213,17 @@ export async function fetchContentMatches(q) {
   render();
 }
 
-export async function launchTask({ cwd, task, name, model, mode, dangerous = true }) {
+export async function launchTask({ cwd, task, name, model, dangerous = true }) {
   if (!cwd) { toast("Pick a project first"); return; }
   if (!task) { toast("Describe the task first"); return; }
   const res = await fetch("/api/launch", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ cwd, task, mode, name: name || undefined, model: model || undefined, dangerous }),
+    body: JSON.stringify({ cwd, task, name: name || undefined, model: model || undefined, dangerous }),
   });
   const data = await res.json();
   if (data.ok) {
-    toast(`Launched${name ? ' "' + name + '"' : ""} in ${cwd}${mode === "implement-review" ? " (implement → review)" : ""}`);
+    toast(`Launched${name ? ' "' + name + '"' : ""} in ${cwd}`);
   } else {
     toast("Failed to launch: " + (data.error || "unknown error"));
   }

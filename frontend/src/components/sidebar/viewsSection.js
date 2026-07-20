@@ -1,7 +1,8 @@
-// Sidebar "Views" section — Main board + saved views. Each view is a real URL (see switchToView in
-// boardRouting), so a refresh stays on the current view. Saved views' ⋮ menu reuses .bc-dropdown.
-import { activeView, boardMode, savedViews } from "../../state.js";
-import { switchToView } from "../../routing/boardRouting.js";
+// Sidebar "Views" section — every saved view, empty-state text when there are none. Each view is
+// a real URL (see switchToView in boardRouting), so a refresh stays on the current view. Saved
+// views' ⋮ menu reuses .bc-dropdown.
+import { activeView, savedViews } from "../../state.js";
+import { switchToView, createView } from "../../routing/boardRouting.js";
 import { escapeHtml } from "../../ui/format.js";
 import { renameSavedView, deleteSavedView } from "../../api/savedViewsApi.js";
 import { openPromptModal } from "../../ui/promptModal.js";
@@ -9,25 +10,20 @@ import { openConfirmModal } from "../../ui/confirmModal.js";
 
 export { switchToView };
 
-function viewRowHtml(id, label, opts = {}) {
-  const active = boardMode === "main" && activeView === id;
-  // menu data-attrs carry the RAW view id (opts.rawId), not the "saved:<id>" switch-view id — the
-  // rename/delete handlers look the view up by its raw id and hit /api/saved-views/<raw id>
-  const menu = opts.renameable
-    ? `
-      <div class="bc-menu-wrap">
-        <button class="bc-menu-btn" data-view-menu-toggle="${opts.rawId}" title="Options">⋮</button>
-        <div class="bc-dropdown" id="viewmenu-${opts.rawId}">
-          <button data-rename-view="${opts.rawId}">✎ Rename</button>
-          <button class="danger" data-delete-view="${opts.rawId}">🗑 Delete</button>
-        </div>
-      </div>`
-    : "";
+function viewRowHtml(view) {
+  const id = `saved:${view.id}`;
+  const active = activeView === id;
   return `
     <div class="sidebar-item${active ? " active" : ""}" data-switch-view="${id}">
       <span class="sidebar-dot"></span>
-      <span class="sidebar-label">${escapeHtml(label)}</span>
-      ${menu}
+      <span class="sidebar-label">${escapeHtml(view.title)}</span>
+      <div class="bc-menu-wrap">
+        <button class="bc-menu-btn" data-view-menu-toggle="${view.id}" title="Options">⋮</button>
+        <div class="bc-dropdown" id="viewmenu-${view.id}">
+          <button data-rename-view="${view.id}">✎ Rename</button>
+          <button class="danger" data-delete-view="${view.id}">🗑 Delete</button>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -41,18 +37,17 @@ export function viewsSectionHtml() {
     <div class="sidebar-group">
       Views
       <button class="views-info-btn" data-views-info-toggle type="button" aria-expanded="false" title="What's a view?">i</button>
+      <span class="sidebar-group-spacer"></span>
+      <button class="add-view-btn" data-create-view type="button" title="Create a view">+</button>
     </div>
     <div class="views-callout" data-views-callout>
       <div class="views-callout-head">
         <span class="tag">Views</span>
         <button class="views-callout-close" data-views-info-close type="button" title="Close">✕</button>
       </div>
-      <p><b>A view is a saved column layout.</b> "Main board" is the one you start with.</p>
-      <p>Arrange your columns how you like, then <b>＋ Save as view</b> to keep that arrangement here
-      — switch between as many as you want, anytime.</p>
+      <p>You can create your custom views here — arrange columns however you like.</p>
     </div>
-    ${viewRowHtml("main", "Main board")}
-    ${savedViews.map((v) => viewRowHtml(`saved:${v.id}`, v.title, { renameable: true, rawId: v.id })).join("")}
+    ${savedViews.length ? savedViews.map(viewRowHtml).join("") : '<div class="sidebar-empty-hint">No custom views created.</div>'}
   `;
 }
 
@@ -84,6 +79,10 @@ document.addEventListener("click", (e) => {
 export function wireViewsSection(root) {
   root.querySelectorAll("[data-switch-view]").forEach((el) => {
     el.addEventListener("click", () => switchToView(el.dataset.switchView));
+  });
+  root.querySelector("[data-create-view]")?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    createView();
   });
 
   const infoBtn = root.querySelector("[data-views-info-toggle]");
@@ -153,13 +152,13 @@ export function wireViewsSection(root) {
       const view = savedViews.find((v) => v.id === id);
       const ok = await openConfirmModal({
         title: `Delete "${view?.title}"?`,
-        message: "This only removes the saved layout — it doesn't touch Main board or any sessions.",
+        message: "This only removes the saved layout — it doesn't touch any sessions.",
         confirmLabel: "Delete",
         danger: true,
       });
       if (!ok) return;
-      // if you're currently viewing the one being deleted, route back to Main board (URL + render)
-      if (activeView === `saved:${id}`) await switchToView("main");
+      // if you're currently viewing the one being deleted, route back to All Projects (URL + render)
+      if (activeView === `saved:${id}`) await switchToView("group");
       await deleteSavedView(id);
       await import("./renderSidebar.js").then((m) => m.renderSidebar());
     });

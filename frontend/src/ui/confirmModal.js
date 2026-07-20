@@ -1,6 +1,6 @@
 // Promise-based window.confirm() replacement matching the app's modal styling — resolves false on
 // any dismissal (overlay/Escape), same as the native dialog.
-import { modalShell, closeReviewModal } from "./modalShell.js";
+import { modalShell, closeModal } from "./modalShell.js";
 import { escapeHtml } from "./format.js";
 
 export function openConfirmModal({ title = "Are you sure?", message = "", confirmLabel = "Confirm", cancelLabel = "Cancel", danger = false } = {}) {
@@ -17,8 +17,8 @@ export function openConfirmModal({ title = "Are you sure?", message = "", confir
       </div>
     `, 380);
 
-    document.getElementById("confirmModalCancel").addEventListener("click", () => { settle(false); closeReviewModal(); });
-    document.getElementById("confirmModalOk").addEventListener("click", () => { settle(true); closeReviewModal(); });
+    document.getElementById("confirmModalCancel").addEventListener("click", () => { settle(false); closeModal(); });
+    document.getElementById("confirmModalOk").addEventListener("click", () => { settle(true); closeModal(); });
 
     // Enter confirms (matches clicking the primary button) — no text input to worry about
     // stealing Enter from, this modal is just the message + two buttons.

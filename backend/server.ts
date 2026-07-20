@@ -3,6 +3,11 @@
 import { PORT } from "./src/constants.ts";
 import { handleRequest, startClearReconciliationPoller, startOrphanWatcher, startFsWatcher } from "./src/routes/index.ts";
 import { startAutoUpdater } from "./src/polling/autoUpdater.ts";
+import { sanitizeLegacyBoardData } from "./src/store.ts";
+
+// See docs/data-migrations.md — a teammate's local data/ can carry fields from an older app
+// version; this tidies them before anything else reads the board files.
+await sanitizeLegacyBoardData();
 
 const server = Bun.serve({
   port: PORT,

@@ -3,7 +3,7 @@
 A local, macOS-only kanban dashboard over the sessions Claude Code already writes to
 `~/.claude/`. No database, no cloud — every session, its status, and its content are derived
 from files Claude Code itself persists; the app's own data (`data/`) only stores what Claude
-Code doesn't track: names, tags, board layouts, tickets, delegations, reviews.
+Code doesn't track: names, tags, board layouts, tickets, delegations.
 
 This doc describes what's actually here today. It is not a changelog — if something below is
 wrong, the code is the source of truth, not this file.
@@ -88,7 +88,7 @@ A **ticket** (a note-only card, no Claude session behind it) renders instead wit
 Done/Reopen toggle, and "▶ Start session" — once started, it shows "▶ Resume" and mirrors its
 started session's own chip.
 
-Card actions: Resume, Fork, Review, Edit description, Close terminal, Delete, and a ⚡ Quick Prompt
+Card actions: Resume, Fork, Edit description, Close terminal, Delete, and a ⚡ Quick Prompt
 shortcut.
 
 ---
@@ -138,7 +138,7 @@ the main path.
 
 ---
 
-## Background work: Quick Prompt, Delegations, Reviews, Context extraction
+## Background work: Quick Prompt, Delegations, Context extraction
 
 - **Quick Prompt** (`routes/quickPrompts.ts`) — send an ad-hoc follow-up to an existing session
   without opening a terminal. Delivers by typing straight into an already-open terminal if one
@@ -150,9 +150,6 @@ the main path.
   unattended in the background, briefed with a transcript digest + changed-files list. The
   drag-a-card-onto-an-agent dock UI is currently **disabled** (`agentsDockHtml()` returns empty) —
   the backend/data model is fully live, just not surfaced in the board toolbar right now.
-- **Reviews** (`routes/reviews.ts`) — a read-only senior-engineer pass over a session's changed
-  files, producing numbered findings; findings can be fixed selectively or all at once, optionally
-  with tests written.
 - **Context extraction** (`routes/contexts.ts`) — condenses a long session into a short briefing,
   which can seed a brand-new continuation session once the original is near its context limit.
 
@@ -167,17 +164,6 @@ the main path.
   asks Claude to pick the genuine best matches from the top candidates. **Currently hidden from the
   UI** — the trigger button is commented out in `index.html`; the route and modal are both fully
   functional, just not exposed right now.
-
----
-
-## Launch modes
-
-Set when launching a new session (`LAUNCH_MODES` in `backend/src/constants.ts`):
-- **solo** — runs the task as-is.
-- **implement-review** — runs the task, then chains a `--continue` review pass in the same session
-  with a fixed senior-engineer review prompt.
-- **research** — read-only: always launched with `Edit`/`Write`/`NotebookEdit` disallowed, even if
-  dangerous/auto-approve mode is on.
 
 ---
 

@@ -1,5 +1,5 @@
 import { sessions } from "../../state.js";
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml, escapeAttr, projectName } from "../../ui/format.js";
 import { modelSelectHtml, dangerousCheckboxHtml } from "../../ui/formFragments.js";
 import { toast } from "../../ui/toast.js";
@@ -11,16 +11,15 @@ const LAST_TASK_PROJECT_KEY = "lastTaskProjectCwd";
 
 export function openColumnTaskModal(colId, ctx) {
   const col = ctx.cols.find((c) => c.id === colId);
-  // A project's own board, or a project-tagged column on Main board, already knows which project
-  // this task belongs to — no need to ask (and no way to get it wrong by picking a different one).
-  const lockedCwd = ctx.kind === "project" ? ctx.cwd : col?.cwd || null;
+  // A project-tagged column already knows which project this task belongs to — no need to ask
+  // (and no way to get it wrong by picking a different one).
+  const lockedCwd = col?.cwd || null;
   const projectOptions = [...new Set(sessions.filter((s) => s.cwd).map((s) => s.cwd))].sort((a, b) => projectName(a).localeCompare(projectName(b)));
   const lastCwd = localStorage.getItem(LAST_TASK_PROJECT_KEY);
   // A ticket has no fixed project, so it can never actually show up on a project-dedicated column
-  // (membership there is computed purely by cwd) or on home (which shows every real session, not a
-  // ticket) — offering the checkbox there would silently create a ticket with nowhere to land.
-  const homeId = ctx.cols.find((c) => c.isAll)?.id ?? null;
-  const canBeTicket = !col?.cwd && colId !== homeId;
+  // (membership there is computed purely by cwd) — offering the checkbox there would silently
+  // create a ticket with nowhere to land.
+  const canBeTicket = !col?.cwd;
   modalShell(`
     <h3>⚡ New task → ${escapeHtml(col?.title || colId)}</h3>
     ${canBeTicket ? `
@@ -32,8 +31,8 @@ export function openColumnTaskModal(colId, ctx) {
       <input type="text" id="colTaskName" placeholder="e.g. wishlist-skeleton" />
     </div>
     <div class="modal-row">
-      <label for="colTaskDesc" id="colDescLabel">Task</label>
-      <textarea id="colTaskDesc" class="notes-input" style="min-height:150px" placeholder="Describe the task..."></textarea>
+      <label for="colTaskDesc" id="colDescLabel">Prompt</label>
+      <textarea id="colTaskDesc" class="notes-input" style="min-height:150px" placeholder="Describe your task"></textarea>
     </div>
     <div class="session-only">
       <div class="modal-row">
@@ -67,7 +66,7 @@ export function openColumnTaskModal(colId, ctx) {
       const t = isTicketBox.checked;
       document.querySelectorAll(".session-only").forEach((el) => (el.style.display = t ? "none" : ""));
       document.getElementById("colNameLabel").textContent = t ? "Ticket title" : "Session name (optional)";
-      document.getElementById("colDescLabel").textContent = t ? "Task (optional)" : "Task";
+      document.getElementById("colDescLabel").textContent = t ? "Prompt (optional)" : "Prompt";
       document.getElementById("colTaskStart").textContent = t ? "🎫 Create ticket" : "▶ Launch in new terminal";
     };
     isTicketBox.addEventListener("change", syncTicketMode);
@@ -79,7 +78,7 @@ export function openColumnTaskModal(colId, ctx) {
       document.getElementById("colTaskStart").click();
     }
   });
-  document.getElementById("colTaskCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("colTaskCancel").addEventListener("click", closeModal);
   document.getElementById("colTaskStart").addEventListener("click", async () => {
     const name = document.getElementById("colTaskName").value.trim();
     const desc = document.getElementById("colTaskDesc").value.trim();
@@ -93,7 +92,7 @@ export function openColumnTaskModal(colId, ctx) {
         body: JSON.stringify({ title, notes: name ? desc : undefined }),
       });
       const data = await res.json();
-      closeReviewModal();
+      closeModal();
       if (data.ok) {
         await setBoardTag(ctx, data.ticket.id, colId, true);
         toast("Ticket created");
@@ -106,9 +105,9 @@ export function openColumnTaskModal(colId, ctx) {
     const cwd = projectEl.dataset.lockedCwd || projectEl.value;
     const model = document.getElementById("colTaskModel").value;
     const dangerous = document.getElementById("colTaskDangerous").checked;
-    const data = await launchTask({ cwd, task: resolvePromptText(desc), name, model, mode: "solo", dangerous });
+    const data = await launchTask({ cwd, task: resolvePromptText(desc), name, model, dangerous });
     if (data?.ok) {
-      closeReviewModal();
+      closeModal();
       if (data.sessionId) setBoardTag(ctx, data.sessionId, colId); // drop the new session straight into the column it was launched from
     }
   });
@@ -144,16 +143,16 @@ export function convertTicketToSession(id) {
     </div>
   `);
   const { resolvePromptText } = wireImagePaste(document.getElementById("ctSessTask"));
-  document.getElementById("ctSessCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("ctSessCancel").addEventListener("click", closeModal);
   document.getElementById("ctSessGo").addEventListener("click", async () => {
     const cwd = document.getElementById("ctSessProject").value;
     const task = resolvePromptText(document.getElementById("ctSessTask").value.trim());
     const name = document.getElementById("ctSessName").value.trim();
     const model = document.getElementById("ctSessModel").value;
     const dangerous = document.getElementById("ctSessDangerous").checked;
-    const data = await launchTask({ cwd, task, name, model, mode: "solo", dangerous });
+    const data = await launchTask({ cwd, task, name, model, dangerous });
     if (data?.ok) {
-      closeReviewModal();
+      closeModal();
       if (data.sessionId) await patchMeta(id, { startedSessionId: data.sessionId }); // ticket keeps its board slot, now resumes the launched session
       loadSessions();
     }

@@ -1,7 +1,7 @@
 // Currently unused — the "🧠 Extract" button is hidden from every card menu (boardCard.js),
 // but the feature itself is left intact here in case it's wanted again later.
 import { sessions } from "../../state.js";
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml } from "../../ui/format.js";
 import { modelSelectHtml, dangerousCheckboxHtml } from "../../ui/formFragments.js";
 import { toast } from "../../ui/toast.js";
@@ -28,7 +28,7 @@ export function openExtractModal(id) {
       <button class="primary" id="extractStart">▶ Extract context</button>
     </div>
   `);
-  document.getElementById("extractCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("extractCancel").addEventListener("click", closeModal);
   document.getElementById("extractStart").addEventListener("click", async () => {
     const model = document.getElementById("extractModel").value;
     modalShell(`
@@ -48,11 +48,11 @@ export function openExtractModal(id) {
         toast("Context extracted");
         openContextResultModal(data.contextId, id);
       } else {
-        closeReviewModal();
+        closeModal();
         toast("Extraction failed: " + (data.error || "unknown error"));
       }
     } catch (e) {
-      closeReviewModal();
+      closeModal();
       toast("Extraction failed: " + e.message);
     }
   });
@@ -63,7 +63,7 @@ export async function openContextResultModal(contextId, sessionId) {
   const res = await fetch(`/api/contexts/${contextId}`);
   const data = await res.json();
   if (!data.context) {
-    closeReviewModal();
+    closeModal();
     toast("Couldn't load that context");
     return;
   }
@@ -87,7 +87,7 @@ export async function openContextResultModal(contextId, sessionId) {
       <button class="primary" id="ctxStart">▶ Start new session from this</button>
     </div>
   `);
-  document.getElementById("ctxCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("ctxCancel").addEventListener("click", closeModal);
   document.getElementById("ctxReExtract").addEventListener("click", () => {
     const sess = sessions.find((x) => x.id === sessionId);
     if (sess) sess.meta = { ...sess.meta, lastContextId: undefined };
@@ -106,11 +106,11 @@ export async function openContextResultModal(contextId, sessionId) {
       });
       data2 = await res2.json();
     } catch (e) {
-      closeReviewModal();
+      closeModal();
       toast("Failed to start new session: " + e.message);
       return;
     }
-    closeReviewModal();
+    closeModal();
     if (data2.ok) {
       toast(`New session${name ? ' "' + name + '"' : ""} launched in ${data2.cwd}`);
     } else {

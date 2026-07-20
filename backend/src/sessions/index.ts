@@ -10,6 +10,7 @@ import { activityLine } from "../claude/activity.ts";
 import { StatCache } from "../cache.ts";
 import { NOISE_MESSAGE, decodeProjectSlug, firstTextFromContent } from "./shared.ts";
 import { sampleUserMessages } from "./autoSummary.ts";
+import { isLikelyProjectDir } from "./projectDetection.ts";
 
 export type { Session } from "./shared.ts";
 export { decodeProjectSlug, firstTextFromContent, projectNameFromCwd, NOISE_MESSAGE } from "./shared.ts";
@@ -102,6 +103,8 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
   const contextPct =
     lastContextTokens == null ? null : Math.min(100, Math.round((lastContextTokens / contextWindow) * 100));
 
+  const isProjectDir = await isLikelyProjectDir(cwd);
+
   const session: Session = {
     id,
     projectSlug,
@@ -118,6 +121,7 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
     sizeBytes: st.size,
     lastActivity,
     lastUserMessage: allUserMessages[allUserMessages.length - 1] ?? null,
+    isProjectDir,
   };
 
   transcriptCache.set(path, st.mtimeMs, st.size, session);

@@ -1,7 +1,7 @@
 // Currently unused — its entry point (Agents dock's "+ New agent" tile) is disabled; left intact
 // in case Agents/Delegations return.
 import { agents } from "../../state.js";
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml, escapeAttr } from "../../ui/format.js";
 import { modelSelectHtml } from "../../ui/formFragments.js";
 import { toast } from "../../ui/toast.js";
@@ -52,13 +52,13 @@ The agent already inherits your shell auth (gh, npm login, etc.), so it can usua
     document.getElementById("agPermEdit").classList.add("active");
     document.getElementById("agPermRO").classList.remove("active");
   });
-  document.getElementById("agCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("agCancel").addEventListener("click", closeModal);
   if (editing) {
     document.getElementById("agDelete").addEventListener("click", async () => {
       const ok = await openConfirmModal({ title: `Delete agent "${a.name}"?`, confirmLabel: "Delete", danger: true });
       if (!ok) { openAgentModal(agentId); return; } // confirm modal replaced this one — restore it
       await fetch(`/api/agents/${agentId}`, { method: "DELETE" });
-      closeReviewModal();
+      closeModal();
       loadSessions();
       toast("Agent deleted");
     });
@@ -78,7 +78,7 @@ The agent already inherits your shell auth (gh, npm login, etc.), so it can usua
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    closeReviewModal();
+    closeModal();
     if (data.ok) { loadSessions(); toast(editing ? "Agent saved" : "Agent created"); }
     else toast("Failed: " + (data.error || "unknown error"));
   });

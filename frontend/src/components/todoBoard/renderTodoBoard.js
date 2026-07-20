@@ -1,4 +1,4 @@
-import { todos, boardColumns } from "../../state.js";
+import { todos, todoBoardColumns } from "../../state.js";
 import { escapeHtml } from "../../ui/format.js";
 import { todoCardHtml } from "../../subcomponents/todoCard.js";
 import { wireTodoBoard } from "./wireTodoBoard.js";
@@ -9,9 +9,9 @@ export function renderTodoBoard() {
   const q = document.getElementById("search").value.trim().toLowerCase();
   const filtered = q ? todos.filter((t) => (t.title + " " + (t.description || "")).toLowerCase().includes(q)) : todos;
 
-  const byCol = new Map(boardColumns.map((c) => [c.id, []]));
+  const byCol = new Map(todoBoardColumns.map((c) => [c.id, []]));
   for (const t of filtered) {
-    const col = t.board && byCol.has(t.board) ? t.board : boardColumns[0].id;
+    const col = t.board && byCol.has(t.board) ? t.board : todoBoardColumns[0].id;
     byCol.get(col).push(t);
   }
   // sort by most recently updated first
@@ -19,7 +19,7 @@ export function renderTodoBoard() {
 
   todoApp.innerHTML = `
     <div class="board">
-      ${boardColumns.map((c) => `
+      ${todoBoardColumns.map((c) => `
         <div class="board-col" data-todo-col-id="${c.id}">
           <div class="board-col-header" draggable="true" data-todo-col-drag="${c.id}">
             <span class="drag-handle">⠿</span>

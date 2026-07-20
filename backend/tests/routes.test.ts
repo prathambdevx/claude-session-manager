@@ -72,16 +72,6 @@ test("DELETE /api/tickets/:id removes it", async () => {
   expect((await second.json()).ok).toBe(true);
 });
 
-test("PUT /api/board persists column definitions", async () => {
-  const columns = [{ id: "todo", title: "All sessions" }, { id: "in-progress", title: "In Progress" }];
-  const res = await handleRequest(
-    new Request("http://localhost/api/board", { method: "PUT", body: JSON.stringify({ columns }) })
-  );
-  const data = await res.json();
-  expect(data.ok).toBe(true);
-  expect(data.columns).toEqual(columns);
-});
-
 test("PUT /api/group-board persists the Projects lens' column definitions", async () => {
   const columns = [{ id: "proj-a", title: "proj-a", cwd: "/x/proj-a" }, { id: "bad" /* missing title, dropped */ }];
   const res = await put("/api/group-board", { columns });
@@ -91,34 +81,6 @@ test("PUT /api/group-board persists the Projects lens' column definitions", asyn
 
   const { loadGroupBoard } = await import("../src/store.ts");
   expect(await loadGroupBoard()).toEqual([{ id: "proj-a", title: "proj-a", cwd: "/x/proj-a" }]);
-});
-
-test("PUT /api/project-board requires cwd and a columns array", async () => {
-  const noCwd = await put("/api/project-board", { columns: [] });
-  expect(noCwd.status).toBe(400);
-
-  const noCols = await put("/api/project-board", { cwd: "/x/proj" });
-  expect(noCols.status).toBe(400);
-});
-
-test("PUT /api/project-board sanitizes columns and keeps each project's board independent", async () => {
-  const res = await put("/api/project-board", {
-    cwd: "/x/proj-a",
-    columns: [{ id: "todo", title: "All sessions" }, { id: "bad" /* missing title, dropped */ }],
-  });
-  const data = await res.json();
-  expect(data.ok).toBe(true);
-  expect(data.columns).toEqual([{ id: "todo", title: "All sessions" }]);
-
-  await put("/api/project-board", { cwd: "/x/proj-b", columns: [{ id: "backlog", title: "Backlog" }] });
-
-  // verify on-disk state directly (this file avoids asserting through GET /api/sessions,
-  // since that calls scanAllSessions() and would make the test depend on real machine data)
-  // loadProjectBoards backfills the legacy "todo" id to "all-sessions" + isAll:true on first read
-  const { loadProjectBoards } = await import("../src/store.ts");
-  const all = await loadProjectBoards();
-  expect(all["/x/proj-a"]).toEqual([{ id: "all-sessions", title: "All sessions", isAll: true }]);
-  expect(all["/x/proj-b"]).toEqual([{ id: "backlog", title: "Backlog" }]);
 });
 
 test("PUT /api/sessions/:id/meta merges boardTags key-by-key instead of replacing the whole map", async () => {

@@ -1,6 +1,6 @@
 // Promise-based window.prompt() replacement — resolves the string on Save/Enter, null on cancel,
 // same contract as the native prompt() it replaces.
-import { modalShell, closeReviewModal } from "./modalShell.js";
+import { modalShell, closeModal } from "./modalShell.js";
 import { escapeHtml, escapeAttr } from "./format.js";
 
 export function openPromptModal({ title = "Enter a value", label = "", value = "", placeholder = "", confirmLabel = "Save", multiline = false, validate = null } = {}) {
@@ -34,9 +34,9 @@ export function openPromptModal({ title = "Enter a value", label = "", value = "
       const err = validate?.(input.value);
       if (err) { errorEl.textContent = err; errorEl.style.display = "block"; return; }
       settle(input.value);
-      closeReviewModal();
+      closeModal();
     };
-    document.getElementById("promptModalCancel").addEventListener("click", () => { settle(null); closeReviewModal(); });
+    document.getElementById("promptModalCancel").addEventListener("click", () => { settle(null); closeModal(); });
     document.getElementById("promptModalOk").addEventListener("click", submit);
     input.addEventListener("input", () => { errorEl.style.display = "none"; });
     input.addEventListener("keydown", (e) => {

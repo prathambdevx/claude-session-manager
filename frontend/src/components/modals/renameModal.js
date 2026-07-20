@@ -1,4 +1,4 @@
-import { modalShell, closeReviewModal } from "../../ui/modalShell.js";
+import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml, escapeAttr } from "../../ui/format.js";
 import { patchMeta } from "../../api/sessionsApi.js";
 
@@ -18,9 +18,9 @@ export function openRenameModal(id, currentName, label) {
   input.select();
   const save = () => {
     patchMeta(id, { name: input.value.trim() || null });
-    closeReviewModal();
+    closeModal();
   };
-  document.getElementById("renameCancel").addEventListener("click", closeReviewModal);
+  document.getElementById("renameCancel").addEventListener("click", closeModal);
   document.getElementById("renameSave").addEventListener("click", save);
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); save(); }

@@ -1,6 +1,4 @@
-// CRUD for saved board views — named, reusable snapshots of a board's column layout (Main board,
-// the Projects lens, or any individual project board), switchable from the sidebar without
-// disturbing the board it was saved from.
+// CRUD for saved views — named, independent column layouts switchable from the sidebar.
 import { savedViews, setSavedViews } from "../state.js";
 import { toast } from "../ui/toast.js";
 
@@ -14,9 +12,8 @@ export async function createSavedView(title, columns) {
   if (data.ok) {
     setSavedViews([...savedViews, data.view]);
     await import("../components/sidebar/renderSidebar.js").then((m) => m.renderSidebar()); // show it in the sidebar without a reload
-    toast(`Saved "${data.view.title}" — the sidebar remembers this exact column set`);
   } else {
-    toast("Failed to save view: " + (data.error || "unknown error"));
+    toast("Failed to create view: " + (data.error || "unknown error"));
   }
   return data;
 }

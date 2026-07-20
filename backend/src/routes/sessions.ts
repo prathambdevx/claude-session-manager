@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { PROJECTS_DIR } from "../constants.ts";
 import {
   loadMeta, saveMeta, loadTickets, loadRunning, loadAgents, loadAllDelegations, loadTodos,
-  loadBoard, loadTodoBoard, loadGroupBoard, loadProjectBoards, loadSavedViews, loadBoardSettings,
+  loadTodoBoard, loadGroupBoard, loadSavedViews,
   loadAllQuickPromptJobs, pidAlive,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
@@ -19,7 +19,7 @@ import { reconcileNow } from "../polling/reconcile.ts";
 
 export async function handleSessionsRoutes(req: Request, url: URL): Promise<Response | null> {
   if (url.pathname === "/api/sessions" && req.method === "GET") {
-    const [sessions, running, reconciledMeta, tickets, agents, delegations, quickPrompts, todos, board, todoBoard, groupBoard, projectBoards, savedViews, boardSettings] = await Promise.all([
+    const [sessions, running, reconciledMeta, tickets, agents, delegations, quickPrompts, todos, todoBoard, groupBoard, savedViews] = await Promise.all([
       scanAllSessions(),
       loadRunning(),
       reconcileNow(),
@@ -28,12 +28,9 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       loadAllDelegations(),
       loadAllQuickPromptJobs(),
       loadTodos(),
-      loadBoard(),
       loadTodoBoard(),
       loadGroupBoard(),
-      loadProjectBoards(),
       loadSavedViews(),
-      loadBoardSettings(),
     ]);
     // see computeActivelyWorking (sessions/index.ts) — shared with fsWatcher.ts's SSE push so both
     // compute this identically.
@@ -48,7 +45,7 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     });
     return json({
       sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, quickPrompts,
-      todos: Object.values(todos), board, todoBoard, groupBoard, projectBoards, savedViews, boardSettings,
+      todos: Object.values(todos), todoBoard, groupBoard, savedViews,
     });
   }
 
