@@ -9,9 +9,12 @@ import { agentsDockHtml, wireAgentsDock } from "../agentsDock/agentsDock.js";
 import { openColumnTaskModal } from "../modals/columnTaskModal.js";
 import { pushHistory, hasHistoryFor, undoLast } from "./boardUndo.js";
 import { manageColumnsButtonHtml, wireManageColumnsPanel, isManageColumnsMenuOpen } from "./manageColumnsPanel.js";
-import { openPromptModal } from "../../ui/promptModal.js";
 import { toast } from "../../ui/toast.js";
 import { wireBoardDragDrop, reorderColumns } from "./wireBoardDragDrop.js";
+
+// New-task glyph — an SVG cross instead of a text "+" so stroke weight stays crisp and
+// consistent at any size, independent of font rendering.
+const PLUS_ICON = `<svg width="14" height="14" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
 
 // Membership is computed, not bucketed: a .cwd column shows matching sessions permanently,
 // everything else is a plain per-board tag (independent per board — see boardTagFor).
@@ -86,6 +89,24 @@ function viewTitleHtml(ctx) {
   return `<h2 class="view-title" contenteditable="true" spellcheck="false" data-view-title>${escapeHtml(view?.title || "")}</h2>`;
 }
 
+// Empty-view illustration — a checkbox drawing its own checkmark, with a pulsing glow behind it;
+// points straight at Filter projects/+ Add column above it instead of an abstract board glyph.
+function emptyIlloSvg() {
+  return `
+    <svg class="empty-illo" width="96" height="92" viewBox="0 0 96 92" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs>
+        <marker id="illoArrowHead" markerWidth="7" markerHeight="7" refX="2" refY="3.5" orient="auto">
+          <path d="M0 0 L5 3.5 L0 7 Z" fill="var(--dim)" opacity="0.7"/>
+        </marker>
+      </defs>
+      <path class="arrow" d="M48 4 C 20 4, 6 18, 8 34" marker-end="url(#illoArrowHead)"/>
+      <circle class="glow" cx="48" cy="60" r="30"/>
+      <rect class="box" x="24" y="36" width="48" height="48" rx="12"/>
+      <path class="check" d="M35 61 L45 71 L64 49"/>
+    </svg>
+  `;
+}
+
 let filterMenuOpen = false;
 
 // Registered once at module load, not per-render — the board re-renders wholesale on every
@@ -138,7 +159,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
             `).join("")}
           </div>
         </div>
-        ${ctx.cols.length > 0 ? `<button class="btn ghost" id="addColBtn">+ Add column</button>` : ""}
+        <button class="btn ghost" id="addColBtn">+ Add column</button>
       `}
       <span style="flex:1"></span>
       ${ctx.kind === "group" ? "" : `
@@ -148,9 +169,9 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     </div>
     ${ctx.kind !== "group" && ctx.cols.length === 0 ? `
       <div class="empty-board">
-        <div class="glyph">▦</div>
+        ${emptyIlloSvg()}
         <h3>This view is empty</h3>
-        <p>Use <b>Filter projects</b> above to pick which project columns should show up here — nothing renders until you check at least one.</p>
+        <p>Use <b>Filter projects</b> above to add a project's column, or <b>+ Add column</b> for a custom one — nothing renders until you add at least one.</p>
       </div>
     ` : `
     <div class="board">
@@ -170,6 +191,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
             <span class="drag-handle">⠿</span>
             ${titleHtml}
             <span class="board-count">${items.length}</span>
+            ${ctx.kind === "group" ? "" : `<button class="col-add-btn" data-add-col-task="${c.id}" title="New task">${PLUS_ICON}<span>New</span></button>`}
             <div class="col-header-actions">
               <button class="collapse-toggle" data-collapse-col="${c.id}" title="Collapse group">◀</button>
               <div class="bc-menu-wrap">
@@ -181,7 +203,6 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
                   ${ctx.kind === "group" ? "" : `<button data-delete-col-menu="${c.id}" class="danger">✕ Delete column</button>`}
                 </div>
               </div>
-              ${ctx.kind === "group" ? "" : `<span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>`}
               ${ctx.kind === "group" ? "" : `<span class="col-close" data-remove-col="${c.id}" title="Remove column">✕</span>`}
             </div>
           </div>
@@ -195,6 +216,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
         </div>
       `;
       }).join("")}
+      ${ctx.kind === "group" ? "" : `<div class="add-col-inline" id="addColInlineBtn">+ Add column</div>`}
       ${hiddenCount ? `<div class="board-col hidden-chip">${hiddenCount} hidden column${hiddenCount === 1 ? "" : "s"} — ⋮ Manage columns to reopen</div>` : ""}
     </div>
     `}
@@ -329,22 +351,20 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     visibleCols.forEach((c) => setColumnCollapsed(c.id, expandedNow));
   });
 
-  document.getElementById("addColBtn")?.addEventListener("click", async () => {
-    const title = await openPromptModal({
-      title: "Add column", label: "Column name", placeholder: "e.g. Blocked",
-      validate: (v) => ctx.cols.some((c) => c.title.trim().toLowerCase() === v.trim().toLowerCase())
-        ? `A column named "${v.trim()}" already exists` : null,
-    });
-    if (!title || !title.trim()) return;
+  // Same "+ Add column" action, reachable from the toolbar button and from the dashed inline
+  // placeholder at the end of the column row — both call this one handler. No dialog of any
+  // kind: the column is created immediately and lands straight in its own inline rename input
+  // (the same one the ✎ pencil opens), so typing a name is the only step left.
+  document.querySelectorAll("#addColBtn, #addColInlineBtn").forEach((el) => el.addEventListener("click", () => {
     pushHistory(ctx);
-    const created = { id: "custom-" + Date.now(), title: title.trim(), fresh: true };
+    const created = { id: "custom-" + Date.now(), title: "New column", fresh: true, renaming: true };
     ctx.cols.push(created);
     ctx.save();
     rerender().then(() => {
       document.querySelector(".board")?.scrollTo({ left: document.querySelector(".board")?.scrollWidth || 0, behavior: "smooth" });
     });
     setTimeout(() => { delete created.fresh; }, 500);
-  });
+  }));
 
   wireBoardDragDrop(app, ctx, rerender);
   wireAgentsDock(app);
