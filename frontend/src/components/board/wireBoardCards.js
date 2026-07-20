@@ -25,7 +25,7 @@ export function wireBoardCards(app) {
       if (action === "resume") resumeSession(id, false);
       if (action === "fork") resumeSession(id, true);
       if (action === "delete") deleteSession(id, title);
-      if (action === "closeTerminal") closeSessionTerminal(id, title);
+      if (action === "closeTerminal") closeSessionTerminal(id);
       if (action === "extract") openExtractModal(id);
       if (action === "summarize") summarizeSession(id);
       if (action === "ticket-done") patchMeta(id, { status: s?.meta?.status === "done" ? null : "done" });

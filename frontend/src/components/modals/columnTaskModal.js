@@ -72,11 +72,14 @@ export function openColumnTaskModal(colId, ctx) {
     isTicketBox.addEventListener("change", syncTicketMode);
   }
   // Enter launches/creates (Shift+Enter still inserts a newline), matching Quick Prompt's textarea.
-  document.getElementById("colTaskDesc").addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      document.getElementById("colTaskStart").click();
-    }
+  // Wired on both fields — a ticket is often typed as just a title, with no description at all.
+  ["colTaskName", "colTaskDesc"].forEach((id) => {
+    document.getElementById(id).addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById("colTaskStart").click();
+      }
+    });
   });
   document.getElementById("colTaskCancel").addEventListener("click", closeModal);
   document.getElementById("colTaskStart").addEventListener("click", async () => {
