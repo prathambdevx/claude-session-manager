@@ -50,7 +50,12 @@ export async function openSaveViewModal(visibleCols, ctx, opts) {
   const customColIds = new Set(columns.filter((c) => c.id !== opts.homeId && !c.cwd).map((c) => c.id));
   const newViewCtx = { viewId: data.view.id };
   for (const s of sessions) {
-    const tag = boardTagFor(ctx, s);
-    if (tag != null && customColIds.has(tag)) setBoardTag(newViewCtx, s.id, tag, s.isTicket);
+    const sourceTag = boardTagFor(ctx, s);
+    const legacyTag = s.meta?.board ?? null;
+    // A tag matching the legacy fallback needs no copy; one that diverges — including an explicit
+    // null override — must be, or the new view silently falls back to the stale legacy value too.
+    if (sourceTag === legacyTag) continue;
+    if (sourceTag != null && !customColIds.has(sourceTag)) continue;
+    setBoardTag(newViewCtx, s.id, sourceTag, s.isTicket);
   }
 }
