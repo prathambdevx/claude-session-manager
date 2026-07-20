@@ -31,7 +31,7 @@ function cardsForColumn(c, ctx, filtered, homeId, projectFilter) {
  * shared by columnWouldShow, the Manage Columns row list (orderFor), and the hidden-count chip, so
  * a column excluded here never has a dangling row or gets miscounted as "reopenable."
  */
-function isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName) {
+function isInScope(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName) {
   // Home never shows alongside its own stand-in/dedicated column while filtered (it would otherwise
   // duplicate the same sessions under a second column).
   if (projectFilter && c.id === homeId && !homeBorrowsProjectName) return false;
@@ -40,6 +40,10 @@ function isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName) {
   // A saved view is a frozen snapshot: it has no filter, so this never touches one (ctx.viewId
   // marks a saved view despite sharing kind "main").
   if (ctx.kind === "main" && !ctx.viewId && c.cwd && c.cwd !== projectFilter) return false;
+  // The group lens auto-generates one column per project with sessions — once its last session is
+  // gone (deleted, or filtered as unresumable), the leftover column has nothing to manage either,
+  // unlike a custom column a user deliberately keeps around empty, so it's out of scope entirely.
+  if (ctx.kind === "group" && cardsForColumn(c, ctx, filtered, homeId, projectFilter).length === 0) return false;
   return true;
 }
 
@@ -51,7 +55,7 @@ function isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName) {
 function columnWouldShow(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName, menuOpen) {
   // Scoping is absolute — never bypassed by Manage Columns being open (a column excluded by
   // isInScope has no row there to manage anyway, so revealing it on the board would be a dead end).
-  if (!isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName)) return false;
+  if (!isInScope(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName)) return false;
   // Manual hidden / auto-hidden-empty are preferences you're actively managing, so Manage Columns
   // reveals them while open. The board's order still stays pinned to the filter (see
   // reorderForFilter, applied unconditionally below), so opening the menu never reshuffles the
@@ -139,7 +143,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
   // Out-of-scope columns (e.g. every other project while filtered) aren't "hidden" — they simply
   // don't belong here and have no row in Manage Columns to reopen from. Only count what's actually
   // reopenable: an in-scope column that's manually hidden or swept by auto-hide-empty.
-  const inScopeCount = ctx.cols.filter((c) => isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName)).length;
+  const inScopeCount = ctx.cols.filter((c) => isInScope(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName)).length;
   const hiddenCount = inScopeCount - visibleCols.length;
   const anyExpanded = visibleCols.some((c) => !c.collapsed);
 
@@ -309,7 +313,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
     // filter, never via this panel, so there's nothing here for it to manage until it's the match —
     // the filter dropdown right next to this button is the actual way to bring one into view.
     orderFor: (cols) => reorderForFilter(
-      cols.filter((c) => isInScope(c, ctx, homeId, projectFilter, homeBorrowsProjectName)),
+      cols.filter((c) => isInScope(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName)),
       homeId, projectFilter, homeBorrowsProjectName
     ),
     // Home counts as the filter match too when it's standing in for a project with no dedicated

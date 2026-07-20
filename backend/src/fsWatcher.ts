@@ -4,7 +4,7 @@
 //
 // Debounces per-entity: a burst of raw fs events from one write collapses into a single push, and
 // one session's burst never delays another's.
-import { watch } from "node:fs";
+import { watch, existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { RUNNING_DIR, PROJECTS_DIR, QUICKPROMPTS_DIR } from "./constants.ts";
@@ -41,6 +41,13 @@ async function refreshSessionFromTranscript(sessionId: string, projectSlug: stri
     session = await scanTranscript(path, sessionId, projectSlug);
   } catch {
     // file's gone — this transcript was deleted (DELETE /api/sessions/:id unlinks it), not just changed
+    broadcast({ type: "session-removed", id: sessionId });
+    return;
+  }
+  // Same unresumable-stub filter as scanAllSessions() — this is the one other path that can push a
+  // session into the browser's live state, so it needs the identical check or a broken transcript's
+  // very first write slips through here before the next full /api/sessions fetch would catch it.
+  if (session.messageCount === 0 || !existsSync(session.cwd)) {
     broadcast({ type: "session-removed", id: sessionId });
     return;
   }
