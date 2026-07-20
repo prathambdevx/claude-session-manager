@@ -293,7 +293,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
       ctx.cols.filter((c) => columnWouldShow(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName, false)),
       homeId, projectFilter, homeBorrowsProjectName,
     );
-    openSaveViewModal(onScreenCols, { kind: ctx.kind, cwd: ctx.cwd, homeId, homeBorrowsProjectName, projectFilter });
+    openSaveViewModal(onScreenCols, ctx, { homeId, homeBorrowsProjectName, projectFilter });
   });
 
   wireManageColumnsPanel(app, ctx, {
