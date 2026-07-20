@@ -86,7 +86,12 @@ function viewTitleHtml(ctx) {
     return `<h2 class="view-title">All Projects <span class="read-only-badge">— read-only overview</span></h2>`;
   }
   const view = savedViews.find((v) => v.id === ctx.viewId);
-  return `<h2 class="view-title" contenteditable="true" spellcheck="false" data-view-title>${escapeHtml(view?.title || "")}</h2>`;
+  return `
+    <div class="view-title-row">
+      <h2 class="view-title" spellcheck="false" data-view-title>${escapeHtml(view?.title || "")}</h2>
+      <span class="rename-pencil view-title-pencil" data-view-title-rename title="Rename view">✎</span>
+    </div>
+  `;
 }
 
 // Empty-view illustration — a checkbox drawing its own checkmark, with a pulsing glow behind it;
@@ -141,6 +146,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   app.innerHTML = `
     ${breadcrumbHtml}
+    <div class="board-sticky-toolbar">
     ${viewTitleHtml(ctx)}
     ${agentsDockHtml()}
     <div class="board-actions">
@@ -166,6 +172,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
         <button class="btn ghost" id="boardUndoBtn" ${hasHistoryFor(ctx) ? "" : "disabled"} title="Undo the last change to this board">↩ Undo</button>`}
       <button class="btn ghost" id="collapseAllBtn" title="${anyExpanded ? "Collapse every column" : "Expand every column"}">${anyExpanded ? "« Collapse all" : "» Expand all"}</button>
       ${manageColumnsButtonHtml()}
+    </div>
     </div>
     ${ctx.kind !== "group" && ctx.cols.length === 0 ? `
       <div class="empty-board">
@@ -224,6 +231,11 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
 
   const boardEl = app.querySelector(".board");
   if (boardEl) boardEl.scrollLeft = prevScrollLeft;
+  // .board's sticky offset (styles.css) reads this — the toolbar's height varies with content
+  // (agents dock, project-filter row) and is rebuilt on every render, so it's measured live rather
+  // than hardcoded, same idea as --header-h in main.js.
+  const toolbarH = app.querySelector(".board-sticky-toolbar")?.offsetHeight;
+  if (toolbarH) document.documentElement.style.setProperty("--toolbar-h", toolbarH + "px");
   app.querySelectorAll(".board-col-body[data-col-drop]").forEach((el) => {
     const prev = prevColScrollTops.get(el.dataset.colDrop);
     if (prev) el.scrollTop = prev;
@@ -252,6 +264,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
   const titleEl = app.querySelector("[data-view-title]");
   if (titleEl) {
     const commitTitle = async () => {
+      titleEl.contentEditable = "false";
       const next = titleEl.textContent.trim();
       if (next && next !== savedViews.find((v) => v.id === ctx.viewId)?.title) {
         await renameSavedView(ctx.viewId, next);
@@ -260,6 +273,13 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
     };
     titleEl.addEventListener("blur", commitTitle);
     titleEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); titleEl.blur(); } });
+    // Not contenteditable until the pencil is clicked — otherwise any stray click on the title
+    // itself would drop straight into edit mode.
+    app.querySelector("[data-view-title-rename]")?.addEventListener("click", () => {
+      titleEl.contentEditable = "true";
+      titleEl.focus();
+      document.getSelection()?.selectAllChildren(titleEl);
+    });
   }
 
   document.getElementById("boardUndoBtn")?.addEventListener("click", () => undoLast(ctx));

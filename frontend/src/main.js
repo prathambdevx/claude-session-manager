@@ -77,6 +77,42 @@ document.addEventListener("keydown", (e) => {
 document.getElementById("app").classList.add("board-mode"); // board is the only sessions view now
 render();
 
+// #sidebar's sticky offset reads this — the header's real height isn't a fixed constant (the
+// toolbar can wrap on a narrow window), so it's measured live instead of hardcoded.
+function updateHeaderHeightVar() {
+  const h = document.querySelector("header")?.offsetHeight;
+  if (h) document.documentElement.style.setProperty("--header-h", h + "px");
+}
+updateHeaderHeightVar();
+// .board's sticky offset also depends on the toolbar's height (set per-render in
+// renderBoardView.js) — a window resize can reflow/wrap its content without a re-render, so it
+// needs its own recompute here too.
+function updateToolbarHeightVar() {
+  const h = document.querySelector(".board-sticky-toolbar")?.offsetHeight;
+  if (h) document.documentElement.style.setProperty("--toolbar-h", h + "px");
+}
+window.addEventListener("resize", () => {
+  updateHeaderHeightVar();
+  updateToolbarHeightVar();
+});
+
+// Collapsing frees up board width for the kanban columns — persisted so it survives a reload.
+const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
+const sidebarEl = document.getElementById("sidebar");
+const sidebarToggleBtn = document.getElementById("sidebarToggle");
+function applySidebarCollapsed(collapsed) {
+  sidebarEl.classList.toggle("collapsed", collapsed);
+  sidebarToggleBtn.classList.toggle("collapsed-state", collapsed);
+  sidebarToggleBtn.textContent = collapsed ? "›" : "‹";
+  sidebarToggleBtn.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+}
+applySidebarCollapsed(localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1");
+sidebarToggleBtn.addEventListener("click", () => {
+  const next = !sidebarEl.classList.contains("collapsed");
+  applySidebarCollapsed(next);
+  localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? "1" : "0");
+});
+
 wireTabs();
 
 // initBoardStateFromLocation already set the view from the URL; loadSessions renders it (and, for a
