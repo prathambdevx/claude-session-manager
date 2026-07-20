@@ -12,12 +12,32 @@ import {
 
 // Board columns — server-side so they're shared across browsers/tabs.
 
-export type BoardColumn = { id: string; title: string; cwd?: string; hidden?: boolean; collapsed?: boolean };
+export type BoardColumn = {
+  id: string;
+  title: string;
+  cwd?: string;
+  hidden?: boolean;
+  collapsed?: boolean;
+  neverPopulated?: boolean; // exempts a brand-new column from auto-hide-empty until it holds a card
+  isAll?: boolean; // the one column that always shows every session — identity, not position
+};
+
+/** One-time backfill for boards saved before isAll existed — "todo"/"all-sessions" were the only ids a real home column ever used; a view with neither correctly gets no home at all. Also folds the legacy "todo" id into "all-sessions" for good, so home only ever has one id going forward. */
+function backfillHomeFlag(cols: BoardColumn[]): boolean {
+  if (!cols.length || cols.some((c) => c.isAll)) return false;
+  const legacyHome = cols.find((c) => c.id === "todo" || c.id === "all-sessions");
+  if (!legacyHome) return false;
+  if (legacyHome.id === "todo" && !cols.some((c) => c.id === "all-sessions")) legacyHome.id = "all-sessions";
+  legacyHome.isAll = true;
+  return true;
+}
 
 export async function loadBoard(): Promise<BoardColumn[] | null> {
   try {
     const j = JSON.parse(await readFile(BOARD_PATH, "utf-8"));
-    return Array.isArray(j.columns) ? j.columns : null;
+    if (!Array.isArray(j.columns)) return null;
+    if (backfillHomeFlag(j.columns)) await saveBoard(j.columns);
+    return j.columns;
   } catch {
     return null;
   }
@@ -62,7 +82,13 @@ export type ProjectBoards = Record<string, BoardColumn[]>;
 export async function loadProjectBoards(): Promise<ProjectBoards> {
   try {
     const j = JSON.parse(await readFile(PROJECT_BOARDS_PATH, "utf-8"));
-    return j && typeof j === "object" && !Array.isArray(j) ? j : {};
+    if (!j || typeof j !== "object" || Array.isArray(j)) return {};
+    let changed = false;
+    for (const cols of Object.values(j) as BoardColumn[][]) {
+      if (backfillHomeFlag(cols)) changed = true;
+    }
+    if (changed) await saveProjectBoards(j);
+    return j;
   } catch {
     return {};
   }
@@ -80,7 +106,13 @@ export type SavedView = { id: string; title: string; columns: BoardColumn[] };
 export async function loadSavedViews(): Promise<SavedView[]> {
   try {
     const j = JSON.parse(await readFile(SAVED_VIEWS_PATH, "utf-8"));
-    return Array.isArray(j.views) ? j.views : [];
+    if (!Array.isArray(j.views)) return [];
+    let changed = false;
+    for (const view of j.views as SavedView[]) {
+      if (backfillHomeFlag(view.columns)) changed = true;
+    }
+    if (changed) await saveSavedViews(j.views);
+    return j.views;
   } catch {
     return [];
   }

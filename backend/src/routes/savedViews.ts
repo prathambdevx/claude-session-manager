@@ -16,6 +16,8 @@ function cleanColumns(cols: any): BoardColumn[] | null {
       ...(c.cwd ? { cwd: String(c.cwd).slice(0, 500) } : {}),
       ...(c.hidden ? { hidden: true } : {}),
       ...(c.collapsed ? { collapsed: true } : {}),
+      ...(c.neverPopulated ? { neverPopulated: true } : {}),
+      ...(c.isAll ? { isAll: true } : {}),
     }));
 }
 

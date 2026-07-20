@@ -14,18 +14,17 @@ export let summarizingIds = new Set();
 // naturally clears itself once a new activity line makes the stored value stop matching.
 export let dismissedDoneChips = new Map();
 
-// Home column ("All sessions", id "all-sessions") always shows every session; the rest are status
-// columns. The home column is identified positionally (cols[0]), so its id is just a stable label.
+// Home column ("All sessions") always shows every session; the rest are status columns. Home is
+// identified by its isAll flag, not position or id — either can change without losing identity.
 export const DEFAULT_COLUMNS = [
-  { id: "all-sessions", title: "All sessions" },
+  { id: "all-sessions", title: "All sessions", isAll: true },
   { id: "to-do", title: "Todo" },
   { id: "in-progress", title: "In Progress" },
   { id: "done", title: "Done" },
 ];
-export const OLD_DEFAULT_ORDER = ["todo", "priority", "research", "in-progress", "done"];
 // Individual project boards start with just the home column — only Main board gets the full
 // starter set (Todo/In Progress/Done); you add your own from there if you want more.
-export const PROJECT_DEFAULT_COLUMNS = [{ id: "all-sessions", title: "All sessions" }];
+export const PROJECT_DEFAULT_COLUMNS = [{ id: "all-sessions", title: "All sessions", isAll: true }];
 export let boardColumns = DEFAULT_COLUMNS.slice();
 
 export let boardMode = "main"; // "main" | "project" — set for real by routing/boardRouting.js at boot

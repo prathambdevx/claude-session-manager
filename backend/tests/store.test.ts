@@ -48,15 +48,17 @@ test("board columns default to null before the first save, then persist", async 
 
   const columns = [{ id: "todo", title: "All sessions" }, { id: "done", title: "Done" }];
   await store.saveBoard(columns);
-  expect(await store.loadBoard()).toEqual(columns);
+  // loadBoard backfills the legacy "todo" id to "all-sessions" + isAll:true on first read
+  expect(await store.loadBoard()).toEqual([{ id: "all-sessions", title: "All sessions", isAll: true }, { id: "done", title: "Done" }]);
 });
 
 test("project boards default to an empty map, then persist independently per cwd", async () => {
   expect(await store.loadProjectBoards()).toEqual({});
 
   const cols = [{ id: "todo", title: "All sessions" }, { id: "done", title: "Done" }];
+  const backfilledCols = [{ id: "all-sessions", title: "All sessions", isAll: true }, { id: "done", title: "Done" }];
   await store.saveProjectBoards({ "/Users/x/proj-a": cols });
-  expect(await store.loadProjectBoards()).toEqual({ "/Users/x/proj-a": cols });
+  expect(await store.loadProjectBoards()).toEqual({ "/Users/x/proj-a": backfilledCols });
 
   // a second project's columns don't clobber the first — keyed independently
   const cols2 = [{ id: "backlog", title: "Backlog" }];
@@ -64,7 +66,7 @@ test("project boards default to an empty map, then persist independently per cwd
   all["/Users/x/proj-b"] = cols2;
   await store.saveProjectBoards(all);
   const reloaded = await store.loadProjectBoards();
-  expect(reloaded["/Users/x/proj-a"]).toEqual(cols);
+  expect(reloaded["/Users/x/proj-a"]).toEqual(backfilledCols);
   expect(reloaded["/Users/x/proj-b"]).toEqual(cols2);
 });
 

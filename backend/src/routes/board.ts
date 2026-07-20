@@ -15,6 +15,8 @@ export async function handleBoardRoutes(req: Request, url: URL): Promise<Respons
         ...(c.cwd ? { cwd: String(c.cwd).slice(0, 500) } : {}),
         ...(c.hidden ? { hidden: true } : {}),
         ...(c.collapsed ? { collapsed: true } : {}),
+        ...(c.neverPopulated ? { neverPopulated: true } : {}),
+        ...(c.isAll ? { isAll: true } : {}),
       }));
     await saveBoard(clean);
     return json({ ok: true, columns: clean });
@@ -31,6 +33,7 @@ export async function handleBoardRoutes(req: Request, url: URL): Promise<Respons
         ...(c.cwd ? { cwd: String(c.cwd).slice(0, 500) } : {}),
         ...(c.hidden ? { hidden: true } : {}),
         ...(c.collapsed ? { collapsed: true } : {}),
+        ...(c.neverPopulated ? { neverPopulated: true } : {}),
       }));
     await saveGroupBoard(clean);
     return json({ ok: true, columns: clean });
@@ -59,6 +62,8 @@ export async function handleBoardRoutes(req: Request, url: URL): Promise<Respons
         id: c.id.slice(0, 60), title: c.title.slice(0, 80),
         ...(c.hidden ? { hidden: true } : {}),
         ...(c.collapsed ? { collapsed: true } : {}),
+        ...(c.neverPopulated ? { neverPopulated: true } : {}),
+        ...(c.isAll ? { isAll: true } : {}),
       }));
     const all = await loadProjectBoards();
     all[cwd] = clean;

@@ -19,7 +19,7 @@ export function openColumnTaskModal(colId, ctx) {
   // A ticket has no fixed project, so it can never actually show up on a project-dedicated column
   // (membership there is computed purely by cwd) or on home (which shows every real session, not a
   // ticket) — offering the checkbox there would silently create a ticket with nowhere to land.
-  const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
+  const homeId = ctx.cols.find((c) => c.isAll)?.id ?? null;
   const canBeTicket = !col?.cwd && colId !== homeId;
   modalShell(`
     <h3>⚡ New task → ${escapeHtml(col?.title || colId)}</h3>

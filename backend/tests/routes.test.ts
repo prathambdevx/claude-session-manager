@@ -114,9 +114,10 @@ test("PUT /api/project-board sanitizes columns and keeps each project's board in
 
   // verify on-disk state directly (this file avoids asserting through GET /api/sessions,
   // since that calls scanAllSessions() and would make the test depend on real machine data)
+  // loadProjectBoards backfills the legacy "todo" id to "all-sessions" + isAll:true on first read
   const { loadProjectBoards } = await import("../src/store.ts");
   const all = await loadProjectBoards();
-  expect(all["/x/proj-a"]).toEqual([{ id: "todo", title: "All sessions" }]);
+  expect(all["/x/proj-a"]).toEqual([{ id: "all-sessions", title: "All sessions", isAll: true }]);
   expect(all["/x/proj-b"]).toEqual([{ id: "backlog", title: "Backlog" }]);
 });
 

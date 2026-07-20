@@ -105,28 +105,31 @@ function pillColorClass(ctx, c, homeId) {
 
 export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilter = "") {
   const app = document.getElementById("app");
-  // the "Projects" group lens has no home column — every one of its columns is a real project.
-  // A saved view shares kind:"main" for rendering regardless of where it was saved FROM, though —
-  // one saved from the group lens has a real project column sitting at [0], not a genuine home
-  // column, so also check for .cwd (a real home column never carries one). Home's own id isn't a
-  // reliable marker on its own — older boards kept a legacy id (e.g. "todo") from before it was
-  // renamed — so position is what identifies it; createSavedView keeps every column (hidden ones
-  // included) in place so a saved view's home never loses its slot.
-  const homeId = ctx.kind === "group" || ctx.cols[0]?.cwd ? null : ctx.cols[0]?.id;
+  // Home is identified by its isAll flag, not position — a saved view can freely reorder or even
+  // delete it, and the "Projects" group lens never has one at all (every column there is a real
+  // project), so ctx.cols.find just comes back empty in both of those cases.
+  const homeId = ctx.cols.find((c) => c.isAll)?.id ?? null;
   // A dedicated project column already carries the filtered project's identity once Regroup has
   // run (and it's the one that moves to the front — see reorderForFilter) — home only borrows the
   // name when no such column exists yet, so the two never show the same label at once.
   const homeBorrowsProjectName = projectFilter && !ctx.cols.some((c) => c.cwd === projectFilter);
   const menuOpen = isManageColumnsMenuOpen();
+  let populatedSinceLastSave = false;
   const rawVisibleCols = ctx.cols.filter((c) => {
     // auto-hide-empty only ever applies to a column that WAS populated and later emptied out —
     // never to one that's simply new and hasn't had a chance to receive a card yet
     if (autoHideEmpty && c.id !== homeId) {
       const count = cardsForColumn(c, ctx, filtered, homeId, projectFilter).length;
-      if (count > 0 && c.neverPopulated) delete c.neverPopulated;
+      if (count > 0 && c.neverPopulated) {
+        delete c.neverPopulated;
+        populatedSinceLastSave = true;
+      }
     }
     return columnWouldShow(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName, menuOpen);
   });
+  // neverPopulated is persisted (survives reload/other browsers/the group lens and saved views
+  // alike) — once a column's had its first card, drop the exemption for good, not just in memory.
+  if (populatedSinceLastSave) ctx.save();
   // Reorder the filtered project to the front even with the menu open, so the board's order matches
   // the Manage Columns panel's order (which reorders the same way) instead of jumping around.
   const visibleCols = reorderForFilter(rawVisibleCols, homeId, projectFilter, homeBorrowsProjectName);
@@ -223,7 +226,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
                   <button data-rename-col-menu="${c.id}">✎ Rename</button>
                   <button data-collapse-col="${c.id}">◀ Collapse group</button>
                   <button data-hide-col-menu="${c.id}">🙈 Hide column</button>
-                  ${c.id === homeId || ctx.kind === "group" ? "" : `<button data-delete-col-menu="${c.id}" class="danger">✕ Delete column</button>`}
+                  ${(c.id === homeId && !ctx.viewId) || ctx.kind === "group" ? "" : `<button data-delete-col-menu="${c.id}" class="danger">✕ Delete column</button>`}
                 </div>
               </div>
               <span class="col-add-btn" data-add-col-task="${c.id}" title="New task">+</span>
@@ -282,10 +285,16 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
   document.getElementById("boardUndoBtn")?.addEventListener("click", () => undoLast(ctx));
   document.getElementById("saveViewBtn")?.addEventListener("click", async () => {
     const title = await openPromptModal({ title: "Save as view", label: "View name" });
-    // Every column comes along, hidden ones included, in their existing order/positions — dropping
-    // hidden columns here would let an ordinary column slide into home's slot (index 0), and the
-    // view would then wrongly show it every session instead of its own tagged subset.
-    if (title && title.trim()) createSavedView(title.trim(), ctx.cols);
+    if (!title || !title.trim()) return;
+    // Every column comes along, hidden ones included, with its isAll flag intact — home keeps its
+    // identity in the saved copy regardless of order.
+    // A project board's home column only LOOKS like that project via the displayTitle override
+    // above — a saved view always renders as kind:"main", where that override never runs, so bake
+    // the project identity in for real or the saved copy shows "All sessions" and every session.
+    const cols = ctx.kind === "project"
+      ? ctx.cols.map((c) => c.isAll ? { ...c, cwd: ctx.cwd, title: projectName(ctx.cwd) } : c)
+      : ctx.cols;
+    createSavedView(title.trim(), cols);
   });
 
   wireManageColumnsPanel(app, ctx, {
@@ -294,7 +303,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
       : c.id === homeId && homeBorrowsProjectName ? projectName(projectFilter)
       : c.title,
     shownFor: (c) => columnWouldShow(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName),
-    isHomeFor: (c) => c.id === homeId,
+    isAllFor: (c) => c.id === homeId,
     // "All sessions" has nothing to add once a project with its own column is filtered — its row
     // would just sit there permanently off, so it's dropped entirely rather than shown as a dead
     // toggle. Same for every OTHER project column on Main board: it can only ever appear via the
@@ -401,13 +410,19 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
   });
 
   document.getElementById("addColBtn")?.addEventListener("click", async () => {
-    const title = await openPromptModal({ title: "Add column", label: "Column name", placeholder: "e.g. Blocked" });
+    const title = await openPromptModal({
+      title: "Add column", label: "Column name", placeholder: "e.g. Blocked",
+      validate: (v) => ctx.cols.some((c) => c.title.trim().toLowerCase() === v.trim().toLowerCase())
+        ? `A column named "${v.trim()}" already exists` : null,
+    });
     if (!title || !title.trim()) return;
     pushHistory(ctx);
     const created = { id: "custom-" + Date.now(), title: title.trim(), fresh: true, neverPopulated: true };
-    // lands right next to the home column ("All sessions") — or first, if that's currently hidden
-    const home = ctx.cols[0];
-    const insertAt = home && home.hidden ? 0 : 1;
+    // lands right next to home ("All sessions") — or at the very front if home is hidden, missing
+    // (a saved view that's deleted it), or not first to begin with
+    const homeIdx = ctx.cols.findIndex((c) => c.isAll);
+    const home = ctx.cols[homeIdx];
+    const insertAt = home && !home.hidden ? homeIdx + 1 : 0;
     ctx.cols.splice(insertAt, 0, created);
     ctx.save();
     rerender().then(() => {
@@ -460,9 +475,10 @@ function wireInlineRename(app, ctx, rerender) {
 }
 
 async function removeColumn(ctx, id, rerender) {
-  if (id === ctx.cols[0]?.id) { toast(`"${ctx.cols[0].title}" can't be deleted — hide it instead`); return; }
-  if (ctx.cols.length <= 1) { toast("Need at least one column"); return; }
   const col = ctx.cols.find((c) => c.id === id);
+  // A saved view is a frozen snapshot, not a live board — "All sessions" is deletable there too.
+  if (col?.isAll && !ctx.viewId) { toast(`"${col.title}" can't be deleted — hide it instead`); return; }
+  if (ctx.cols.length <= 1) { toast("Need at least one column"); return; }
   const ok = await openConfirmModal({
     title: `Remove column "${col?.title}"?`,
     message: "This only removes it from this board — its sessions keep their tag, so they'll still show up here if a saved view has this same column.",

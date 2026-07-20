@@ -7,7 +7,7 @@ import {
   summarizingIds, setContentMatchIds, currentTab,
   PROJECT_DEFAULT_COLUMNS, DEFAULT_COLUMNS, setSavedViews, setQuickPrompts,
 } from "../state.js";
-import { migrateColumns, mergeInProjectColumns, carryTransientColumnFlags } from "../routing/boardRouting.js";
+import { mergeInProjectColumns } from "../routing/boardRouting.js";
 import { toast } from "../ui/toast.js";
 import { dangerousDefault } from "../ui/formFragments.js";
 import { render, isTransientUiOpen } from "../pages/sessionsPage.js";
@@ -56,10 +56,10 @@ export async function loadSessions(opts = {}) {
   setTodos(data.todos || []);
 
   // session board columns: server is the sole source of truth — seed the defaults on a brand-new
-  // install (nothing saved yet), migrateColumns() upgrades an existing install's old column shape
+  // install only (nothing saved yet)
   let cols;
   if (Array.isArray(data.board) && data.board.length) {
-    cols = carryTransientColumnFlags(boardColumns, migrateColumns(data.board));
+    cols = data.board;
   } else {
     cols = DEFAULT_COLUMNS.slice();
     setBoardColumns(cols);
@@ -78,7 +78,7 @@ export async function loadSessions(opts = {}) {
 
   setProjectBoards((data.projectBoards && typeof data.projectBoards === "object") ? data.projectBoards : {});
   if (boardMode === "project" && activeProjectCwd) {
-    setCurrentProjectColumns(carryTransientColumnFlags(currentProjectColumns, projectBoards[activeProjectCwd] || PROJECT_DEFAULT_COLUMNS.slice()));
+    setCurrentProjectColumns(projectBoards[activeProjectCwd] || PROJECT_DEFAULT_COLUMNS.slice());
   }
 
   setSavedViews(Array.isArray(data.savedViews) ? data.savedViews : []);

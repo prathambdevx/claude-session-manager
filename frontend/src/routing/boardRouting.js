@@ -8,31 +8,10 @@ import {
   boardColumns, setBoardColumns, boardMode, setBoardModeState, activeProjectCwd,
   setActiveProjectCwd, projectBoards, setProjectBoards, currentProjectColumns,
   setCurrentProjectColumns, groupBoardColumns, setGroupBoardColumns, setActiveView,
-  DEFAULT_COLUMNS, PROJECT_DEFAULT_COLUMNS, OLD_DEFAULT_ORDER, sessions,
+  PROJECT_DEFAULT_COLUMNS, sessions, savedViews,
 } from "../state.js";
 import { escapeHtml, projectName } from "../ui/format.js";
 import { toast } from "../ui/toast.js";
-
-export function migrateColumns(cols) {
-  if (cols.map((c) => c.id).join(",") === OLD_DEFAULT_ORDER.join(",")) return DEFAULT_COLUMNS.slice();
-  const todo = cols.find((c) => c.id === "todo");
-  if (todo && todo.title === "To Do") todo.title = "All sessions";
-  return cols;
-}
-
-// Client-only column flags (e.g. neverPopulated) live only in memory — carry them forward by
-// column id so a poll's fresh column objects don't silently drop them.
-const TRANSIENT_COLUMN_FLAGS = ["neverPopulated"];
-export function carryTransientColumnFlags(oldCols, newCols) {
-  if (!oldCols?.length) return newCols;
-  const byId = new Map(oldCols.map((c) => [c.id, c]));
-  for (const c of newCols) {
-    const old = byId.get(c.id);
-    if (!old) continue;
-    for (const flag of TRANSIENT_COLUMN_FLAGS) if (old[flag]) c[flag] = old[flag];
-  }
-  return newCols;
-}
 
 export function projectColumnId(cwd) {
   return "proj-" + projectName(cwd).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -157,12 +136,16 @@ export function groupBoardCtx() {
 // column snapshot, never the live Main board. viewId is what lets ctxKey tell it apart from the
 // real Main board, since both share kind:"main" purely for rendering purposes.
 export function savedViewCtx(view) {
+  const id = view.id;
+  // Resolve fresh by id on every access, never close over the passed-in object — a poll can swap
+  // savedViews for new objects between renders, orphaning a captured reference silently.
+  const live = () => savedViews.find((v) => v.id === id);
   return {
     kind: "main",
-    viewId: view.id,
-    get cols() { return view.columns; },
-    set cols(v) { view.columns = v; },
-    save: () => import("../api/savedViewsApi.js").then((m) => m.saveSavedViewColumns(view.id, view.columns)),
+    viewId: id,
+    get cols() { return live()?.columns ?? []; },
+    set cols(v) { const cur = live(); if (cur) cur.columns = v; },
+    save: () => import("../api/savedViewsApi.js").then((m) => m.saveSavedViewColumns(id, live()?.columns ?? [])),
   };
 }
 

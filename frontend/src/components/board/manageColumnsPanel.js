@@ -41,21 +41,21 @@ function manageColumnsDropdownHtml() {
 
 // A column is invisible either because c.hidden is set, or auto-hide swept it for being empty —
 // the switch treats both as one "shown?" state.
-function isAutoHidden(c, count, isHome) {
-  return autoHideEmpty && !isHome && count === 0 && !c.neverPopulated && !c.hidden;
+function isAutoHidden(c, count, isAll) {
+  return autoHideEmpty && !isAll && count === 0 && !c.neverPopulated && !c.hidden;
 }
 
 // Rows are built and wired separately from the initial HTML string above since they depend on
 // `ctx.cols` at wiring time (columns can change between renders without a full board re-render).
 // `locked` (home column, or every column in the "Projects" group lens) shows 🔒 instead of a
-// delete button — separate from `isHome`, which only controls the auto-hide-empty exemption.
-function columnRowHtml(c, count, isHome, locked, lockedReason, displayTitle, shown, pinnedFirst) {
-  const autoHidden = isAutoHidden(c, count, isHome);
+// delete button — separate from `isAll`, which only controls the auto-hide-empty exemption.
+function columnRowHtml(c, count, isAll, locked, lockedReason, displayTitle, shown, pinnedFirst) {
+  const autoHidden = isAutoHidden(c, count, isAll);
   // The home column stays pinned first while visible — reorderColumns rejects the drop anyway,
   // but making the row itself undraggable avoids a confusing drag that silently snaps back. The
   // filtered project's own column is pinned the same way (reorderForFilter re-front-loads it), and
   // its switch is inert too — it's force-shown as the filter match, so toggling it does nothing.
-  const dragLocked = (isHome && !c.hidden) || pinnedFirst;
+  const dragLocked = (isAll && !c.hidden) || pinnedFirst;
   const toggleTitle = pinnedFirst ? "Pinned while filtered to this project" : `${shown ? "Hide" : "Show"} this column`;
   const toggleAttr = pinnedFirst ? "" : ` data-toggle-hidden="${c.id}"`;
   return `
@@ -72,10 +72,10 @@ function columnRowHtml(c, count, isHome, locked, lockedReason, displayTitle, sho
   `;
 }
 
-// countFor(c)/displayTitleFor(c)/shownFor(c)/isHomeFor(c)/orderFor(cols) come from the caller
+// countFor(c)/displayTitleFor(c)/shownFor(c)/isAllFor(c)/orderFor(cols) come from the caller
 // (renderBoardView.js) — avoids duplicating its column-membership/project-filter-naming/
 // visibility/ordering rules here, so the panel never disagrees with what's actually on the board.
-export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, shownFor, isHomeFor, orderFor, lockedFor, onRename, onDeleteColumn, onReorder, rerender }) {
+export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, shownFor, isAllFor, orderFor, lockedFor, onRename, onDeleteColumn, onReorder, rerender }) {
   const toggleBtn = root.querySelector("[data-manage-columns-toggle]");
   toggleBtn?.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -105,23 +105,26 @@ export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, s
   // In the "Projects" group lens every column is a real project — draggable/hideable/renameable,
   // but never deletable (there's nothing to "add back" the way a plain custom column has).
   const isGroupLens = ctx.kind === "group";
-  const getIsHome = (c) => isHomeFor ? isHomeFor(c) : c === ctx.cols[0] && !isGroupLens && !ctx.cols[0]?.cwd;
+  const getIsAll = (c) => isAllFor ? isAllFor(c) : Boolean(c.isAll);
+  // A saved view is a frozen snapshot, not a live board — it can be fully torn down, "All sessions"
+  // included, so nothing about it needs the undeletable protection real boards keep.
+  const isSavedView = Boolean(ctx.viewId);
   const orderedCols = orderFor ? orderFor(ctx.cols) : ctx.cols;
   orderedCols.forEach((c) => {
-    const isHome = getIsHome(c);
+    const isAll = getIsAll(c);
     // The project you're actively filtering to is what you're currently relying on staying put —
     // deleting/hiding it out from under yourself would be surprising, so it's locked only while
     // filtered. lockedFor already covers home standing in for a project with no dedicated column.
     const isFilterMatch = !isGroupLens && !!lockedFor?.(c);
-    const locked = isHome || isGroupLens || isFilterMatch;
+    const locked = (isAll && !isSavedView) || isGroupLens || isFilterMatch;
     const lockedReason = isGroupLens
       ? "Project columns can be renamed, reordered, and hidden — but not deleted"
-      : isHome
+      : isAll
         ? "The home column always shows every session — it can be hidden but never deleted"
         : "Clear the project filter before deleting this column";
     const count = countFor(c);
     const row = document.createElement("div");
-    row.innerHTML = columnRowHtml(c, count, isHome, locked, lockedReason, displayTitleFor?.(c), shownFor ? shownFor(c) : !c.hidden && !isAutoHidden(c, count, isHome), isFilterMatch);
+    row.innerHTML = columnRowHtml(c, count, isAll, locked, lockedReason, displayTitleFor?.(c), shownFor ? shownFor(c) : !c.hidden && !isAutoHidden(c, count, isAll), isFilterMatch);
     dropdown.appendChild(row.firstElementChild);
   });
 
@@ -130,10 +133,10 @@ export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, s
       const c = ctx.cols.find((x) => x.id === btn.dataset.toggleHidden);
       if (!c) return;
       pushHistory(ctx);
-      const isHome = getIsHome(c);
+      const isAll = getIsAll(c);
       if (c.hidden) {
         c.hidden = false; // manually hidden -> show
-      } else if (isAutoHidden(c, countFor(c), isHome)) {
+      } else if (isAutoHidden(c, countFor(c), isAll)) {
         c.neverPopulated = true; // only auto-hidden for being empty -> exempt it, show it
       } else {
         c.hidden = true; // currently shown -> hide it
