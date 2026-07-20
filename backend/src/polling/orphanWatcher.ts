@@ -4,10 +4,29 @@
 // that second step entirely, so the process can survive as an orphan with no window attached,
 // leaving the dot green forever. This periodically checks for exactly that and cleans it up.
 import { spawn } from "node:child_process";
-import { loadRunning } from "../store.ts";
+import { loadRunning, pidAlive, loadAllQuickPromptJobs, loadAllDelegations } from "../store.ts";
 import { usingGhostty } from "../claude/terminal/ghosttyEnv.ts";
 import { ghosttyWindowTag } from "../claude/terminal/terminalLaunch.ts";
 import { broadcast } from "../sse.ts";
+
+const EXIT_POLL_MS = 200;
+const EXIT_GRACE_MS = 2000;
+
+/** Waits for a pid to actually exit (escalating to SIGKILL if SIGTERM alone isn't enough). */
+async function waitForExit(pid: number): Promise<void> {
+  const deadline = Date.now() + EXIT_GRACE_MS;
+  while (pidAlive(pid) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, EXIT_POLL_MS));
+  }
+  if (pidAlive(pid)) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // already gone
+    }
+    while (pidAlive(pid)) await new Promise((r) => setTimeout(r, EXIT_POLL_MS));
+  }
+}
 
 function liveGhosttyTags(): Promise<Set<string>> {
   return new Promise((resolve) => {
@@ -38,18 +57,30 @@ async function sweepOrphans() {
   const running = await loadRunning(); // already filtered to only pid-alive entries
   const sessionIds = Object.keys(running);
   if (!sessionIds.length) return;
-  const openTags = await liveGhosttyTags();
-  for (const sessionId of sessionIds) {
-    if (openTags.has(ghosttyWindowTag(sessionId))) continue;
+  const [openTags, quickPrompts, delegations] = await Promise.all([
+    liveGhosttyTags(),
+    loadAllQuickPromptJobs(),
+    loadAllDelegations(),
+  ]);
+  // A running headless job (Quick Prompt or Delegation) never had a Ghostty window to begin with —
+  // matched by sessionId, not pid, since a pty-wrapped job's saved pid is `script`'s, not claude's.
+  const headlessSessionIds = new Set<string>();
+  for (const j of quickPrompts) if (j.status === "running") headlessSessionIds.add(j.sessionId);
+  for (const d of delegations) if (d.status === "running") headlessSessionIds.add(d.sessionId);
+  await Promise.all(sessionIds.map(async (sessionId) => {
+    if (openTags.has(ghosttyWindowTag(sessionId))) return;
+    if (headlessSessionIds.has(sessionId)) return;
+    const pid = running[sessionId].pid;
     try {
-      process.kill(running[sessionId].pid);
+      process.kill(pid);
     } catch {
       // already gone
     }
-    // Don't wait on Claude Code's own status file happening to get cleaned up and fsWatcher.ts
-    // noticing that separately — grey out the dot from this sweep directly.
+    // Confirm it's actually gone before greying out the dot, or an immediate Quick Prompt could
+    // race a --resume against the still-dying process and get rejected as a concurrent session.
+    await waitForExit(pid);
     broadcast({ type: "session-patch", id: sessionId, patch: { running: null } });
-  }
+  }));
 }
 
 let started = false;
