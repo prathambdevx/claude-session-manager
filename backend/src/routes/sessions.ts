@@ -15,7 +15,7 @@ import {
 } from "../claude/index.ts";
 import { CLAUDE_BIN, DANGEROUS_FLAG } from "../constants.ts";
 import { json } from "./json.ts";
-import { reconcileNow } from "./reconcile.ts";
+import { reconcileNow } from "../polling/reconcile.ts";
 
 export async function handleSessionsRoutes(req: Request, url: URL): Promise<Response | null> {
   if (url.pathname === "/api/sessions" && req.method === "GET") {

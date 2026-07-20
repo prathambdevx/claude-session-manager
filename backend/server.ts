@@ -1,7 +1,7 @@
 // Entry point: starts the local server and delegates every request to the router.
 // Implementation lives in src/ — config, store, sessions, claude, html, routes.
 import { PORT } from "./src/constants.ts";
-import { handleRequest, startClearReconciliationPoller, startFsWatcher } from "./src/routes/index.ts";
+import { handleRequest, startClearReconciliationPoller, startOrphanWatcher, startFsWatcher } from "./src/routes/index.ts";
 
 const server = Bun.serve({
   port: PORT,
@@ -14,6 +14,10 @@ const server = Bun.serve({
 // than the frontend's ~15s refresh could slip past before the pre-clear pid->session mapping is
 // ever recorded, leaving nothing to carry over.
 startClearReconciliationPoller();
+
+// Closing a Ghostty window directly (not via the dashboard's own "Close terminal") can leave the
+// underlying process running as an orphan with no window — see src/polling/orphanWatcher.ts.
+startOrphanWatcher();
 
 // Live-updates the browser via SSE the instant Claude Code writes a status/transcript change or a
 // Quick Prompt job file changes, instead of only finding out on the next scheduled poll — see
