@@ -10,6 +10,10 @@ import { openConfirmModal } from "../../ui/confirmModal.js";
 
 export { switchToView };
 
+// SVG cross instead of a text "+" so stroke weight stays crisp at any size, independent of font
+// rendering — same technique as the column header's "+ New" icon.
+const PLUS_ICON = `<svg width="10" height="10" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M7 1v12M1 7h12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`;
+
 function viewRowHtml(view) {
   const id = `saved:${view.id}`;
   const active = activeView === id;
@@ -38,7 +42,7 @@ export function viewsSectionHtml() {
       Views
       <button class="views-info-btn" data-views-info-toggle type="button" aria-expanded="false" title="What's a view?">i</button>
       <span class="sidebar-group-spacer"></span>
-      <button class="add-view-btn" data-create-view type="button" title="Create a view">+</button>
+      <button class="add-view-btn" data-create-view type="button" title="Create a view">${PLUS_ICON}</button>
     </div>
     <div class="views-callout" data-views-callout>
       <div class="views-callout-head">
