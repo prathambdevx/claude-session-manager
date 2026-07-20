@@ -9,8 +9,9 @@ import { pushHistory } from "./boardUndo.js";
 export function reorderColumns(ctx, fromId, toId, rerender) {
   if (fromId === toId) return;
   // The home column stays pinned first while it's actually shown — hidden, there's nothing to
-  // pin, so the remaining visible columns reorder freely (including whichever is now first).
-  const home = ctx.cols.find((c) => c.isAll);
+  // pin, so the remaining visible columns reorder freely (including whichever is now first). A
+  // saved view is a frozen snapshot, not a live board, so this pin doesn't apply there either.
+  const home = ctx.viewId ? null : ctx.cols.find((c) => c.isAll);
   if (home && !home.hidden && (fromId === home.id || toId === home.id)) {
     toast(`"${home.title}" always stays first`);
     return;

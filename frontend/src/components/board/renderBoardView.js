@@ -9,7 +9,7 @@ import { openColumnTaskModal } from "../modals/columnTaskModal.js";
 import { toast } from "../../ui/toast.js";
 import { pushHistory, hasHistoryFor, undoLast } from "./boardUndo.js";
 import { manageColumnsButtonHtml, wireManageColumnsPanel, isManageColumnsMenuOpen, closeManageColumnsMenu } from "./manageColumnsPanel.js";
-import { createSavedView } from "../../api/savedViewsApi.js";
+import { openSaveViewModal } from "./saveAsView.js";
 import { openPromptModal } from "../../ui/promptModal.js";
 import { openConfirmModal } from "../../ui/confirmModal.js";
 import { wireBoardDragDrop, reorderColumns } from "./wireBoardDragDrop.js";
@@ -105,6 +105,9 @@ function pillColorClass(ctx, c, homeId) {
 
 export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilter = "") {
   const app = document.getElementById("app");
+  // projectFilter is shared global state — a stale value from Main board must not silently carry
+  // its lock/pin behavior into a saved view, which has no filter concept of its own.
+  if (ctx.viewId) projectFilter = "";
   // Home is identified by its isAll flag, not position — a saved view can freely reorder or even
   // delete it, and the "Projects" group lens never has one at all (every column there is a real
   // project), so ctx.cols.find just comes back empty in both of those cases.
@@ -204,7 +207,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
         // Home column stays pinned first while visible — see reorderColumns; undraggable here too
         // so it doesn't snap back after a confusing drag. The filtered project's column is pinned
         // first the same way (reorderForFilter re-front-loads it every render), so lock its drag too.
-        const dragLocked = (c.id === homeId && !c.hidden) || (projectFilter && c.cwd === projectFilter);
+        const dragLocked = (c.id === homeId && !c.hidden && !ctx.viewId) || (projectFilter && c.cwd === projectFilter);
         // A column only forced into view by the active filter (still c.hidden underneath) reads as
         // a normal, fully-visible column — the dashed/dimmed treatment is reserved for the
         // "N hidden columns" chip's own members, which this one currently isn't. Auto-hidden-empty
@@ -283,18 +286,14 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "", projectFilte
     });
   });
   document.getElementById("boardUndoBtn")?.addEventListener("click", () => undoLast(ctx));
-  document.getElementById("saveViewBtn")?.addEventListener("click", async () => {
-    const title = await openPromptModal({ title: "Save as view", label: "View name" });
-    if (!title || !title.trim()) return;
-    // Every column comes along, hidden ones included, with its isAll flag intact — home keeps its
-    // identity in the saved copy regardless of order.
-    // A project board's home column only LOOKS like that project via the displayTitle override
-    // above — a saved view always renders as kind:"main", where that override never runs, so bake
-    // the project identity in for real or the saved copy shows "All sessions" and every session.
-    const cols = ctx.kind === "project"
-      ? ctx.cols.map((c) => c.isAll ? { ...c, cwd: ctx.cwd, title: projectName(ctx.cwd) } : c)
-      : ctx.cols;
-    createSavedView(title.trim(), cols);
+  document.getElementById("saveViewBtn")?.addEventListener("click", () => {
+    // The on-screen columns, in on-screen order, are the snapshot: columnWouldShow (menu forced
+    // closed) drops hidden, auto-hidden-empty, and filtered-out columns — exactly what's not visible.
+    const onScreenCols = reorderForFilter(
+      ctx.cols.filter((c) => columnWouldShow(c, ctx, filtered, homeId, projectFilter, homeBorrowsProjectName, false)),
+      homeId, projectFilter, homeBorrowsProjectName,
+    );
+    openSaveViewModal(onScreenCols, { kind: ctx.kind, cwd: ctx.cwd, homeId, homeBorrowsProjectName, projectFilter });
   });
 
   wireManageColumnsPanel(app, ctx, {

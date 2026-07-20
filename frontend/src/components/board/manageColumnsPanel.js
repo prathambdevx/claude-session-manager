@@ -49,13 +49,14 @@ function isAutoHidden(c, count, isAll) {
 // `ctx.cols` at wiring time (columns can change between renders without a full board re-render).
 // `locked` (home column, or every column in the "Projects" group lens) shows 🔒 instead of a
 // delete button — separate from `isAll`, which only controls the auto-hide-empty exemption.
-function columnRowHtml(c, count, isAll, locked, lockedReason, displayTitle, shown, pinnedFirst) {
+function columnRowHtml(c, count, isAll, locked, lockedReason, displayTitle, shown, pinnedFirst, isSavedView) {
   const autoHidden = isAutoHidden(c, count, isAll);
   // The home column stays pinned first while visible — reorderColumns rejects the drop anyway,
   // but making the row itself undraggable avoids a confusing drag that silently snaps back. The
   // filtered project's own column is pinned the same way (reorderForFilter re-front-loads it), and
   // its switch is inert too — it's force-shown as the filter match, so toggling it does nothing.
-  const dragLocked = (isAll && !c.hidden) || pinnedFirst;
+  // A saved view is a frozen snapshot, not a live board, so home's pin doesn't apply there either.
+  const dragLocked = (isAll && !c.hidden && !isSavedView) || pinnedFirst;
   const toggleTitle = pinnedFirst ? "Pinned while filtered to this project" : `${shown ? "Hide" : "Show"} this column`;
   const toggleAttr = pinnedFirst ? "" : ` data-toggle-hidden="${c.id}"`;
   return `
@@ -124,7 +125,7 @@ export function wireManageColumnsPanel(root, ctx, { countFor, displayTitleFor, s
         : "Clear the project filter before deleting this column";
     const count = countFor(c);
     const row = document.createElement("div");
-    row.innerHTML = columnRowHtml(c, count, isAll, locked, lockedReason, displayTitleFor?.(c), shownFor ? shownFor(c) : !c.hidden && !isAutoHidden(c, count, isAll), isFilterMatch);
+    row.innerHTML = columnRowHtml(c, count, isAll, locked, lockedReason, displayTitleFor?.(c), shownFor ? shownFor(c) : !c.hidden && !isAutoHidden(c, count, isAll), isFilterMatch, isSavedView);
     dropdown.appendChild(row.firstElementChild);
   });
 
