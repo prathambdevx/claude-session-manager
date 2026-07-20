@@ -151,5 +151,7 @@ export async function scanAllSessions(): Promise<Session[]> {
     })
   );
 
-  return sessions;
+  // A stub transcript never got a real cwd line to correct the slug-decoded guess, which is
+  // ambiguous for a hyphenated dir name — neither is resumable, so don't surface either.
+  return sessions.filter((s) => s.messageCount > 0 && existsSync(s.cwd));
 }
