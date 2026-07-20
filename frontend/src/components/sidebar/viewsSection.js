@@ -36,15 +36,19 @@ function viewRowHtml(view) {
 // (✕, clicking it, or clicking elsewhere) marks the flag so it never auto-opens again.
 const VIEWS_INFO_SEEN_KEY = "viewsInfoSeen";
 
+// Tracked here, not just as a DOM class, so a sidebar rebuild (poll/SSE/any render()) doesn't
+// silently drop it mid-read — isTransientUiOpen() checks this too.
+let calloutOpen = false;
+
 export function viewsSectionHtml() {
   return `
     <div class="sidebar-group">
       Views
-      <button class="views-info-btn" data-views-info-toggle type="button" aria-expanded="false" title="What's a view?">i</button>
+      <button class="views-info-btn" data-views-info-toggle type="button" aria-expanded="${calloutOpen}" title="What's a view?">i</button>
       <span class="sidebar-group-spacer"></span>
       <button class="add-view-btn" data-create-view type="button" title="Create a view">${PLUS_ICON}</button>
     </div>
-    <div class="views-callout" data-views-callout>
+    <div class="views-callout${calloutOpen ? " show" : ""}" data-views-callout>
       <div class="views-callout-head">
         <span class="tag">Views</span>
         <button class="views-callout-close" data-views-info-close type="button" title="Close">✕</button>
@@ -75,6 +79,7 @@ document.addEventListener("click", (e) => {
   const toggleBtn = document.querySelector("[data-views-info-toggle]");
   if (!callout?.classList.contains("show")) return;
   if (callout.contains(e.target) || e.target === toggleBtn) return;
+  calloutOpen = false;
   callout.classList.remove("show");
   toggleBtn?.setAttribute("aria-expanded", "false");
   localStorage.setItem(VIEWS_INFO_SEEN_KEY, "1");
@@ -92,11 +97,13 @@ export function wireViewsSection(root) {
   const infoBtn = root.querySelector("[data-views-info-toggle]");
   const callout = root.querySelector("[data-views-callout]");
   const openCallout = () => {
+    calloutOpen = true;
     positionCallout(infoBtn, root, callout);
     callout.classList.add("show");
     infoBtn.setAttribute("aria-expanded", "true");
   };
   const closeCallout = () => {
+    calloutOpen = false;
     callout.classList.remove("show");
     infoBtn.setAttribute("aria-expanded", "false");
     localStorage.setItem(VIEWS_INFO_SEEN_KEY, "1");
@@ -110,7 +117,8 @@ export function wireViewsSection(root) {
     e.stopPropagation();
     closeCallout();
   });
-  if (infoBtn && callout && !localStorage.getItem(VIEWS_INFO_SEEN_KEY)) openCallout();
+  // calloutOpen true means this render is a rebuild while it was showing — reopen (repositions too)
+  if (infoBtn && callout && (calloutOpen || !localStorage.getItem(VIEWS_INFO_SEEN_KEY))) openCallout();
 
   // same viewport-rect positioning as board card/column menus — the sidebar is too narrow for a
   // dropdown to just fall into its natural flow position without getting clipped by the board panel

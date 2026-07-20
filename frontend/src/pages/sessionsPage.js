@@ -6,10 +6,9 @@ import { renderBoardView } from "../components/board/renderBoardView.js";
 import { renderSidebar } from "../components/sidebar/renderSidebar.js";
 import { toast } from "../ui/toast.js";
 
-// True while an open ⋮ dropdown or inline column rename exists — background refreshers (SSE,
-// backstop poll) check this and skip the destructive full rebuild until it closes.
+// True while an open ⋮ dropdown, rename input, or Views callout exists — background refreshers skip the rebuild until it closes.
 export function isTransientUiOpen() {
-  return !!document.querySelector(".bc-dropdown.open, [data-rename-col-input]");
+  return !!document.querySelector(".bc-dropdown.open, [data-rename-col-input], .views-callout.show");
 }
 
 export function matchesSearch(s, q) {
