@@ -139,7 +139,7 @@ export async function resumeSession(id, fork) {
   } else if (data.busy) {
     // a headless quick prompt is still running on this session — don't copy a command or imply a
     // failure; just tell the user to wait so they don't start a second process on the transcript
-    toast(data.error || "A quick prompt is running in the background — wait for it to finish, then resume.");
+    toast(data.error || "This is a quick prompt running in a closed session — wait for it to finish, then resume.", 5000);
   } else {
     toast("Failed to launch terminal — copied command instead");
     copyCommand(id, fork);

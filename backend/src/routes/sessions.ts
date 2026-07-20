@@ -117,7 +117,7 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
         return json({
           ok: false,
           busy: true,
-          error: "A quick prompt is running in the background on this session — opening a terminal now would start a second process on the same conversation. Wait for it to finish (watch the chip on the card), then resume.",
+          error: "This is a quick prompt running in a closed session — wait for it to finish, then resume.",
         }, { status: 409 });
       }
     }
