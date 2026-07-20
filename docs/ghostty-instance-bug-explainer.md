@@ -170,3 +170,32 @@ Two smaller gotchas found while debugging this, both of which silently no-op'd e
 - **Return "found the tab", not "AXRaise succeeded".** The resume route launches a NEW terminal when
   focus returns false, so if AXRaise ever fails (e.g. Accessibility permission not granted) the
   function must still report success on having found the window, or it would spawn a duplicate.
+
+## Follow-up: forked sessions closing immediately ("Process exited")
+
+`/resume` with `fork: true` used to skip the title-tag machinery entirely — `opts = {}` in the
+`openTerminalRunning` call, versus a real resume's `{ ghosttyTitleFile, ghosttyTag }`. That meant a
+forked window's launch script had no title-loop wrapper, AND `retileGhosttyWindows` never ran for
+it (`if (opts.ghosttyTag) retileGhosttyWindows(...)` — fork had none).
+
+The retile call does its own `tell application "Ghostty" to activate` + a poll-until-populated
+delay (same lazy-AX-list quirk as section 4 above) immediately after the new window is created.
+Manually testing the exact generated launch script under a real pty (`script -q /dev/null zsh
+<path>`) always worked correctly — the script and the underlying `claude --resume ... --fork-
+session` command are not the bug. The working theory is that the activate+poll step happening
+right after window creation for a real resume incidentally gives Ghostty's window/pty enough
+settle time before anything is written to it; fork's bare launch (no title loop, no retile) had
+none of that, and its shell script could start writing before the pty was fully attached.
+
+First fix attempt: give fork the same `writeGhosttyTitle` + `{ ghosttyTitleFile, ghosttyTag }`
+treatment a normal resume gets. This alone didn't fix it — because that first attempt still tagged
+the fork with `ghosttyWindowTag(id)`, the **same tag as the original session**. Ghostty doesn't
+necessarily close a window when its shell process exits (it can sit showing "Process exited" with
+the old title still in place) — so if the original session's window was still around, its title
+already contained the tag `retileGhosttyWindows`' poll was watching for. The poll's "has the new
+window appeared?" check matched that stale window instantly (try 0), never actually waiting for the
+real new fork window to render, and the settle-time benefit never applied to it at all.
+
+Real fix: a fork is given its own tag, generated fresh (`crypto.randomUUID()`), never the original
+session's id. It never needs to be re-focused by that id later (fork always opens a new window), so
+there's no reuse benefit to lose.

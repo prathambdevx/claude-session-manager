@@ -121,11 +121,13 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
 
     const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${fork ? " --fork-session" : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
     // same display label the card itself uses, so the Ghostty window title reads like the UI —
-    // written to a file *before* launch so the window's title-polling loop has it from frame one
+    // written to a file *before* launch so the window's title-polling loop has it from frame one.
+    // A fork gets its own random tag, never the original id's — see docs/ghostty-instance-bug-explainer.md.
     const meta = await loadMeta();
     const label = meta[id]?.name || s.firstMessage || id.slice(0, 8);
-    if (!fork) await writeGhosttyTitle(id, ghosttyWindowTitle(label, id));
-    await openTerminalRunning(s.cwd, cmd, fork ? {} : { ghosttyTitleFile: ghosttyTitleFilePath(id), ghosttyTag: ghosttyWindowTag(id) });
+    const tagId = fork ? crypto.randomUUID() : id;
+    await writeGhosttyTitle(tagId, ghosttyWindowTitle(label, tagId));
+    await openTerminalRunning(s.cwd, cmd, { ghosttyTitleFile: ghosttyTitleFilePath(tagId), ghosttyTag: ghosttyWindowTag(tagId) });
     return json({ ok: true, command: cmd, cwd: s.cwd });
   }
 
