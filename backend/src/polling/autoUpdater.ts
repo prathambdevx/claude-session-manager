@@ -34,7 +34,7 @@ async function checkForUpdate(): Promise<void> {
 }
 
 let started = false;
-export function startAutoUpdater(intervalMs = 60 * 60 * 1000): void {
+export function startAutoUpdater(intervalMs = 5 * 60 * 1000): void {
   if (started) return; // idempotent — tests may import routes more than once
   started = true;
   setInterval(() => {
