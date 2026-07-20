@@ -17,29 +17,46 @@ const PLIST_PATH = join(AGENTS_DIR, `${LABEL}.plist`);
 const LOG_PATH = join(ROOT, "launchd.log");
 const GHOSTTY_APP = "/Applications/Ghostty.app";
 
+type ServerPermissions = { accessibility: boolean; ghosttyAutomation: boolean };
+
+async function fetchServerPermissions(): Promise<ServerPermissions | null> {
+  try {
+    const res = await fetch("http://127.0.0.1:4321/api/permissions");
+    if (res.ok) return await res.json();
+  } catch {
+    // server may not be accepting connections yet
+  }
+  return null;
+}
+
 // Asks the REAL running server (not this interactive script) whether it has Accessibility/
 // Automation access — see routes/permissions.ts for why that distinction matters. Retries briefly
 // since the server has only just started.
-async function fetchServerPermissions(): Promise<{ accessibility: boolean; ghosttyAutomation: boolean } | null> {
+async function fetchServerPermissionsWithRetry(): Promise<ServerPermissions | null> {
   for (let i = 0; i < 10; i++) {
-    try {
-      const res = await fetch("http://127.0.0.1:4321/api/permissions");
-      if (res.ok) return await res.json();
-    } catch {
-      // server may not be accepting connections yet
-    }
+    const perms = await fetchServerPermissions();
+    if (perms) return perms;
     await Bun.sleep(300);
   }
   return null;
 }
 
-function reportPermission(granted: boolean, grantedLabel: string, settingsPane: string): boolean {
-  if (granted) {
-    console.log(`✓ ${grantedLabel}`);
-    return false;
+// Opens one Privacy pane and blocks until that specific grant flips true (or a timeout) — the two
+// panes MUST be handled one at a time because System Settings is single-window, so opening both at
+// once just makes the second instantly replace the first.
+async function openAndAwaitGrant(pane: string, key: keyof ServerPermissions, missingMsg: string): Promise<void> {
+  console.log(missingMsg);
+  spawnSync("open", [`x-apple.systempreferences:com.apple.preference.security?Privacy_${pane}`], { stdio: "ignore" });
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    await Bun.sleep(1500);
+    const perms = await fetchServerPermissions();
+    if (perms?.[key]) {
+      console.log("  ✓ granted.");
+      return;
+    }
   }
-  spawnSync("open", [`x-apple.systempreferences:com.apple.preference.security?Privacy_${settingsPane}`], { stdio: "ignore" });
-  return true;
+  console.log("  (not granted yet — grant it whenever you like; it takes effect on the next launch.)");
 }
 
 // Sessions launch in Ghostty when it's installed (src/claude.ts prefers it over Apple Terminal), so
@@ -139,15 +156,19 @@ async function install() {
   console.log(`  folder:  ${ROOT}`);
   console.log(`  logs:    ${LOG_PATH}`);
 
-  const perms = await fetchServerPermissions();
+  const perms = await fetchServerPermissionsWithRetry();
   if (!perms) {
     console.log("⚠ Couldn't reach the server yet to check permissions — run `bun run setup` again in a few seconds.");
   } else {
-    const accessibilityMissing = reportPermission(perms.accessibility, "Accessibility permission for \"bun\" already granted.", "Accessibility");
-    const automationMissing = reportPermission(perms.ghosttyAutomation, "Automation permission for \"bun\" and \"Ghostty\" already granted.", "Automation");
-    if (accessibilityMissing || automationMissing) {
-      console.log("⚠ Please grant permission for Ghostty and bun in the System Settings window that just opened.");
-      await Bun.sleep(5000);
+    if (perms.accessibility) {
+      console.log("✓ Accessibility permission for \"bun\" already granted.");
+    } else {
+      await openAndAwaitGrant("Accessibility", "accessibility", "⚠ Grant Accessibility to \"bun\" and \"Ghostty\" in the window that just opened.");
+    }
+    if (perms.ghosttyAutomation) {
+      console.log("✓ Automation permission for \"bun\" already granted.");
+    } else {
+      await openAndAwaitGrant("Automation", "ghosttyAutomation", "⚠ Grant Automation to \"bun\" and \"Ghostty\" in the window that just opened.");
     }
   }
 

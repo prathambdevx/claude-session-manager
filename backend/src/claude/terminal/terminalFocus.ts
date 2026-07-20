@@ -72,21 +72,24 @@ function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
     end tell
     if not found then return "false"
     delay 0.3
-    tell application "System Events"
-      tell process "ghostty"
-        set tries to 0
-        repeat while (count of windows) is 0 and tries < 8
-          delay 0.15
-          set tries to tries + 1
-        end repeat
-        repeat with w in windows
-          if (name of w) contains "${tag}" then
-            perform action "AXRaise" of w
-            exit repeat
-          end if
-        end repeat
+    -- swallow a missing-Accessibility failure here: the window was already found, so still return "true" or Resume spawns a duplicate
+    try
+      tell application "System Events"
+        tell process "ghostty"
+          set tries to 0
+          repeat while (count of windows) is 0 and tries < 8
+            delay 0.15
+            set tries to tries + 1
+          end repeat
+          repeat with w in windows
+            if (name of w) contains "${tag}" then
+              perform action "AXRaise" of w
+              exit repeat
+            end if
+          end repeat
+        end tell
       end tell
-    end tell
+    end try
     return "true"
   `;
   return new Promise((resolve) => {
