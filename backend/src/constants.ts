@@ -66,6 +66,10 @@ export const QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS = 6 * 60 * 1000;
 
 export const PORT = 4321;
 
+// Shared with setup.ts (which installs the launchd agent under this label) and
+// polling/autoUpdater.ts (which restarts it via `launchctl kickstart` after a git pull).
+export const LAUNCHD_LABEL = "com.claude-session-manager";
+
 // launchd runs this with a minimal PATH that doesn't include the real claude binary.
 const LOCAL_CLAUDE_BIN = join(HOME, ".local/bin/claude");
 export const CLAUDE_BIN = existsSync(LOCAL_CLAUDE_BIN) ? LOCAL_CLAUDE_BIN : "claude";

@@ -6,9 +6,10 @@ import { homedir } from "node:os";
 import { existsSync } from "node:fs";
 import { writeFile, unlink, mkdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
+import { LAUNCHD_LABEL } from "./src/constants.ts";
 
 
-const LABEL = "com.claude-session-manager";
+const LABEL = LAUNCHD_LABEL;
 const LEGACY_LABELS = ["com.pratham.claude-sessions"]; // older hand-installed labels to clean up
 const HOME = homedir();
 const ROOT = import.meta.dir; // this repo's folder

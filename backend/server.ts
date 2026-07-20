@@ -2,6 +2,7 @@
 // Implementation lives in src/ — config, store, sessions, claude, html, routes.
 import { PORT } from "./src/constants.ts";
 import { handleRequest, startClearReconciliationPoller, startOrphanWatcher, startFsWatcher } from "./src/routes/index.ts";
+import { startAutoUpdater } from "./src/polling/autoUpdater.ts";
 
 const server = Bun.serve({
   port: PORT,
@@ -23,5 +24,9 @@ startOrphanWatcher();
 // Quick Prompt job file changes, instead of only finding out on the next scheduled poll — see
 // src/fsWatcher.ts / src/sse.ts / routes/events.ts.
 startFsWatcher();
+
+// Pulls and restarts on its own once a teammate's machine drifts behind main — see
+// src/polling/autoUpdater.ts for why this is poll-based rather than push-based.
+startAutoUpdater();
 
 console.log(`claude-sessions running at http://127.0.0.1:${server.port}`);
