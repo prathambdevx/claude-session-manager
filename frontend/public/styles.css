@@ -170,7 +170,9 @@
   }
   .empty { color: var(--dim); font-size: 13px; padding: 40px 0; text-align: center; }
   .toast {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    /* z-index tops the whole scale (board 3-7, modals 20-50, menus/tooltips 9999-10000): the
+       sticky .board creates its own stacking context, so without this the columns paint over it. */
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 10001;
     background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px;
     font-size: 12.5px; opacity: 0; pointer-events: none; transition: opacity 150ms ease;
   }
