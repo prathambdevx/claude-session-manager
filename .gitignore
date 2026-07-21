@@ -1,6 +1,10 @@
 # Personal / local state — never publish. Contains your session names, tickets, notes,
 # context briefings, and agent-job outputs.
-data/
+data/*
+# ...except the generated tmux config — tracked on this branch while the tmux work is in progress
+# so it's easy to see/tweak. (main keeps all of data/ ignored; the per-machine tmux-state.json /
+# terminal.json stay ignored everywhere.)
+!data/tmux.conf
 
 # Logs
 *.log
