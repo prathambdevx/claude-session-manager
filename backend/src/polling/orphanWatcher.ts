@@ -3,30 +3,12 @@
 // running inside it (see closeRunningSessionTerminal). Closing a window directly in Ghostty skips
 // that second step entirely, so the process can survive as an orphan with no window attached,
 // leaving the dot green forever. This periodically checks for exactly that and cleans it up.
+import { existsSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { loadRunning, pidAlive, loadAllQuickPromptJobs, loadAllDelegations } from "../store.ts";
+import { loadRunning, loadAllQuickPromptJobs, loadAllDelegations, waitForPidExit } from "../store.ts";
 import { usingGhostty } from "../claude/terminal/ghosttyEnv.ts";
-import { ghosttyWindowTag } from "../claude/terminal/terminalLaunch.ts";
+import { ghosttyWindowTag, ghosttyTitleFilePath } from "../claude/terminal/terminalLaunch.ts";
 import { broadcast } from "../sse.ts";
-
-const EXIT_POLL_MS = 200;
-const EXIT_GRACE_MS = 2000;
-
-/** Waits for a pid to actually exit (escalating to SIGKILL if SIGTERM alone isn't enough). */
-async function waitForExit(pid: number): Promise<void> {
-  const deadline = Date.now() + EXIT_GRACE_MS;
-  while (pidAlive(pid) && Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, EXIT_POLL_MS));
-  }
-  if (pidAlive(pid)) {
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // already gone
-    }
-    while (pidAlive(pid)) await new Promise((r) => setTimeout(r, EXIT_POLL_MS));
-  }
-}
 
 function liveGhosttyTags(): Promise<Set<string>> {
   return new Promise((resolve) => {
@@ -68,6 +50,9 @@ async function sweepOrphans() {
   for (const j of quickPrompts) if (j.status === "running") headlessSessionIds.add(j.sessionId);
   for (const d of delegations) if (d.status === "running") headlessSessionIds.add(d.sessionId);
   await Promise.all(sessionIds.map(async (sessionId) => {
+    // Only sweep sessions THIS app launched: every launch writes a Ghostty title file and nothing
+    // else does, so its absence marks a claude session the user started on their own — never ours to kill.
+    if (!existsSync(ghosttyTitleFilePath(sessionId))) return;
     if (openTags.has(ghosttyWindowTag(sessionId))) return;
     if (headlessSessionIds.has(sessionId)) return;
     const pid = running[sessionId].pid;
@@ -76,9 +61,7 @@ async function sweepOrphans() {
     } catch {
       // already gone
     }
-    // Confirm it's actually gone before greying out the dot, or an immediate Quick Prompt could
-    // race a --resume against the still-dying process and get rejected as a concurrent session.
-    await waitForExit(pid);
+    await waitForPidExit(pid); // confirm it's actually gone before greying out the dot
     broadcast({ type: "session-patch", id: sessionId, patch: { running: null } });
   }));
 }
