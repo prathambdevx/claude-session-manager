@@ -62,4 +62,8 @@ browser refresh.
   `git push origin main`, `gh pr merge --admin`) is expected to print a "bypassed rule violations"
   notice and still succeed — that's normal here, not a sign something's wrong.
 - Match the surrounding code's style and comment density (comments explain *why*, not *what*).
-- macOS-specific by design (real terminals, `launchd`) — don't try to make it cross-platform.
+- Full feature set (terminal launching, auto-tiling, focus/close) is macOS-only by design (real
+  Terminal/Ghostty windows via AppleScript, `launchd` for auto-start). Windows has minimal,
+  intentional support instead: the server, dashboard, and install/auto-update logging work there
+  (see `backend/setup.ts`'s Windows branch and `bootstrap.ps1`), but terminal-launching features
+  gracefully no-op — that gap is accepted for now, not a bug to "fix" by porting AppleScript logic.

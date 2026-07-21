@@ -165,6 +165,7 @@ function placeByTagCapture(tag: string, x: number, y: number, w: number, h: numb
  * Silently no-ops if the new window never actually appeared.
  */
 export async function retileGhosttyWindows(newTag: string): Promise<void> {
+  if (process.platform !== "darwin") return;
   const windows = await liveGhosttyWindows(newTag);
   const liveTags = new Set(windows.map((w) => tagFromTitle(w.title)).filter((t): t is string => t != null));
   if (!liveTags.has(newTag)) return;

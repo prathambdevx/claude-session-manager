@@ -4,7 +4,7 @@
 // so the new code actually takes effect (RunAtLoad/KeepAlive in the plist bring it straight back).
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { hostname } from "node:os";
+import { hostname, platform, release } from "node:os";
 import { ROOT, LAUNCHD_LABEL, INSTALL_LOG_URL } from "../constants.ts";
 
 function git(args: string[]): { status: number | null; stdout: string } {
@@ -16,8 +16,13 @@ function git(args: string[]): { status: number | null; stdout: string } {
 // checking in on every future auto-update, not just fresh bootstrap.sh runs. Never awaited/thrown
 // from a caller — an offline machine just never logs that row.
 function logInstallEvent(event: "install" | "auto-update", sha: string): void {
-  const name = spawnSync("scutil", ["--get", "ComputerName"], { encoding: "utf-8" }).stdout?.trim() || hostname();
-  const os = "macOS " + (spawnSync("sw_vers", ["-productVersion"], { encoding: "utf-8" }).stdout?.trim() || "unknown");
+  const isMac = platform() === "darwin";
+  const name = isMac
+    ? spawnSync("scutil", ["--get", "ComputerName"], { encoding: "utf-8" }).stdout?.trim() || hostname()
+    : hostname();
+  const os = isMac
+    ? "macOS " + (spawnSync("sw_vers", ["-productVersion"], { encoding: "utf-8" }).stdout?.trim() || "unknown")
+    : `${platform()} ${release()}`;
   const host = hostname().replace(/\.local$/, ""); // os.hostname() includes the mDNS .local suffix
   const params = new URLSearchParams({ event, name, host, os, sha });
   fetch(`${INSTALL_LOG_URL}?${params}`).catch(() => {});
@@ -41,8 +46,14 @@ async function checkForUpdate(): Promise<void> {
     return;
   }
 
-  console.log("[auto-update] pulled — restarting to pick up the new code.");
   logInstallEvent("auto-update", remoteSha.slice(0, 7));
+  console.log("[auto-update] pulled — restarting to pick up the new code.");
+
+  if (platform() === "win32") {
+    process.exit(0); // the Scheduled Task's wrapper loop (setup.ts) relaunches on any exit
+  }
+  if (platform() !== "darwin") return; // no auto-restart mechanism on this platform yet
+
   spawnSync("launchctl", ["kickstart", "-k", `gui/${process.getuid?.()}/${LAUNCHD_LABEL}`], { stdio: "ignore" });
 }
 

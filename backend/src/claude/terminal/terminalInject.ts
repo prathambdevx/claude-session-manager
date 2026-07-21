@@ -109,6 +109,7 @@ function sendTextToGhosttyTerminal(tag: string, text: string): Promise<boolean> 
 // Delivers into the session's existing terminal; returns false if none is open or delivery
 // failed, so the caller can fall back to a headless run (see routes/quickPrompts.ts).
 export async function sendPromptToRunningTerminal(pid: number | null, ghosttyTag: string | undefined, prompt: string): Promise<boolean> {
+  if (process.platform !== "darwin") return false;
   // The csm-<id> tag's presence IS "this session's terminal is open" — no pid needed. A live pid
   // was previously required and wrongly vetoed delivery when loadRunning()'s status files lagged.
   if (usingGhostty()) {

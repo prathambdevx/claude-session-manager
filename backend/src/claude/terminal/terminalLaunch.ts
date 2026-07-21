@@ -50,6 +50,11 @@ function appleScriptQuote(s: string): string {
 }
 
 export async function openTerminalRunning(cwd: string, command: string, opts: { ghosttyTitleFile?: string; ghosttyTag?: string } = {}) {
+  if (process.platform !== "darwin") {
+    console.log("Terminal launching isn't supported on this platform yet — skipping.");
+    return;
+  }
+
   if (usingGhostty()) {
     // A background loop re-reads the title file every second and re-asserts it via OSC — this is
     // what lets a rename in the UI update an already-open window's title live. It's wrapped in a
