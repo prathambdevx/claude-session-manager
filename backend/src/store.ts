@@ -131,6 +131,11 @@ export async function saveMeta(meta: Record<string, Meta>) {
   await Bun.write(META_PATH, JSON.stringify(meta, null, 2));
 }
 
+/** The same name/description/firstMessage fallback ladder used across cards, delegations, and tmux pane titles. */
+export function sessionLabel(meta: Meta | undefined, firstMessage?: string | null, sessionId?: string): string {
+  return meta?.name || meta?.description || firstMessage || (sessionId ? sessionId.slice(0, 8) : "(untitled)");
+}
+
 // Tickets — note-only board cards, not Claude sessions.
 
 export type Ticket = {

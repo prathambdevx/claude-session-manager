@@ -4,7 +4,7 @@ import {
   sessions, setSessions, agents, setAgents, delegations, setDelegations, todos, setTodos,
   todoBoardColumns, setTodoBoardColumns, groupBoardColumns, setGroupBoardColumns,
   summarizingIds, setContentMatchIds, currentTab,
-  DEFAULT_TODO_COLUMNS, setSavedViews, setQuickPrompts, setSessionsLoaded,
+  DEFAULT_TODO_COLUMNS, setSavedViews, setQuickPrompts, setSessionsLoaded, setTmuxAvailable,
 } from "../state.js";
 import { mergeInProjectColumns } from "../routing/boardRouting.js";
 import { toast } from "../ui/toast.js";
@@ -72,6 +72,7 @@ export async function loadSessions(opts = {}) {
 
   setSavedViews(Array.isArray(data.savedViews) ? data.savedViews : []);
   setQuickPrompts(Array.isArray(data.quickPrompts) ? data.quickPrompts : []);
+  setTmuxAvailable(data.tmuxAvailable !== false);
   setSessionsLoaded(true);
 
   if (opts.background && isTransientUiOpen()) return; // don't rebuild under an open menu/rename

@@ -1,3 +1,6 @@
+> **Historical:** describes the old Ghostty-window auto-tiling, since replaced by tmux's own
+> `select-layout` ladder (`docs/spec/2026-07-21-tmux-terminal-architecture.md` §7.7). Kept for context.
+
 # Terminal auto-tiling
 
 Every Ghostty terminal this app opens (New Task or Resume) reflows the app's own windows into a

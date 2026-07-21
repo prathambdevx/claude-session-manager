@@ -1,3 +1,6 @@
+> **Historical:** describes the old Ghostty-AppleScript terminal automation, since replaced by the
+> tmux-backed architecture (`docs/spec/2026-07-21-tmux-terminal-architecture.md`). Kept for context.
+
 # Why "Resume" opened duplicate terminals — an OS-level explainer
 
 **Purpose of this doc:** enough context for a fresh Claude session (with no memory of the

@@ -8,6 +8,7 @@ import { writeFile, unlink, mkdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { LAUNCHD_LABEL } from "./src/constants.ts";
 import { ensureCsmCli } from "./src/csmCli.ts";
+import { detectTerminalFromEnv, saveTerminalConfig } from "./src/claude/index.ts";
 
 
 const LABEL = LAUNCHD_LABEL;
@@ -17,73 +18,33 @@ const ROOT = import.meta.dir; // this repo's folder
 const AGENTS_DIR = join(HOME, "Library", "LaunchAgents");
 const PLIST_PATH = join(AGENTS_DIR, `${LABEL}.plist`);
 const LOG_PATH = join(ROOT, "launchd.log");
-const GHOSTTY_APP = "/Applications/Ghostty.app";
 
-type ServerPermissions = { accessibility: boolean; ghosttyAutomation: boolean };
-
-async function fetchServerPermissions(): Promise<ServerPermissions | null> {
-  try {
-    const res = await fetch("http://127.0.0.1:4321/api/permissions");
-    if (res.ok) return await res.json();
-  } catch {
-    // server may not be accepting connections yet
-  }
-  return null;
-}
-
-// Asks the REAL running server (not this interactive script) whether it has Accessibility/
-// Automation access — see routes/permissions.ts for why that distinction matters. Retries briefly
-// since the server has only just started.
-async function fetchServerPermissionsWithRetry(): Promise<ServerPermissions | null> {
-  for (let i = 0; i < 10; i++) {
-    const perms = await fetchServerPermissions();
-    if (perms) return perms;
-    await Bun.sleep(300);
-  }
-  return null;
-}
-
-// Opens one Privacy pane and blocks until that specific grant flips true (or a timeout) — the two
-// panes MUST be handled one at a time because System Settings is single-window, so opening both at
-// once just makes the second instantly replace the first.
-async function openAndAwaitGrant(pane: string, key: keyof ServerPermissions, missingMsg: string): Promise<void> {
-  console.log(missingMsg);
-  spawnSync("open", [`x-apple.systempreferences:com.apple.preference.security?Privacy_${pane}`], { stdio: "ignore" });
-  const deadline = Date.now() + 90_000;
-  while (Date.now() < deadline) {
-    await Bun.sleep(1500);
-    const perms = await fetchServerPermissions();
-    if (perms?.[key]) {
-      console.log("  ✓ granted.");
-      return;
-    }
-  }
-  console.log("  (not granted yet — grant it whenever you like; it takes effect on the next launch.)");
-}
-
-// Sessions launch in Ghostty when it's installed (src/claude.ts prefers it over Apple Terminal), so
-// setup installs it via Homebrew if it isn't already there. Best-effort: if Homebrew is missing or
-// the install fails, launches just fall back to Apple Terminal — never blocks the rest of setup.
-async function ensureGhostty() {
-  if (existsSync(GHOSTTY_APP)) {
-    console.log("✓ Ghostty already installed — sessions will launch in it.");
-    return;
+// tmux is a small headless CLI (not an app the user adopts), so terminal features depend on it
+// being on PATH. Best-effort: if Homebrew is missing or the install fails, the dashboard still runs
+// but launches/quick-prompts read-only-banner instead of crashing — see routes/sessions.ts.
+async function ensureTmux(): Promise<boolean> {
+  const already = spawnSync("which", ["tmux"], { encoding: "utf-8" });
+  if (already.status === 0 && already.stdout.trim()) {
+    console.log("✓ tmux already installed — sessions will run in it.");
+    return true;
   }
   const brew = spawnSync("which", ["brew"], { encoding: "utf-8" });
   if (brew.status !== 0 || !brew.stdout.trim()) {
     console.log(
-      "⚠ Ghostty isn't installed and Homebrew isn't available — skipping. " +
-        "Install it yourself (https://ghostty.org) to get sessions launching in it; falling back to Apple Terminal for now."
+      "⚠ tmux isn't installed and Homebrew isn't available — skipping. " +
+        "Install it yourself (`brew install tmux`) to launch and manage terminals; the dashboard will run read-only until then."
     );
-    return;
+    return false;
   }
-  console.log("Installing Ghostty (brew install --cask ghostty)...");
-  const install = spawnSync("brew", ["install", "--cask", "ghostty"], { stdio: "inherit" });
-  if (install.status !== 0 || !existsSync(GHOSTTY_APP)) {
-    console.log("⚠ Ghostty install failed — falling back to Apple Terminal. Retry later with: brew install --cask ghostty");
-    return;
+  console.log("Installing tmux (brew install tmux)...");
+  const install = spawnSync("brew", ["install", "tmux"], { stdio: "inherit" });
+  const check = spawnSync("which", ["tmux"], { encoding: "utf-8" });
+  if (install.status !== 0 || check.status !== 0 || !check.stdout.trim()) {
+    console.log("⚠ tmux install failed — the dashboard will run read-only. Retry later with: brew install tmux");
+    return false;
   }
-  console.log("✓ Ghostty installed — sessions will now launch in it.");
+  console.log("✓ tmux installed — sessions will now run in it.");
+  return true;
 }
 
 function bootout(label: string, path: string) {
@@ -99,7 +60,17 @@ async function uninstall() {
 }
 
 async function install() {
-  await ensureGhostty();
+  const tmuxOk = await ensureTmux();
+
+  // persisted so a launchd-run server (no TERM_PROGRAM of its own) still knows which terminal app
+  // to launch/focus — see terminalLauncher.ts's resolveTerminalApp fallback chain
+  const detected = detectTerminalFromEnv();
+  if (detected) {
+    saveTerminalConfig(detected);
+    console.log(`✓ Detected terminal: ${detected} (saved to data/terminal.json).`);
+  } else {
+    console.log("⚠ Couldn't detect your terminal app from this shell — falling back to Apple Terminal. Set CSM_TERMINAL to override.");
+  }
 
   // resolve the bun binary running this script; fall back to `which bun`
   let bun = process.execPath;
@@ -160,27 +131,10 @@ async function install() {
 
   ensureCsmCli();
 
-  const perms = await fetchServerPermissionsWithRetry();
-  if (!perms) {
-    console.log("⚠ Couldn't reach the server yet to check permissions — run `bun run setup` again in a few seconds.");
-  } else {
-    if (perms.accessibility) {
-      console.log("✓ Accessibility permission for \"bun\" already granted.");
-    } else {
-      await openAndAwaitGrant("Accessibility", "accessibility", "⚠ Grant Accessibility to \"bun\" and \"Ghostty\" in the window that just opened.");
-    }
-    if (perms.ghosttyAutomation) {
-      console.log("✓ Automation permission for \"bun\" already granted.");
-    } else {
-      await openAndAwaitGrant("Automation", "ghosttyAutomation", "⚠ Grant Automation to \"bun\" and \"Ghostty\" in the window that just opened.");
-    }
-  }
-
   console.log("\nIt's running now and will start automatically on every login/reboot.");
-  console.log(
-    "Make sure \"bun\" and \"Ghostty\" are both checked on in System Settings → Privacy & Security → " +
-      "Accessibility and → Automation — Resume session won't work properly without it."
-  );
+  if (!tmuxOk) {
+    console.log("⚠ Install tmux to launch and manage terminals: `brew install tmux` (then restart: bun run restart).");
+  }
   console.log("Open: http://127.0.0.1:4321");
 }
 

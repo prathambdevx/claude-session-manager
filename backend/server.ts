@@ -1,10 +1,11 @@
 // Entry point: starts the local server and delegates every request to the router.
 // Implementation lives in src/ — config, store, sessions, claude, html, routes.
 import { PORT } from "./src/constants.ts";
-import { handleRequest, startClearReconciliationPoller, startOrphanWatcher, startFsWatcher } from "./src/routes/index.ts";
+import { handleRequest, startClearReconciliationPoller, startTmuxReconciliationPoller, startFsWatcher } from "./src/routes/index.ts";
 import { startAutoUpdater } from "./src/polling/autoUpdater.ts";
 import { sanitizeLegacyBoardData } from "./src/store.ts";
 import { ensureCsmCli } from "./src/csmCli.ts";
+import { broadcast } from "./src/sse.ts";
 
 // See docs/data-migrations.md — a teammate's local data/ can carry fields from an older app
 // version; this tidies them before anything else reads the board files.
@@ -26,9 +27,15 @@ const server = Bun.serve({
 // ever recorded, leaving nothing to carry over.
 startClearReconciliationPoller();
 
-// Closing a Ghostty window directly (not via the dashboard's own "Close terminal") can leave the
-// underlying process running as an orphan with no window — see src/polling/orphanWatcher.ts.
-startOrphanWatcher();
+// tmux itself is the source of truth for pane/session state (see claude/tmux/grids.ts) — this just
+// periodically reconciles against it and pushes a patch when a tracked pane disappears (killed
+// directly in the terminal, not via the dashboard's own "Close terminal").
+if (process.platform === "darwin") {
+  startTmuxReconciliationPoller(
+    (sid) => broadcast({ type: "session-patch", id: sid, patch: { attached: false } }),
+    (sid, attached) => broadcast({ type: "session-patch", id: sid, patch: { attached } }),
+  );
+}
 
 // Live-updates the browser via SSE the instant Claude Code writes a status/transcript change or a
 // Quick Prompt job file changes, instead of only finding out on the next scheduled poll — see

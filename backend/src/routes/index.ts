@@ -1,7 +1,7 @@
 // HTTP request routing: tries each resource's route module in turn (same effective order as the
 // original single-file router) and returns the first non-null Response.
 export { startClearReconciliationPoller } from "../polling/reconcile.ts";
-export { startOrphanWatcher } from "../polling/orphanWatcher.ts";
+export { startTmuxReconciliationPoller } from "../claude/index.ts";
 export { startFsWatcher } from "../fsWatcher.ts";
 import { handleEventsRoutes } from "./events.ts";
 import { handleSessionsRoutes } from "./sessions.ts";
@@ -17,7 +17,6 @@ import { handleSearchRoutes } from "./search.ts";
 import { handleLaunchRoutes } from "./launch.ts";
 import { handleContextsRoutes } from "./contexts.ts";
 import { handleTodosRoutes } from "./todos.ts";
-import { handlePermissionsRoutes } from "./permissions.ts";
 import { handleStaticRoutes } from "./static.ts";
 
 const ROUTE_HANDLERS = [
@@ -35,7 +34,6 @@ const ROUTE_HANDLERS = [
   handleLaunchRoutes,
   handleContextsRoutes,
   handleTodosRoutes,
-  handlePermissionsRoutes,
   handleStaticRoutes,
 ];
 

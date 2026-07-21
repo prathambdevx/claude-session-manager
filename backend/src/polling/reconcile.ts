@@ -5,7 +5,7 @@ import { loadRunning, loadMeta, saveMeta, reconcileClearedSessions } from "../st
 import type { Meta } from "../store.ts";
 import { scanAllSessions } from "../sessions/index.ts";
 import type { Session } from "../sessions/index.ts";
-import { writeGhosttyTitle, ghosttyWindowTitle } from "../claude/index.ts";
+import { grids } from "../claude/index.ts";
 
 export async function reconcileNow(): Promise<Record<string, Meta>> {
   const [running, meta] = await Promise.all([loadRunning(), loadMeta()]);
@@ -17,11 +17,11 @@ export async function reconcileNow(): Promise<Record<string, Meta>> {
   };
   const { meta: reconciledMeta, changed, reconciled } = await reconcileClearedSessions(running, meta, resolveFallbackLabel);
   if (changed) await saveMeta(reconciledMeta);
-  // The window is still reading its pre-clear title file, so keep writing there — with the
-  // carried-over name and the new session's tag — to keep both its title and future focus-matching
-  // correct.
-  for (const { oldId, newId, carriedName } of reconciled) {
-    await writeGhosttyTitle(oldId, ghosttyWindowTitle(carriedName || newId.slice(0, 8), newId));
+  // the pane running this session is still tagged with the pre-clear sid — retag it so
+  // quick-prompt/close/focus keep resolving to the right pane after a /clear
+  if (reconciled.length && process.platform === "darwin") {
+    grids.reconcile(); // rebuild sidToPane from live tmux first — a pane created <3s ago isn't in memory yet, else the retag is silently dropped for good
+    for (const { oldId, newId } of reconciled) grids.remapSid(oldId, newId);
   }
   return reconciledMeta;
 }

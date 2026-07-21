@@ -5,7 +5,7 @@ import type { ContextRecord } from "../store.ts";
 import { scanAllSessions, buildTranscriptDigest } from "../sessions/index.ts";
 import {
   runClaudeHeadless, buildContextExtractionPrompt, buildContinuationPrompt, buildLaunchScript,
-  openTerminalRunning, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath,
+  grids, paneArgv, openTerminalForGrid,
 } from "../claude/index.ts";
 import { markdownToHtml } from "../html.ts";
 import { json } from "./json.ts";
@@ -63,11 +63,14 @@ export async function handleContextsRoutes(req: Request, url: URL): Promise<Resp
     const name = String(body?.name ?? "").trim();
     const dangerous = body?.dangerous !== false;
     const newSessionId = crypto.randomUUID();
-    const script = buildLaunchScript(buildContinuationPrompt(ctx), "solo", { model, sessionId: newSessionId, dangerous });
-    await writeGhosttyTitle(newSessionId, ghosttyWindowTitle(name || "Continued session", newSessionId));
-    await openTerminalRunning(ctx.cwd, script, { ghosttyTitleFile: ghosttyTitleFilePath(newSessionId) });
+    const script = buildLaunchScript(buildContinuationPrompt(ctx), { model, sessionId: newSessionId, dangerous });
+    const meta = await loadMeta();
+    // carries the original session's own name/description forward so the continuation's pane isn't unlabeled
+    const label = name || meta[ctx.sessionId]?.name || meta[ctx.sessionId]?.description || "Continued session";
+    const opened = grids.openOrCreate(newSessionId, paneArgv(script), ctx.cwd, label);
+    if (!opened) return json({ error: "failed to start tmux session — is tmux installed?" }, { status: 500 });
+    if (process.platform === "darwin" && opened.needsTerminal) openTerminalForGrid(`csm-grid-${opened.gridId}`);
     if (name) {
-      const meta = await loadMeta();
       meta[newSessionId] = { ...meta[newSessionId], name };
       await saveMeta(meta);
     }
