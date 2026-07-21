@@ -38,7 +38,7 @@ if [ "$(git -C "$REPO" rev-parse HEAD)" = "$BEFORE" ]; then
   echo "Already updated."
 else
   launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
-  echo "Updated to $(git -C "$REPO" rev-parse --short HEAD) — restarted."
+  echo "Updated to latest version — restarted."
 fi
 `;
 }
