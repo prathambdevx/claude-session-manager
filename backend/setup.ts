@@ -7,6 +7,7 @@ import { existsSync } from "node:fs";
 import { writeFile, unlink, mkdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { LAUNCHD_LABEL } from "./src/constants.ts";
+import { ensureCsmCli } from "./src/csmCli.ts";
 
 
 const LABEL = LAUNCHD_LABEL;
@@ -156,6 +157,8 @@ async function install() {
   console.log(`  bun:     ${bun}`);
   console.log(`  folder:  ${ROOT}`);
   console.log(`  logs:    ${LOG_PATH}`);
+
+  ensureCsmCli();
 
   const perms = await fetchServerPermissionsWithRetry();
   if (!perms) {

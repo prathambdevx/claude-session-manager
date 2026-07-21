@@ -17,7 +17,7 @@ REPO=${JSON.stringify(ROOT)}
 LABEL=${JSON.stringify(LAUNCHD_LABEL)}
 
 case "$1" in
-  ""|--update|update) ;;
+  --update|update) ;;
   *) echo "Usage: csm --update"; exit 1 ;;
 esac
 
@@ -26,16 +26,20 @@ if [ ! -d "$REPO/.git" ]; then
   exit 1
 fi
 
-echo "Pulling latest changes into $REPO ..."
-if ! git -C "$REPO" pull --ff-only origin main; then
-  echo "csm: pull failed — you may have local changes there, or be offline."
+echo "Claude Session Manager is updating..."
+BEFORE=$(git -C "$REPO" rev-parse HEAD 2>/dev/null)
+LOG=$(mktemp)
+if ! git -C "$REPO" pull --ff-only origin main >"$LOG" 2>&1; then
+  echo "csm: update failed — you may have local changes there, or be offline (details: $LOG)."
   exit 1
 fi
 
-echo "Restarting the Claude Session Manager server..."
-launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
-
-echo "Done — now on $(git -C "$REPO" rev-parse --short HEAD)."
+if [ "$(git -C "$REPO" rev-parse HEAD)" = "$BEFORE" ]; then
+  echo "Already updated."
+else
+  launchctl kickstart -k "gui/$(id -u)/$LABEL" 2>/dev/null || true
+  echo "Updated to $(git -C "$REPO" rev-parse --short HEAD) — restarted."
+fi
 `;
 }
 

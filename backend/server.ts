@@ -4,10 +4,15 @@ import { PORT } from "./src/constants.ts";
 import { handleRequest, startClearReconciliationPoller, startOrphanWatcher, startFsWatcher } from "./src/routes/index.ts";
 import { startAutoUpdater } from "./src/polling/autoUpdater.ts";
 import { sanitizeLegacyBoardData } from "./src/store.ts";
+import { ensureCsmCli } from "./src/csmCli.ts";
 
 // See docs/data-migrations.md — a teammate's local data/ can carry fields from an older app
 // version; this tidies them before anything else reads the board files.
 await sanitizeLegacyBoardData();
+
+// Self-heals `csm --update` onto every restart (including the one a successful auto-update itself
+// triggers) — an already-installed machine gets/refreshes it with no separate reinstall step.
+ensureCsmCli();
 
 const server = Bun.serve({
   port: PORT,
