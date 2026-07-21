@@ -2,6 +2,7 @@
 
 Orientation for anyone (human or agent) testing this app end-to-end on a real machine —
 especially the terminal-launch / resume / quick-prompt flows that can't be unit-tested.
+Read this before poking at Ghostty/Terminal-launch behavior locally.
 
 ## The running server
 
