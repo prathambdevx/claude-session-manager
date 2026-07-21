@@ -1,6 +1,7 @@
 // Fixed internal paths and constants — nothing here is user-configurable; config.ts holds the
 // things that actually are.
 import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -69,6 +70,24 @@ export const LAUNCHD_LABEL = "com.claude-session-manager";
 // TypeScript.
 export const INSTALL_LOG_URL = "https://script.google.com/macros/s/AKfycbx0CyTns0VGytsm_0vfQgBu6VO1czZ88b5Z9_rI0R368b72TcQTWsxDW7LWLa3-ZAJAXQ/exec";
 
-// launchd runs this with a minimal PATH that doesn't include the real claude binary.
-const LOCAL_CLAUDE_BIN = join(HOME, ".local/bin/claude");
-export const CLAUDE_BIN = existsSync(LOCAL_CLAUDE_BIN) ? LOCAL_CLAUDE_BIN : "claude";
+// `claude`'s location is entirely per-machine, and neither launchd's minimal PATH nor the non-login
+// shell we launch Ghostty sessions under can see it — so resolve it at runtime for THIS device by
+// asking the user's own login+interactive shell where its binary is (`whence -p`/`type -P` skip a
+// `claude` shell-function wrapper some users alias). Standard install dirs and a bare command are
+// only fallbacks if that probe can't answer. CSM_CLAUDE_BIN overrides everything.
+function resolveClaudeBin(): string {
+  if (process.env.CSM_CLAUDE_BIN) return process.env.CSM_CLAUDE_BIN;
+  try {
+    const shell = process.env.SHELL || "/bin/zsh";
+    const res = spawnSync(shell, ["-lic", "whence -p claude 2>/dev/null || type -P claude 2>/dev/null || command -v claude 2>/dev/null"], { encoding: "utf8", timeout: 5000 });
+    const hit = (res.stdout || "").split("\n").map((s) => s.trim()).filter((l) => l.startsWith("/") && l.endsWith("/claude") && existsSync(l)).pop();
+    if (hit) return hit;
+  } catch {
+    // fall through to the location guesses below
+  }
+  for (const p of [join(HOME, ".local/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]) {
+    if (existsSync(p)) return p;
+  }
+  return "claude";
+}
+export const CLAUDE_BIN = resolveClaudeBin();
