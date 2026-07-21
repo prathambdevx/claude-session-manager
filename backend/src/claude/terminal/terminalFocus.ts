@@ -103,6 +103,7 @@ function focusExistingGhosttyWindow(tag: string): Promise<boolean> {
 
 // Try to bring this session's existing terminal window to front instead of spawning a duplicate.
 export async function tryFocusRunningSession(pid: number | null, ghosttyTag?: string): Promise<boolean> {
+  if (process.platform !== "darwin") return false;
   // Ghostty matches by the session's csm-<id8> title tag, never by pid — Claude Code leaves
   // stale/orphaned pid files that would wrongly veto a real focus. CLAUDE_CODE_DISABLE_TERMINAL_TITLE
   // (set in terminalLaunch.ts) keeps Claude Code from ever contending for the title, so a single
@@ -170,6 +171,7 @@ function closeGhosttyWindowByTag(tag: string): Promise<boolean> {
 // Closes this session's open terminal window/tab, if any is open. Returns false (not an error)
 // when there's simply nothing to close.
 export async function closeRunningSessionTerminal(pid: number | null, ghosttyTag?: string): Promise<boolean> {
+  if (process.platform !== "darwin") return false;
   if (usingGhostty()) {
     const closed = ghosttyTag ? await closeGhosttyWindowByTag(ghosttyTag) : false;
     // Ghostty's own "close window" scripting command closes the window but doesn't reliably

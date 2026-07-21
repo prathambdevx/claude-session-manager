@@ -1,18 +1,26 @@
 # Claude Session Manager.
 
-A local dashboard for managing your [Claude Code](https://claude.com/claude-code) sessions on Mac.
+A local dashboard for managing your [Claude Code](https://claude.com/claude-code) sessions.
 Reads directly from `~/.claude/` — no database, no cloud, nothing to sync.
 
-> **macOS only** — it launches real Terminal/Ghostty windows and installs a `launchd` agent.
+> **Full support is Mac-only** — it launches real Terminal/Ghostty windows. Windows has early,
+> partial support: the dashboard runs and auto-starts, but terminal-launching features (Resume,
+> New Task, etc.) aren't wired up yet there.
 
 ---
 
 ## Install
 
-Just run this in your terminal:
+**Mac:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/prathambdevx/claude-session-manager/main/bootstrap.sh | bash
+```
+
+**Windows (early support):**
+
+```powershell
+powershell -c "irm https://raw.githubusercontent.com/prathambdevx/claude-session-manager/main/bootstrap.ps1 | iex"
 ```
 
 Then open `http://127.0.0.1:4321`. To remove auto-start later: `bun run setup -- --uninstall`

@@ -18,6 +18,12 @@ const PLIST_PATH = join(AGENTS_DIR, `${LABEL}.plist`);
 const LOG_PATH = join(ROOT, "launchd.log");
 const GHOSTTY_APP = "/Applications/Ghostty.app";
 
+// launchd's RunAtLoad+KeepAlive equivalent on Windows: a Scheduled Task starts this looping
+// wrapper at login, and the wrapper itself restarts `bun run server.ts` forever if it exits.
+const WIN_TASK_NAME = "ClaudeSessionManager";
+const WIN_WRAPPER_PATH = join(ROOT, "run-server.ps1");
+const WIN_LOG_PATH = join(ROOT, "windows-server.log");
+
 type ServerPermissions = { accessibility: boolean; ghosttyAutomation: boolean };
 
 async function fetchServerPermissions(): Promise<ServerPermissions | null> {
@@ -91,13 +97,71 @@ function bootout(label: string, path: string) {
   spawnSync("launchctl", ["unload", path], { stdio: "ignore" });
 }
 
+function uninstallWindows() {
+  spawnSync("schtasks", ["/Delete", "/TN", WIN_TASK_NAME, "/F"], { stdio: "ignore" });
+  console.log("✓ Uninstalled — the scheduled task is removed. (The server itself may still be running; close it from Task Manager if needed.)");
+}
+
 async function uninstall() {
+  if (process.platform === "win32") {
+    uninstallWindows();
+    return;
+  }
+  if (process.platform !== "darwin") {
+    console.log("Nothing to uninstall — auto-start isn't set up on this platform yet.");
+    return;
+  }
   bootout(LABEL, PLIST_PATH);
   if (existsSync(PLIST_PATH)) await unlink(PLIST_PATH);
   console.log("✓ Uninstalled — the auto-start agent is removed. (Your data/ is untouched.)");
 }
 
+// Skipped entirely on non-mac, non-Windows platforms (e.g. Linux) — no auto-start there yet.
+async function installOther() {
+  console.log(`${process.platform} detected — no auto-start support yet.`);
+  console.log("Start the server yourself with:  bun run backend/server.ts");
+  console.log("Open: http://127.0.0.1:4321");
+}
+
+async function installWindows() {
+  let bun = process.execPath;
+  if (!bun || !bun.includes("bun")) {
+    const where = spawnSync("where", ["bun"], { encoding: "utf-8" });
+    bun = where.stdout.split(/\r?\n/)[0]?.trim() || "bun";
+  }
+
+  const wrapper = `Set-Location -LiteralPath "${ROOT}"\nwhile ($true) {\n  & "${bun}" run server.ts *>> "${WIN_LOG_PATH}"\n  Start-Sleep -Seconds 2\n}\n`;
+  await writeFile(WIN_WRAPPER_PATH, wrapper);
+
+  spawnSync("schtasks", ["/Delete", "/TN", WIN_TASK_NAME, "/F"], { stdio: "ignore" }); // clean reinstall
+  const command = `powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "${WIN_WRAPPER_PATH}"`;
+  const create = spawnSync("schtasks", ["/Create", "/TN", WIN_TASK_NAME, "/TR", command, "/SC", "ONLOGON", "/RL", "HIGHEST", "/F"], { encoding: "utf-8" });
+  if (create.status !== 0) {
+    console.error("✗ schtasks /Create failed:", create.stderr || create.stdout);
+    process.exit(1);
+  }
+
+  spawnSync("schtasks", ["/Run", "/TN", WIN_TASK_NAME], { stdio: "ignore" }); // start now, not just on next login
+
+  console.log("✓ Installed and started.");
+  console.log(`  bun:     ${bun}`);
+  console.log(`  folder:  ${ROOT}`);
+  console.log(`  logs:    ${WIN_LOG_PATH}`);
+  console.log("\nIt's running now and will start automatically on every login, restarting itself if it ever crashes.");
+  console.log("Terminal-launching features (Resume, New Task, etc.) aren't supported on Windows yet.");
+  console.log("Open: http://127.0.0.1:4321");
+}
+
 async function install() {
+  if (process.platform === "win32") {
+    await installWindows();
+    return;
+  }
+  if (process.platform !== "darwin") {
+    await installOther();
+    return;
+  }
+
   await ensureGhostty();
 
   // resolve the bun binary running this script; fall back to `which bun`
