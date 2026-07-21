@@ -7,15 +7,21 @@ import { spawnSync } from "node:child_process";
 import { hostname } from "node:os";
 import { ROOT, LAUNCHD_LABEL, INSTALL_LOG_URL } from "../constants.ts";
 
-function git(args: string[]): { status: number | null; stdout: string } {
+function git(args: string[]): { status: number | null; stdout: string; stderr: string; missing: boolean } {
   const result = spawnSync("git", args, { cwd: ROOT, encoding: "utf-8" });
-  return { status: result.status, stdout: (result.stdout || "").trim() };
+  return {
+    status: result.status,
+    stdout: (result.stdout || "").trim(),
+    stderr: (result.stderr || "").trim(),
+    // git absent from launchd's minimal PATH (no Xcode CLT, brew-only git) shows up as ENOENT here.
+    missing: (result.error as NodeJS.ErrnoException | undefined)?.code === "ENOENT",
+  };
 }
 
 // Best-effort usage ping — this is what lets the maintainer see already-installed machines
 // checking in on every future auto-update, not just fresh bootstrap.sh runs. Never awaited/thrown
 // from a caller — an offline machine just never logs that row.
-function logInstallEvent(event: "install" | "auto-update", sha: string): void {
+function logInstallEvent(event: "install" | "auto-update" | "auto-update-failed", sha: string): void {
   const name = spawnSync("scutil", ["--get", "ComputerName"], { encoding: "utf-8" }).stdout?.trim() || hostname();
   const os = "macOS " + (spawnSync("sw_vers", ["-productVersion"], { encoding: "utf-8" }).stdout?.trim() || "unknown");
   const host = hostname().replace(/\.local$/, ""); // os.hostname() includes the mDNS .local suffix
@@ -23,11 +29,24 @@ function logInstallEvent(event: "install" | "auto-update", sha: string): void {
   fetch(`${INSTALL_LOG_URL}?${params}`).catch(() => {});
 }
 
+// Remember what we've already reported so a permanently-stuck machine logs once per cause, not a
+// fresh row every 5-minute tick.
+let lastLoggedFailureSha = "";
+let loggedGitMissing = false;
+
 async function checkForUpdate(): Promise<void> {
   if (!existsSync(`${ROOT}/.git`)) return; // not a git checkout — nothing to pull
 
   const remote = git(["ls-remote", "origin", "main"]);
-  if (remote.status !== 0 || !remote.stdout) return; // offline/unreachable — just try again next tick
+  if (remote.status !== 0 || !remote.stdout) {
+    // A missing `git` is a permanent config problem (never updates, silently) — worth one row; a
+    // plain network blip is transient and stays quiet.
+    if (remote.missing && !loggedGitMissing) {
+      loggedGitMissing = true;
+      logInstallEvent("auto-update-failed", "git-not-found-on-PATH");
+    }
+    return;
+  }
   const remoteSha = remote.stdout.split(/\s+/)[0];
 
   const local = git(["rev-parse", "HEAD"]);
@@ -37,7 +56,12 @@ async function checkForUpdate(): Promise<void> {
   // --ff-only so a machine with real local changes is left untouched rather than silently merged.
   const pull = git(["pull", "--ff-only", "origin", "main"]);
   if (pull.status !== 0) {
-    console.log("[auto-update] pull failed (local changes on this machine?) — skipping:", pull.stdout);
+    const reason = (pull.stderr || pull.stdout || "pull --ff-only failed").replace(/\s+/g, " ").slice(0, 80);
+    console.log("[auto-update] pull failed — skipping:", reason);
+    if (remoteSha !== lastLoggedFailureSha) {
+      lastLoggedFailureSha = remoteSha;
+      logInstallEvent("auto-update-failed", `${remoteSha.slice(0, 7)} ${reason}`);
+    }
     return;
   }
 
