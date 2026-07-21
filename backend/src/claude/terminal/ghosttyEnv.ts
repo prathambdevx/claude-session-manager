@@ -9,5 +9,6 @@ export const GHOSTTY_APP = "/Applications/Ghostty.app";
 // .command file via `open` instead just uses Launch Services (same as double-clicking one in
 // Finder), which doesn't need Automation access at all.
 export function usingGhostty(): boolean {
+  if (process.env.CSM_FORCE_TERMINAL) return false; // QA: exercise the Apple Terminal fallback path without uninstalling Ghostty
   return existsSync(GHOSTTY_APP);
 }
