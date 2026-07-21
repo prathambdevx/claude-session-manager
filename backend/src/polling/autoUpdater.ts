@@ -29,24 +29,30 @@ function logInstallEvent(event: "install" | "auto-update" | "auto-update-failed"
   fetch(`${INSTALL_LOG_URL}?${params}`).catch(() => {});
 }
 
-// Remember what we've already reported so a permanently-stuck machine logs once per cause, not a
-// fresh row every 5-minute tick.
-let lastLoggedFailureSha = "";
-let loggedGitMissing = false;
+// Remember what we've already reported so a machine stuck on the same cause logs once, not a fresh
+// row every 5-minute tick — reset on the next success so a NEW failure (or the same one recurring
+// after a working stretch) still gets its own row.
+let lastLoggedRemoteFailure = "";
+let lastLoggedPullFailureSha = "";
 
 async function checkForUpdate(): Promise<void> {
   if (!existsSync(`${ROOT}/.git`)) return; // not a git checkout — nothing to pull
 
   const remote = git(["ls-remote", "origin", "main"]);
   if (remote.status !== 0 || !remote.stdout) {
-    // A missing `git` is a permanent config problem (never updates, silently) — worth one row; a
-    // plain network blip is transient and stays quiet.
-    if (remote.missing && !loggedGitMissing) {
-      loggedGitMissing = true;
-      logInstallEvent("auto-update-failed", "git-not-found-on-PATH");
+    // Anything here — git missing, a proxy/firewall blocking outbound git from launchd's stripped
+    // environment, DNS, etc. — otherwise fails dead silent forever, indistinguishable from the
+    // machine simply being asleep. One row per distinct reason, not one per tick.
+    const reason = remote.missing
+      ? "git-not-found-on-PATH"
+      : (remote.stderr || remote.stdout || "ls-remote failed").replace(/\s+/g, " ").slice(0, 80);
+    if (reason !== lastLoggedRemoteFailure) {
+      lastLoggedRemoteFailure = reason;
+      logInstallEvent("auto-update-failed", reason);
     }
     return;
   }
+  lastLoggedRemoteFailure = ""; // back to reachable — a future failure is a fresh cause, not a repeat
   const remoteSha = remote.stdout.split(/\s+/)[0];
 
   const local = git(["rev-parse", "HEAD"]);
@@ -58,8 +64,8 @@ async function checkForUpdate(): Promise<void> {
   if (pull.status !== 0) {
     const reason = (pull.stderr || pull.stdout || "pull --ff-only failed").replace(/\s+/g, " ").slice(0, 80);
     console.log("[auto-update] pull failed — skipping:", reason);
-    if (remoteSha !== lastLoggedFailureSha) {
-      lastLoggedFailureSha = remoteSha;
+    if (remoteSha !== lastLoggedPullFailureSha) {
+      lastLoggedPullFailureSha = remoteSha;
       logInstallEvent("auto-update-failed", `${remoteSha.slice(0, 7)} ${reason}`);
     }
     return;
