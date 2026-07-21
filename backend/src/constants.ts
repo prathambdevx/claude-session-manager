@@ -64,6 +64,11 @@ export const PORT = 4321;
 // polling/autoUpdater.ts (which restarts it via `launchctl kickstart` after a git pull).
 export const LAUNCHD_LABEL = "com.claude-session-manager";
 
+// Endpoint for the install/auto-update usage log. bootstrap.sh pings the same URL on first
+// install — keep both in sync by hand, they can't share this constant since one's bash and one's
+// TypeScript.
+export const INSTALL_LOG_URL = "https://script.google.com/macros/s/AKfycbx0CyTns0VGytsm_0vfQgBu6VO1czZ88b5Z9_rI0R368b72TcQTWsxDW7LWLa3-ZAJAXQ/exec";
+
 // launchd runs this with a minimal PATH that doesn't include the real claude binary.
 const LOCAL_CLAUDE_BIN = join(HOME, ".local/bin/claude");
 export const CLAUDE_BIN = existsSync(LOCAL_CLAUDE_BIN) ? LOCAL_CLAUDE_BIN : "claude";

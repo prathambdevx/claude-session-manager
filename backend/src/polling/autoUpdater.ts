@@ -4,11 +4,23 @@
 // so the new code actually takes effect (RunAtLoad/KeepAlive in the plist bring it straight back).
 import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { ROOT, LAUNCHD_LABEL } from "../constants.ts";
+import { hostname } from "node:os";
+import { ROOT, LAUNCHD_LABEL, INSTALL_LOG_URL } from "../constants.ts";
 
 function git(args: string[]): { status: number | null; stdout: string } {
   const result = spawnSync("git", args, { cwd: ROOT, encoding: "utf-8" });
   return { status: result.status, stdout: (result.stdout || "").trim() };
+}
+
+// Best-effort usage ping — this is what lets the maintainer see already-installed machines
+// checking in on every future auto-update, not just fresh bootstrap.sh runs. Never awaited/thrown
+// from a caller — an offline machine just never logs that row.
+function logInstallEvent(event: "install" | "auto-update", sha: string): void {
+  const name = spawnSync("scutil", ["--get", "ComputerName"], { encoding: "utf-8" }).stdout?.trim() || hostname();
+  const os = "macOS " + (spawnSync("sw_vers", ["-productVersion"], { encoding: "utf-8" }).stdout?.trim() || "unknown");
+  const host = hostname().replace(/\.local$/, ""); // os.hostname() includes the mDNS .local suffix
+  const params = new URLSearchParams({ event, name, host, os, sha });
+  fetch(`${INSTALL_LOG_URL}?${params}`).catch(() => {});
 }
 
 async function checkForUpdate(): Promise<void> {
@@ -30,6 +42,7 @@ async function checkForUpdate(): Promise<void> {
   }
 
   console.log("[auto-update] pulled — restarting to pick up the new code.");
+  logInstallEvent("auto-update", remoteSha.slice(0, 7));
   spawnSync("launchctl", ["kickstart", "-k", `gui/${process.getuid?.()}/${LAUNCHD_LABEL}`], { stdio: "ignore" });
 }
 
