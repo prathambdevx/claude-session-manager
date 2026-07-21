@@ -74,6 +74,20 @@ test("reconcileClearedSessions carries a running session's name/board to its new
   expect(second.reconciled).toEqual([{ oldId: "old-session-id", newId: "new-session-id", carriedName: "Bugs v1" }]);
 });
 
+test("reconcileClearedSessions carries a session's custom-view column slot (boardTags) to its new post-/clear id", async () => {
+  const meta: Record<string, import("../src/store.ts").Meta> = {
+    "old-session-id": { name: "Clickup Bugs", boardTags: { "view:view-2": "priority-col" } },
+  };
+  const first = await store.reconcileClearedSessions({ "old-session-id": { pid: 555 } }, meta);
+  expect(first.changed).toBe(false);
+
+  const second = await store.reconcileClearedSessions({ "new-session-id": { pid: 555 } }, first.meta);
+  // new id takes over the manually-placed column slot instead of falling back to default grouping
+  expect(second.meta["new-session-id"].boardTags).toEqual({ "view:view-2": "priority-col" });
+  // old id drops out of every custom view's column, same as the legacy flat board field
+  expect(second.meta["old-session-id"].boardTags).toBeUndefined();
+});
+
 test("reconcileClearedSessions uses the fallback label when the old session was never manually named", async () => {
   const meta: Record<string, import("../src/store.ts").Meta> = {
     "unnamed-old": { board: "priority" }, // no `name` — only ever shown via firstMessage in the UI

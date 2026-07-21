@@ -282,7 +282,7 @@ export async function savePidLinks(links: PidLinks) {
   await Bun.write(PID_LINKS_PATH, JSON.stringify(links, null, 2));
 }
 
-const CARRIED_META_FIELDS = ["name", "description", "descriptionSource", "tags", "notes", "status", "pinned", "board"] as const;
+const CARRIED_META_FIELDS = ["name", "description", "descriptionSource", "tags", "notes", "status", "pinned", "board", "boardTags"] as const;
 
 // On a /clear, the new transcript id inherits the old one's name/board slot; the old (now-frozen)
 // transcript is relabeled "<name> (before clear)" and dropped to the default column.
@@ -317,7 +317,8 @@ export async function reconcileClearedSessions(
         meta[prevSessionId] = {
           ...prevMeta,
           name: baseLabel ? `${baseLabel} (before clear)` : "(before clear)",
-          board: undefined, // falls back to the first column ("All sessions") instead of its old slot
+          board: undefined, // legacy flat tag — falls back to the default column instead of its old slot
+          boardTags: undefined, // per-view column slot — the new session takes it over instead
         };
         changed = true;
         // the still-running terminal (same pid) needs to know its identity moved on too — its
