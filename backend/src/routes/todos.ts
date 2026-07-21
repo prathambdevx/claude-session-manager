@@ -1,10 +1,8 @@
 import { existsSync } from "node:fs";
 import { CLAUDE_BIN, KNOWN_MODELS, DANGEROUS_FLAG } from "../constants.ts";
-import { loadTodos, saveTodos, loadMeta, saveMeta } from "../store.ts";
+import { loadTodos, saveTodos, loadMeta, saveMeta, sessionLabel } from "../store.ts";
 import { scanAllSessions } from "../sessions/index.ts";
-import {
-  buildLaunchScript, openTerminalRunning, shellQuote, writeGhosttyTitle, ghosttyWindowTitle, ghosttyTitleFilePath,
-} from "../claude/index.ts";
+import { buildLaunchScript, shellQuote, grids, paneArgv, openTerminalForGrid } from "../claude/index.ts";
 import { json } from "./json.ts";
 
 export async function handleTodosRoutes(req: Request, url: URL): Promise<Response | null> {
@@ -77,9 +75,9 @@ export async function handleTodosRoutes(req: Request, url: URL): Promise<Respons
       const task = todo.description || todo.title;
       const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${existingSessionId}${dangerous ? DANGEROUS_FLAG : ""} ${shellQuote(task)}`;
       const meta = await loadMeta();
-      const label = meta[existingSessionId]?.name || s.firstMessage || existingSessionId.slice(0, 8);
-      await writeGhosttyTitle(existingSessionId, ghosttyWindowTitle(label, existingSessionId));
-      await openTerminalRunning(s.cwd, cmd, { ghosttyTitleFile: ghosttyTitleFilePath(existingSessionId) });
+      const opened = grids.openOrCreate(existingSessionId, paneArgv(cmd), s.cwd, sessionLabel(meta[existingSessionId], s.firstMessage, existingSessionId));
+      if (!opened) return json({ error: "failed to start tmux session — is tmux installed?" }, { status: 500 });
+      if (process.platform === "darwin" && opened.needsTerminal) openTerminalForGrid(`csm-grid-${opened.gridId}`);
       todo.assignedSessionId = existingSessionId;
       todo.status = "in-progress";
       todo.updatedAt = Date.now();
@@ -90,9 +88,10 @@ export async function handleTodosRoutes(req: Request, url: URL): Promise<Respons
       if (!cwd || !existsSync(cwd)) return json({ error: "unknown project directory" }, { status: 400 });
       const task = todo.description || todo.title;
       const sessionId = crypto.randomUUID();
-      const script = buildLaunchScript(task, "solo", { model, sessionId, dangerous });
-      await writeGhosttyTitle(sessionId, ghosttyWindowTitle(todo.title, sessionId));
-      await openTerminalRunning(cwd, script, { ghosttyTitleFile: ghosttyTitleFilePath(sessionId) });
+      const script = buildLaunchScript(task, { model, sessionId, dangerous });
+      const opened = grids.openOrCreate(sessionId, paneArgv(script), cwd, todo.title);
+      if (!opened) return json({ error: "failed to start tmux session — is tmux installed?" }, { status: 500 });
+      if (process.platform === "darwin" && opened.needsTerminal) openTerminalForGrid(`csm-grid-${opened.gridId}`);
       const meta = await loadMeta();
       meta[sessionId] = { ...meta[sessionId], name: todo.title };
       await saveMeta(meta);

@@ -78,7 +78,8 @@ export function boardCardHtml(s, ctx) {
   const draggable = ctx?.kind === "group" ? "false" : "true";
   const title = s.meta?.name || (s.firstMessage ? s.firstMessage.slice(0, 50) : "(untitled)");
   const desc = s.meta?.description;
-  const isLive = !!s.running;
+  // dot = a tmux client has this session's grid open, distinct from process liveness
+  const isLive = !!s.attached;
   const summarizing = summarizingIds.has(s.id);
   return `
     <div class="board-card" draggable="${draggable}" data-card-id="${s.id}">

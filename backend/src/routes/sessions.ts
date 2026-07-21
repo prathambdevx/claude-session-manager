@@ -1,21 +1,31 @@
 import { readdir, unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { PROJECTS_DIR } from "../constants.ts";
+import { PROJECTS_DIR, CLAUDE_BIN, DANGEROUS_FLAG } from "../constants.ts";
 import {
   loadMeta, saveMeta, loadTickets, loadRunning, loadAgents, loadAllDelegations, loadTodos,
   loadTodoBoard, loadGroupBoard, loadSavedViews,
-  loadAllQuickPromptJobs, pidAlive,
+  loadAllQuickPromptJobs, pidAlive, sessionLabel,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
 import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions/index.ts";
-import {
-  ghosttyWindowTitle, writeGhosttyTitle, deleteGhosttyTitle, ghosttyTitleFilePath,
-  openTerminalRunning, tryFocusRunningSession, closeRunningSessionTerminal, ghosttyWindowTag, shellQuote, usingGhostty,
-} from "../claude/index.ts";
-import { CLAUDE_BIN, DANGEROUS_FLAG } from "../constants.ts";
+import { grids, paneArgv, shellQuote, openTerminalForGrid, focusGridWindow, isTmuxAvailable } from "../claude/index.ts";
 import { json } from "./json.ts";
 import { reconcileNow } from "../polling/reconcile.ts";
+
+// Waits for a forked pane's real session id to show up in ~/.claude/sessions/*.json, keyed by pid
+// — `exec` in the pane's argv means the tmux pane's own pid IS the claude process's pid throughout
+// its life, so a fresh RunningInfo entry with that pid is exactly the forked session appearing.
+async function discoverForkSid(pid: number, timeoutMs = 8000): Promise<string | null> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const running = await loadRunning();
+    const hit = Object.entries(running).find(([, info]) => info.pid === pid);
+    if (hit) return hit[0];
+    await Bun.sleep(300);
+  }
+  return null;
+}
 
 export async function handleSessionsRoutes(req: Request, url: URL): Promise<Response | null> {
   if (url.pathname === "/api/sessions" && req.method === "GET") {
@@ -32,13 +42,16 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       loadGroupBoard(),
       loadSavedViews(),
     ]);
+    if (process.platform === "darwin") grids.reconcile();
     // see computeActivelyWorking (sessions/index.ts) — shared with fsWatcher.ts's SSE push so both
-    // compute this identically.
+    // compute this identically. `attached` is strictly "a tmux client has this session's grid open" —
+    // it can be false even while `running` is set (process alive, window closed) — see spec §10.1.
     const enriched = sessions.map((s) => {
       const r = running[s.id] ?? null;
       return {
         ...s,
         running: r,
+        attached: grids.isAttached(s.id),
         activelyWorking: computeActivelyWorking(s, r),
         meta: reconciledMeta[s.id] ?? {},
       };
@@ -46,6 +59,7 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     return json({
       sessions: enriched, tickets: Object.values(tickets), agents: Object.values(agents), delegations, quickPrompts,
       todos: Object.values(todos), todoBoard, groupBoard, savedViews,
+      tmuxAvailable: process.platform !== "darwin" || isTmuxAvailable(),
     });
   }
 
@@ -60,10 +74,8 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     const boardTags = hasBoardTagsPatch ? { ...meta[id]?.boardTags, ...patch.boardTags } : meta[id]?.boardTags;
     meta[id] = { ...meta[id], ...patch, ...(boardTags ? { boardTags } : {}) };
     await saveMeta(meta);
-    // keep an already-open Ghostty window's title in sync with a rename (harmless no-op if the
-    // session isn't currently open — its window-title-polling loop just isn't there to read it)
-    if (typeof patch.name === "string" && patch.name.trim()) {
-      await writeGhosttyTitle(id, ghosttyWindowTitle(patch.name.trim(), id));
+    if (typeof patch.name === "string" && patch.name.trim() && process.platform === "darwin") {
+      grids.setName(id, patch.name.trim());
     }
     return json({ ok: true, meta: meta[id] });
   }
@@ -97,47 +109,59 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     const sessions = await scanAllSessions();
     const s = sessions.find((x) => x.id === id);
     if (!s) return json({ error: "session not found" }, { status: 404 });
+    const meta = await loadMeta();
+    const label = sessionLabel(meta[id], s.firstMessage, id);
 
-    // fork never has an existing window to reuse. Otherwise focus is keyed by the csm-<id8> tag,
-    // not loadRunning()'s pid — see terminalFocus.ts.
-    if (!fork) {
-      const pid = usingGhostty() ? null : (await loadRunning())[id]?.pid ?? null;
-      if (await tryFocusRunningSession(pid, ghosttyWindowTag(id))) {
-        return json({ ok: true, focused: true, cwd: s.cwd });
+    // fork always starts a new pane — there's never an existing pane to reuse for it — but that pane
+    // can still auto-tile into an already-open grid, so needsTerminal still gates the terminal open.
+    if (fork) {
+      const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id} --fork-session${dangerous ? DANGEROUS_FLAG : ""}`;
+      const opened = grids.openForkPending(paneArgv(cmd), s.cwd, label);
+      if (!opened) return json({ error: "failed to start tmux session — is tmux installed?" }, { status: 500 });
+      if (process.platform === "darwin" && opened.needsTerminal) openTerminalForGrid(`csm-grid-${opened.gridId}`);
+      const pid = grids.getPanePid(opened.paneId);
+      if (pid != null) {
+        discoverForkSid(pid).then((discovered) => {
+          if (discovered) grids.resolveForkSid(opened.paneId, discovered);
+        });
       }
-      // About to launch a new terminal — refuse if a headless Quick Prompt is still running on
-      // this session, to avoid two processes on one transcript.
-      const bgQuickPrompt = (await loadAllQuickPromptJobs()).find(
-        (j) => j.sessionId === id && j.status === "running" && j.pid != null && pidAlive(j.pid),
-      );
-      if (bgQuickPrompt) {
-        return json({
-          ok: false,
-          busy: true,
-          error: "This is a quick prompt running in a closed session — wait for it to finish, then resume.",
-        }, { status: 409 });
-      }
+      return json({ ok: true, cwd: s.cwd });
     }
 
-    const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${fork ? " --fork-session" : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
-    // same display label the card itself uses, so the Ghostty window title reads like the UI —
-    // written to a file *before* launch so the window's title-polling loop has it from frame one.
-    // A fork gets its own random tag, never the original id's — see docs/ghostty-instance-bug-explainer.md.
-    const meta = await loadMeta();
-    const label = meta[id]?.name || s.firstMessage || id.slice(0, 8);
-    const tagId = fork ? crypto.randomUUID() : id;
-    await writeGhosttyTitle(tagId, ghosttyWindowTitle(label, tagId));
-    await openTerminalRunning(s.cwd, cmd, { ghosttyTitleFile: ghosttyTitleFilePath(tagId), ghosttyTag: ghosttyWindowTag(tagId) });
+    const resumed = grids.resolveForResume(id);
+    if (resumed) {
+      grids.focus(id);
+      if (process.platform === "darwin") {
+        if (resumed.attached) focusGridWindow(resumed.session);
+        else openTerminalForGrid(resumed.session);
+      }
+      return json({ ok: true, focused: true, cwd: s.cwd });
+    }
+
+    // About to launch a new terminal — refuse if a headless Quick Prompt is still running on this
+    // session, to avoid two processes on one transcript.
+    const bgQuickPrompt = (await loadAllQuickPromptJobs()).find(
+      (j) => j.sessionId === id && j.status === "running" && j.pid != null && pidAlive(j.pid),
+    );
+    if (bgQuickPrompt) {
+      return json({
+        ok: false,
+        busy: true,
+        error: "This is a quick prompt running in a closed session — wait for it to finish, then resume.",
+      }, { status: 409 });
+    }
+
+    const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${dangerous ? DANGEROUS_FLAG : ""}`;
+    const opened = grids.openOrCreate(id, paneArgv(cmd), s.cwd, label);
+    if (!opened) return json({ error: "failed to start tmux session — is tmux installed?" }, { status: 500 });
+    if (process.platform === "darwin" && opened.needsTerminal) openTerminalForGrid(`csm-grid-${opened.gridId}`);
     return json({ ok: true, command: cmd, cwd: s.cwd });
   }
 
   const closeTerminalMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/close-terminal$/);
   if (closeTerminalMatch && req.method === "POST") {
     const id = closeTerminalMatch[1];
-    // Unlike the resume route, a missing/stale pid here just means we skip the direct kill and
-    // fall back to whatever the window-close action alone accomplishes — never a false veto.
-    const pid = (await loadRunning())[id]?.pid ?? null;
-    const closed = await closeRunningSessionTerminal(pid, ghosttyWindowTag(id));
+    const closed = process.platform === "darwin" ? grids.closeSession(id) : false;
     return json({ ok: true, closed });
   }
 
@@ -157,7 +181,6 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     const meta = await loadMeta();
     delete meta[id];
     await saveMeta(meta);
-    await deleteGhosttyTitle(id);
     return json({ ok: deleted });
   }
 

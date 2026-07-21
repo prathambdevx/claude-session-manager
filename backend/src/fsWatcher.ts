@@ -12,6 +12,7 @@ import { loadRunning, loadMeta, loadQuickPromptJob } from "./store.ts";
 import type { RunningInfo } from "./store.ts";
 import { scanTranscript, computeActivelyWorking } from "./sessions/index.ts";
 import { broadcast } from "./sse.ts";
+import { grids } from "./claude/index.ts";
 
 const DEBOUNCE_MS = 100;
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -53,9 +54,16 @@ async function refreshSessionFromTranscript(sessionId: string, projectSlug: stri
   }
   const [running, meta] = await Promise.all([loadRunning(), loadMeta()]);
   const r = running[sessionId] ?? null;
+  // `attached` must ride along — this push replaces the session wholesale, so omitting it flickers the dot grey on every transcript write
   broadcast({
     type: "session",
-    session: { ...session, running: r, activelyWorking: computeActivelyWorking(session, r), meta: meta[sessionId] ?? {} },
+    session: {
+      ...session,
+      running: r,
+      attached: process.platform === "darwin" ? grids.isAttached(sessionId) : false,
+      activelyWorking: computeActivelyWorking(session, r),
+      meta: meta[sessionId] ?? {},
+    },
   });
 }
 

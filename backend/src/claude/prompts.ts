@@ -3,7 +3,7 @@
 import { EFFORT_FLAG, DEFAULT_MODEL, EXTENDED_CONTEXT } from "../config.ts";
 import { KNOWN_MODELS, DANGEROUS_FLAG, CLAUDE_BIN } from "../constants.ts";
 import type { ContextRecord, Agent } from "../store.ts";
-import { shellQuote } from "./terminal/terminalLaunch.ts";
+import { shellQuote } from "./tmux/terminalLauncher.ts";
 
 // Sonnet and Opus support an extended 1M-context variant via a "[1m]" suffix on the model alias —
 // but ONLY on accounts entitled to it, so it's gated behind EXTENDED_CONTEXT (see config.ts).

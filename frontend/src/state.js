@@ -34,6 +34,7 @@ export let savedViews = []; // SavedView[] — mirrors server's saved-views.json
 // this or it misreads "not loaded yet" as "that view was deleted."
 export let sessionsLoaded = false;
 export let boardHistory = []; // in-memory undo stack — transient, not persisted
+export let tmuxAvailable = true; // flips false only if tmux itself is missing — drives a banner instead of bare 500s
 
 export let contentMatchIds = new Set();
 export let contentSearchTimer = null;
@@ -57,4 +58,5 @@ export function setActiveView(v) { activeView = v; }
 export function setSessionsLoaded(v) { sessionsLoaded = v; }
 export function setSavedViews(v) { savedViews = v; }
 export function setBoardHistory(v) { boardHistory = v; }
+export function setTmuxAvailable(v) { tmuxAvailable = v; }
 export function dismissDoneChip(sessionId, activity) { dismissedDoneChips.set(sessionId, activity); }

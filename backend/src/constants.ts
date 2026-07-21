@@ -28,15 +28,16 @@ export const PID_LINKS_PATH = join(DATA_DIR, "pid-links.json");
 export const CONTEXTS_DIR = join(DATA_DIR, "contexts");
 export const DELEGATIONS_DIR = join(DATA_DIR, "delegations");
 export const QUICKPROMPTS_DIR = join(DATA_DIR, "quickprompts");
-// One small text file per resumed session, read by a polling loop inside its Ghostty window (see
-// ghosttyTitleFilePath in claude.ts) so a rename in the UI can update an already-open window's
-// title live — Ghostty's window "name" is read-only via AppleScript, so this file is the only way
-// to push a title change into a window that's already running.
-export const GHOSTTY_TITLES_DIR = join(DATA_DIR, "ghostty-titles");
-// Ordered list of currently-open csm-<id8> tags, oldest first — lets auto-tiling assign quadrants
-// by real open order instead of trusting System Events' window list order, which is only reliable
-// for the just-created window (always frontmost); order among the rest isn't dependable.
-export const GHOSTTY_WINDOW_ORDER_PATH = join(DATA_DIR, "ghostty-window-order.json");
+// Detected terminal app (TERM_PROGRAM captured at `bun run setup` time) — see claude/tmux/terminalLauncher.ts.
+export const TERMINAL_CONFIG_PATH = join(DATA_DIR, "terminal.json");
+// Cache of the grid/pane map rebuilt from `tmux list-panes -a`/`list-clients` on every startup —
+// tmux itself is canonical (see claude/tmux/grids.ts); this is just a warm-start convenience.
+export const TMUX_STATE_PATH = join(DATA_DIR, "tmux-state.json");
+
+// csm runs its own tmux server on a dedicated socket so the server-wide settings below (status off,
+// mouse off, root-table Shift+Arrow bindings) never leak into a tmux server the user runs personally.
+export const TMUX_SOCKET_NAME = "csm";
+export const TMUX_CONFIG_PATH = join(DATA_DIR, "tmux.conf");
 export const PUBLIC_DIR = join(REPO_ROOT, "frontend", "public");
 // Component JS modules (frontend/src/**) are a sibling of public/, not nested under it — served
 // separately since index.html's <script type="module"> requests them at /src/*.
@@ -46,7 +47,6 @@ export const ROOT = REPO_ROOT;
 await mkdir(CONTEXTS_DIR, { recursive: true });
 await mkdir(DELEGATIONS_DIR, { recursive: true });
 await mkdir(QUICKPROMPTS_DIR, { recursive: true });
-await mkdir(GHOSTTY_TITLES_DIR, { recursive: true });
 
 export const KNOWN_MODELS = new Set(["sonnet", "opus", "haiku", "fable"]);
 
@@ -70,24 +70,28 @@ export const LAUNCHD_LABEL = "com.claude-session-manager";
 // TypeScript.
 export const INSTALL_LOG_URL = "https://script.google.com/macros/s/AKfycbx0CyTns0VGytsm_0vfQgBu6VO1czZ88b5Z9_rI0R368b72TcQTWsxDW7LWLa3-ZAJAXQ/exec";
 
-// `claude`'s location is entirely per-machine, and neither launchd's minimal PATH nor the non-login
-// shell we launch Ghostty sessions under can see it — so resolve it at runtime for THIS device by
+// A bin's location is entirely per-machine, and neither launchd's minimal PATH nor the non-login
+// shell we launch terminal sessions under can see it — so resolve it at runtime for THIS device by
 // asking the user's own login+interactive shell where its binary is (`whence -p`/`type -P` skip a
-// `claude` shell-function wrapper some users alias). Standard install dirs and a bare command are
-// only fallbacks if that probe can't answer. CSM_CLAUDE_BIN overrides everything.
-function resolveClaudeBin(): string {
-  if (process.env.CSM_CLAUDE_BIN) return process.env.CSM_CLAUDE_BIN;
+// shell-function wrapper some users alias). Standard install dirs and a bare command are only
+// fallbacks if that probe can't answer. The env override always wins.
+function resolveBin(name: string, envVar: string, knownDirs: string[]): string {
+  if (process.env[envVar]) return process.env[envVar]!;
   try {
     const shell = process.env.SHELL || "/bin/zsh";
-    const res = spawnSync(shell, ["-lic", "whence -p claude 2>/dev/null || type -P claude 2>/dev/null || command -v claude 2>/dev/null"], { encoding: "utf8", timeout: 5000 });
-    const hit = (res.stdout || "").split("\n").map((s) => s.trim()).filter((l) => l.startsWith("/") && l.endsWith("/claude") && existsSync(l)).pop();
+    const res = spawnSync(shell, ["-lic", `whence -p ${name} 2>/dev/null || type -P ${name} 2>/dev/null || command -v ${name} 2>/dev/null`], { encoding: "utf8", timeout: 5000 });
+    const hit = (res.stdout || "").split("\n").map((s) => s.trim()).filter((l) => l.startsWith("/") && l.endsWith(`/${name}`) && existsSync(l)).pop();
     if (hit) return hit;
   } catch {
     // fall through to the location guesses below
   }
-  for (const p of [join(HOME, ".local/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]) {
+  for (const p of knownDirs) {
     if (existsSync(p)) return p;
   }
-  return "claude";
+  return name;
 }
-export const CLAUDE_BIN = resolveClaudeBin();
+export const CLAUDE_BIN = resolveBin("claude", "CSM_CLAUDE_BIN", [join(HOME, ".local/bin/claude"), "/opt/homebrew/bin/claude", "/usr/local/bin/claude"]);
+export const TMUX_BIN = resolveBin("tmux", "CSM_TMUX_BIN", ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"]);
+// Panes run claude via `$LOGIN_SHELL -lic 'exec "<CLAUDE_BIN>" ...'` so login/.zprofile PATH setup
+// applies and the shell disappears from the process tree once claude exits (see tmux/tmux.ts).
+export const LOGIN_SHELL = process.env.SHELL || "/bin/zsh";

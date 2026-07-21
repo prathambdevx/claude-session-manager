@@ -1,6 +1,6 @@
 // Top-level dispatcher: All Projects vs. a saved view, and holds the toolbar-driven
 // search/date filtering that both share.
-import { sessions, contentMatchIds, activeView, sessionsLoaded } from "../state.js";
+import { sessions, contentMatchIds, activeView, sessionsLoaded, tmuxAvailable } from "../state.js";
 import { groupBoardCtx, savedViewCtx, switchToView, currentSavedView } from "../routing/boardRouting.js";
 import { renderBoardView } from "../components/board/renderBoardView.js";
 import { renderSidebar } from "../components/sidebar/renderSidebar.js";
@@ -23,6 +23,8 @@ export function matchesSearch(s, q) {
 
 export function render() {
   renderSidebar();
+  // surfaced instead of the bare 500s every terminal action would otherwise throw with tmux missing
+  document.getElementById("tmuxBanner").style.display = tmuxAvailable ? "none" : "";
   const q = document.getElementById("search").value.trim();
 
   const dateFilter = document.getElementById("filterDate").value;
