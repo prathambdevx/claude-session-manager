@@ -1,4 +1,4 @@
-# Claude Session Manager.
+# Claude Session Manager
 
 A local dashboard for managing your [Claude Code](https://claude.com/claude-code) sessions on Mac.
 Reads directly from `~/.claude/` — no database, no cloud, nothing to sync.
