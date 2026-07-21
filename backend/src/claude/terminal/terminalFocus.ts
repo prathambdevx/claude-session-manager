@@ -2,7 +2,7 @@
 // duplicate — used by "Resume" (double-click on a running card) and as the fallback half of Quick
 // Prompt's terminal-delivery path (see terminalInject.ts).
 import { spawn } from "node:child_process";
-import { pidAlive } from "../../store.ts";
+import { pidAlive, waitForPidExit } from "../../store.ts";
 import { usingGhostty } from "./ghosttyEnv.ts";
 
 function getTtyForPid(pid: number): Promise<string | null> {
@@ -181,6 +181,9 @@ export async function closeRunningSessionTerminal(pid: number | null, ghosttyTag
       } catch {
         // already gone
       }
+      // Confirmed live: a killed claude process can linger seconds after SIGTERM, and a Quick
+      // Prompt sent right after "closed" races a --resume against it — wait it out here first.
+      await waitForPidExit(pid);
     }
     return closed;
   }

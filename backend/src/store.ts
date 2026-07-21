@@ -223,6 +223,25 @@ export function pidAlive(pid: number): boolean {
   }
 }
 
+const KILL_EXIT_POLL_MS = 200;
+const KILL_EXIT_GRACE_MS = 2000;
+
+/** Waits for a killed pid to actually exit (escalating to SIGKILL if it lingers) — a claude process can keep running seconds after SIGTERM, and a --resume racing against it gets rejected as a concurrent session. */
+export async function waitForPidExit(pid: number): Promise<void> {
+  const deadline = Date.now() + KILL_EXIT_GRACE_MS;
+  while (pidAlive(pid) && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, KILL_EXIT_POLL_MS));
+  }
+  if (pidAlive(pid)) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // already gone
+    }
+    while (pidAlive(pid)) await new Promise((r) => setTimeout(r, KILL_EXIT_POLL_MS));
+  }
+}
+
 export async function loadRunning(): Promise<Record<string, RunningInfo>> {
   const out: Record<string, RunningInfo> = {};
   if (!existsSync(RUNNING_DIR)) return out;
