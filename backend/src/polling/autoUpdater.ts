@@ -18,16 +18,22 @@ function git(args: string[]): { status: number | null; stdout: string; stderr: s
   };
 }
 
-// Best-effort usage ping — this is what lets the maintainer see already-installed machines
-// checking in on every future auto-update, not just fresh bootstrap.sh runs. Never awaited/thrown
-// from a caller — an offline machine just never logs that row.
-function logInstallEvent(event: "install" | "auto-update" | "auto-update-failed", sha: string): void {
+// Best-effort usage ping. Returns the in-flight request so the success path can await it before
+// `launchctl kickstart` SIGKILLs us — an un-awaited fetch never flushes, so those rows went missing.
+// Self-times-out so a hung network can't stall the restart; an offline machine just never logs.
+function logInstallEvent(event: "install" | "auto-update" | "auto-update-failed", sha: string): Promise<void> {
   const name = spawnSync("scutil", ["--get", "ComputerName"], { encoding: "utf-8" }).stdout?.trim() || hostname();
   const os = "macOS " + (spawnSync("sw_vers", ["-productVersion"], { encoding: "utf-8" }).stdout?.trim() || "unknown");
   const host = hostname().replace(/\.local$/, ""); // os.hostname() includes the mDNS .local suffix
   const params = new URLSearchParams({ event, name, host, os, sha });
-  fetch(`${INSTALL_LOG_URL}?${params}`).catch(() => {});
+  return fetch(`${INSTALL_LOG_URL}?${params}`, { signal: AbortSignal.timeout(4000) })
+    .then(() => {})
+    .catch(() => {});
 }
+
+// Cap only so the log-ping URL stays well under length limits — real git errors are far shorter, so
+// the full reason (e.g. the cause after "fatal: unable to access …:") reaches the sheet intact.
+const FAILURE_REASON_MAX = 500;
 
 // Remember what we've already reported so a machine stuck on the same cause logs once, not a fresh
 // row every 5-minute tick — reset on the next success so a NEW failure (or the same one recurring
@@ -45,7 +51,7 @@ async function checkForUpdate(): Promise<void> {
     // machine simply being asleep. One row per distinct reason, not one per tick.
     const reason = remote.missing
       ? "git-not-found-on-PATH"
-      : (remote.stderr || remote.stdout || "ls-remote failed").replace(/\s+/g, " ").slice(0, 80);
+      : (remote.stderr || remote.stdout || "ls-remote failed").replace(/\s+/g, " ").slice(0, FAILURE_REASON_MAX);
     if (reason !== lastLoggedRemoteFailure) {
       lastLoggedRemoteFailure = reason;
       logInstallEvent("auto-update-failed", reason);
@@ -62,7 +68,7 @@ async function checkForUpdate(): Promise<void> {
   // --ff-only so a machine with real local changes is left untouched rather than silently merged.
   const pull = git(["pull", "--ff-only", "origin", "main"]);
   if (pull.status !== 0) {
-    const reason = (pull.stderr || pull.stdout || "pull --ff-only failed").replace(/\s+/g, " ").slice(0, 80);
+    const reason = (pull.stderr || pull.stdout || "pull --ff-only failed").replace(/\s+/g, " ").slice(0, FAILURE_REASON_MAX);
     console.log("[auto-update] pull failed — skipping:", reason);
     if (remoteSha !== lastLoggedPullFailureSha) {
       lastLoggedPullFailureSha = remoteSha;
@@ -72,7 +78,7 @@ async function checkForUpdate(): Promise<void> {
   }
 
   console.log("[auto-update] pulled — restarting to pick up the new code.");
-  logInstallEvent("auto-update", remoteSha.slice(0, 7));
+  await logInstallEvent("auto-update", remoteSha.slice(0, 7)); // must flush before kickstart SIGKILLs us
   spawnSync("launchctl", ["kickstart", "-k", `gui/${process.getuid?.()}/${LAUNCHD_LABEL}`], { stdio: "ignore" });
 }
 
