@@ -6,6 +6,19 @@ import { startAutoUpdater } from "./src/polling/autoUpdater.ts";
 import { sanitizeLegacyBoardData } from "./src/store.ts";
 import { ensureCsmCli } from "./src/csmCli.ts";
 
+// launchd.log is an undated stream, so update history can't be placed in time — prefix every line
+// with a local timestamp, e.g. "[24 July 2026, 7:52:03 pm]". Done first so startup logs get it too.
+const logStamp = (): string => {
+  const now = new Date();
+  const date = now.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const time = now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true }).toLowerCase();
+  return `[${date}, ${time}]`;
+};
+for (const method of ["log", "error", "warn", "info"] as const) {
+  const orig = console[method].bind(console);
+  console[method] = (...args: unknown[]) => orig(logStamp(), ...args);
+}
+
 // See docs/data-migrations.md — a teammate's local data/ can carry fields from an older app
 // version; this tidies them before anything else reads the board files.
 await sanitizeLegacyBoardData();
