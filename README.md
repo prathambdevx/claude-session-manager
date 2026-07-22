@@ -1,6 +1,6 @@
 # Claude Session Manager
 
-A local dashboard for managing your [Claude Code](https://claude.com/claude-code) sessions on Mac.
+A local dashboard for managing your [Claude Code](https://claude.com/claude-code) sessions on your Mac.
 Reads directly from `~/.claude/` — no database, no cloud, nothing to sync.
 
 > **macOS only** — it launches real Terminal/Ghostty windows and installs a `launchd` agent.
