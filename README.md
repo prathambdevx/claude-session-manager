@@ -15,10 +15,7 @@ Just run this in your terminal:
 curl -fsSL https://raw.githubusercontent.com/prathambdevx/claude-session-manager/main/bootstrap.sh | bash
 ```
 
-Then open `http://127.0.0.1:4321` in your browser. To remove auto-start later: `bun run setup -- --uninstall`
-
-The server runs as a long-lived background process, so editing a file under `backend/` doesn't
-take effect until it restarts:
+Then open `http://127.0.0.1:4321` in your browser.
 
 ```bash
 bun run restart
