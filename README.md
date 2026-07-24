@@ -17,12 +17,6 @@ curl -fsSL https://raw.githubusercontent.com/prathambdevx/claude-session-manager
 
 Then open `http://127.0.0.1:4321` in your browser.
 
-```bash
-bun run restart
-```
-
-Frontend files (`frontend/`) don't need this — they're served raw from disk, so a browser refresh
-alone picks up the change.
 
 ## Features
 
