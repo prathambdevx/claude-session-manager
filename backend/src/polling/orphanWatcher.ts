@@ -34,11 +34,20 @@ end tell
   });
 }
 
+// Dragging windows into tabs can drop the OSC-asserted csm tag for longer than expected (confirmed
+// live: it killed a merged session outright). A real close self-resolves in ~10-30s on its own
+// anyway, so a generous grace before killing costs nothing but delay on the rare stuck orphan.
+const ORPHAN_GRACE_MS = 60_000;
+const firstMissAt = new Map<string, number>();
+
 async function sweepOrphans() {
   if (!usingGhostty()) return; // Terminal.app has no equivalent tag-based window list
   const running = await loadRunning(); // already filtered to only pid-alive entries
   const sessionIds = Object.keys(running);
-  if (!sessionIds.length) return;
+  if (!sessionIds.length) {
+    firstMissAt.clear();
+    return;
+  }
   const [openTags, quickPrompts, delegations] = await Promise.all([
     liveGhosttyTags(),
     loadAllQuickPromptJobs(),
@@ -49,12 +58,21 @@ async function sweepOrphans() {
   const headlessSessionIds = new Set<string>();
   for (const j of quickPrompts) if (j.status === "running") headlessSessionIds.add(j.sessionId);
   for (const d of delegations) if (d.status === "running") headlessSessionIds.add(d.sessionId);
+  // Drop entries for sessions that have since exited so the map can't grow unbounded.
+  for (const id of firstMissAt.keys()) if (!(id in running)) firstMissAt.delete(id);
   await Promise.all(sessionIds.map(async (sessionId) => {
     // Only sweep sessions THIS app launched: every launch writes a Ghostty title file and nothing
     // else does, so its absence marks a claude session the user started on their own — never ours to kill.
     if (!existsSync(ghosttyTitleFilePath(sessionId))) return;
-    if (openTags.has(ghosttyWindowTag(sessionId))) return;
+    if (openTags.has(ghosttyWindowTag(sessionId))) {
+      firstMissAt.delete(sessionId); // tag is back — reset any grace accrued during a merge blip
+      return;
+    }
     if (headlessSessionIds.has(sessionId)) return;
+    const since = firstMissAt.get(sessionId) ?? Date.now();
+    if (!firstMissAt.has(sessionId)) firstMissAt.set(sessionId, since);
+    if (Date.now() - since < ORPHAN_GRACE_MS) return;
+    firstMissAt.delete(sessionId);
     const pid = running[sessionId].pid;
     try {
       process.kill(pid);

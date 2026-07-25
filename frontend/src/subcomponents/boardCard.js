@@ -93,6 +93,7 @@ export function boardCardHtml(s, ctx) {
           <div class="bc-dropdown" id="menu-${s.id}">
             <button data-action="resume" data-id="${s.id}">▶ Resume</button>
             <button data-action="fork" data-id="${s.id}">⑂ Fork</button>
+            <button data-action="copyResumeCmd" data-id="${s.id}">⧉ Copy resume command</button>
             <!-- Extract is currently unused/hidden — see components/modals/extractModal.js -->
             <button data-action="editDesc" data-id="${s.id}">✐ Edit description</button>
             <button class="danger" data-action="closeTerminal" data-id="${s.id}">✕ Close terminal</button>

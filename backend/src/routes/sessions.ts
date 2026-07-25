@@ -101,9 +101,19 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     // fork never has an existing window to reuse. Otherwise focus is keyed by the csm-<id8> tag,
     // not loadRunning()'s pid — see terminalFocus.ts.
     if (!fork) {
-      const pid = usingGhostty() ? null : (await loadRunning())[id]?.pid ?? null;
+      const runningInfo = (await loadRunning())[id] ?? null;
+      const pid = usingGhostty() ? null : runningInfo?.pid ?? null;
       if (await tryFocusRunningSession(pid, ghosttyWindowTag(id))) {
         return json({ ok: true, focused: true, cwd: s.cwd });
+      }
+      // Focus failed but the process is alive — a drag-merged tab is never findable again, and a
+      // second --resume would just get rejected as a concurrent session. See docs/process-lifecycle.md.
+      if (runningInfo?.pid != null && pidAlive(runningInfo.pid)) {
+        return json({
+          ok: false,
+          alreadyRunning: true,
+          error: "Already running, but its window can't be found (likely merged into another Ghostty window as a tab) — find it there manually.",
+        }, { status: 409 });
       }
       // About to launch a new terminal — refuse if a headless Quick Prompt is still running on
       // this session, to avoid two processes on one transcript.

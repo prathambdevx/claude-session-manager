@@ -129,6 +129,9 @@ export async function resumeSession(id, fork) {
     // a headless quick prompt is still running on this session — don't copy a command or imply a
     // failure; just tell the user to wait so they don't start a second process on the transcript
     toast(data.error || "This is a quick prompt running in a closed session — wait for it to finish, then resume.", 5000);
+  } else if (data.alreadyRunning) {
+    // this message is dense (drag-merged tab, find it manually) — give it longer than the default
+    toast(data.error || "Already running, but its window can't be found.", 8000);
   } else {
     toast("Failed to launch terminal — copied command instead");
     copyCommand(id, fork);

@@ -39,9 +39,9 @@ const server = Bun.serve({
 // ever recorded, leaving nothing to carry over.
 startClearReconciliationPoller();
 
-// Closing a Ghostty window directly (not via the dashboard's own "Close terminal") can leave the
-// underlying process running as an orphan with no window — see src/polling/orphanWatcher.ts.
-startOrphanWatcher();
+// Retired — Ghostty never registers a drag-merged tab as a scriptable tab element, so a merged
+// session's tag looks permanently missing and this killed live sessions. See docs/process-lifecycle.md.
+// startOrphanWatcher();
 
 // Live-updates the browser via SSE the instant Claude Code writes a status/transcript change or a
 // Quick Prompt job file changes, instead of only finding out on the next scheduled poll — see
