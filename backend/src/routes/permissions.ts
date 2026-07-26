@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { json } from "./json.ts";
+import { usingGhostty } from "../claude/terminal/ghosttyEnv.ts";
 
 function hasAccessibilityAccess(): boolean {
   const result = spawnSync("osascript", ["-e", 'tell application "System Events" to UI elements enabled'], { encoding: "utf-8" });
@@ -16,7 +17,12 @@ function hasGhosttyAutomationAccess(): boolean {
 // (not setup.ts's own interactive invocation) reflects the daemon's true, separate grant.
 export async function handlePermissionsRoutes(req: Request, url: URL): Promise<Response | null> {
   if (url.pathname === "/api/permissions" && req.method === "GET") {
-    return json({ accessibility: hasAccessibilityAccess(), ghosttyAutomation: hasGhosttyAutomationAccess() });
+    // null (not false) when Ghostty isn't installed — otherwise setup.ts prompts for a grant on
+    // an app that doesn't exist and can never succeed (confirmed live on a Homebrew-less machine).
+    return json({
+      accessibility: hasAccessibilityAccess(),
+      ghosttyAutomation: usingGhostty() ? hasGhosttyAutomationAccess() : null,
+    });
   }
   return null;
 }

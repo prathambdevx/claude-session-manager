@@ -19,7 +19,7 @@ const PLIST_PATH = join(AGENTS_DIR, `${LABEL}.plist`);
 const LOG_PATH = join(ROOT, "launchd.log");
 const GHOSTTY_APP = "/Applications/Ghostty.app";
 
-type ServerPermissions = { accessibility: boolean; ghosttyAutomation: boolean };
+type ServerPermissions = { accessibility: boolean; ghosttyAutomation: boolean | null }; // null: Ghostty isn't installed, nothing to grant
 
 async function fetchServerPermissions(): Promise<ServerPermissions | null> {
   try {
@@ -61,24 +61,52 @@ async function openAndAwaitGrant(pane: string, key: keyof ServerPermissions, mis
   console.log("  (not granted yet — grant it whenever you like; it takes effect on the next launch.)");
 }
 
+// Homebrew's own two possible install locations — checked directly rather than trusting `which`,
+// since a brew installed moments ago by this same script isn't on this process's PATH yet.
+const BREW_PATHS = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"];
+
+function findBrew(): string | null {
+  const which = spawnSync("which", ["brew"], { encoding: "utf-8" });
+  if (which.status === 0 && which.stdout.trim()) return which.stdout.trim();
+  return BREW_PATHS.find(existsSync) ?? null;
+}
+
+// Installs Homebrew non-interactively so a teammate without it still gets Ghostty auto-installed
+// instead of silently falling back to Apple Terminal — same reasoning as bootstrap.sh's own Bun
+// auto-install. Best-effort: a failure here just leaves Ghostty un-installed, same as today.
+function ensureBrew(): string | null {
+  const existing = findBrew();
+  if (existing) return existing;
+  console.log("Homebrew isn't installed — installing it (https://brew.sh)...");
+  const install = spawnSync(
+    "/bin/bash",
+    ["-c", '$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)'],
+    { stdio: "inherit", env: { ...process.env, NONINTERACTIVE: "1" } },
+  );
+  if (install.status !== 0) {
+    console.log("⚠ Homebrew install failed — skipping Ghostty. Install it yourself: https://brew.sh");
+    return null;
+  }
+  const brew = findBrew();
+  if (!brew) console.log("⚠ Homebrew installed but its binary couldn't be located — skipping Ghostty.");
+  return brew;
+}
+
 // Sessions launch in Ghostty when it's installed (src/claude.ts prefers it over Apple Terminal), so
-// setup installs it via Homebrew if it isn't already there. Best-effort: if Homebrew is missing or
-// the install fails, launches just fall back to Apple Terminal — never blocks the rest of setup.
+// setup installs it (and Homebrew itself, if needed) automatically. Best-effort: if any step fails,
+// launches just fall back to Apple Terminal — never blocks the rest of setup.
 async function ensureGhostty() {
   if (existsSync(GHOSTTY_APP)) {
     console.log("✓ Ghostty already installed — sessions will launch in it.");
     return;
   }
-  const brew = spawnSync("which", ["brew"], { encoding: "utf-8" });
-  if (brew.status !== 0 || !brew.stdout.trim()) {
-    console.log(
-      "⚠ Ghostty isn't installed and Homebrew isn't available — skipping. " +
-        "Install it yourself (https://ghostty.org) to get sessions launching in it; falling back to Apple Terminal for now."
-    );
+  const brew = ensureBrew();
+  if (!brew) {
+    console.log("⚠ Ghostty isn't installed — falling back to Apple Terminal for now.");
     return;
   }
   console.log("Installing Ghostty (brew install --cask ghostty)...");
-  const install = spawnSync("brew", ["install", "--cask", "ghostty"], { stdio: "inherit" });
+  const install = spawnSync(brew, ["install", "--cask", "ghostty"], { stdio: "inherit" });
   if (install.status !== 0 || !existsSync(GHOSTTY_APP)) {
     console.log("⚠ Ghostty install failed — falling back to Apple Terminal. Retry later with: brew install --cask ghostty");
     return;
@@ -160,6 +188,8 @@ async function install() {
 
   ensureCsmCli();
 
+  const ghosttyPresent = existsSync(GHOSTTY_APP);
+  const accessTarget = ghosttyPresent ? "\"bun\" and \"Ghostty\"" : "\"bun\"";
   const perms = await fetchServerPermissionsWithRetry();
   if (!perms) {
     console.log("⚠ Couldn't reach the server yet to check permissions — run `bun run setup` again in a few seconds.");
@@ -167,9 +197,11 @@ async function install() {
     if (perms.accessibility) {
       console.log("✓ Accessibility permission for \"bun\" already granted.");
     } else {
-      await openAndAwaitGrant("Accessibility", "accessibility", "⚠ Grant Accessibility to \"bun\" and \"Ghostty\" in the window that just opened.");
+      await openAndAwaitGrant("Accessibility", "accessibility", `⚠ Grant Accessibility to ${accessTarget} in the window that just opened.`);
     }
-    if (perms.ghosttyAutomation) {
+    if (perms.ghosttyAutomation === null) {
+      console.log("— Ghostty isn't installed, so there's no Automation permission to grant for it yet.");
+    } else if (perms.ghosttyAutomation) {
       console.log("✓ Automation permission for \"bun\" already granted.");
     } else {
       await openAndAwaitGrant("Automation", "ghosttyAutomation", "⚠ Grant Automation to \"bun\" and \"Ghostty\" in the window that just opened.");
@@ -178,8 +210,8 @@ async function install() {
 
   console.log("\nIt's running now and will start automatically on every login/reboot.");
   console.log(
-    "Make sure \"bun\" and \"Ghostty\" are both checked on in System Settings → Privacy & Security → " +
-      "Accessibility and → Automation — Resume session won't work properly without it."
+    `Make sure ${accessTarget} ${ghosttyPresent ? "are both" : "is"} checked on in System Settings → Privacy & Security → ` +
+      "Accessibility" + (ghosttyPresent ? " and → Automation" : "") + " — Resume session won't work properly without it."
   );
   console.log("Open: http://127.0.0.1:4321");
 }
