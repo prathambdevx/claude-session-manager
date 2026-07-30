@@ -36,8 +36,8 @@ function logInstallEvent(event: "install" | "auto-update" | "auto-update-failed"
 const FAILURE_REASON_MAX = 500;
 
 // Remember what we've already reported so a machine stuck on the same cause logs once, not a fresh
-// row every 5-minute tick — reset on the next success so a NEW failure (or the same one recurring
-// after a working stretch) still gets its own row.
+// row every tick — reset on the next success so a NEW failure (or the same one recurring after a
+// working stretch) still gets its own row.
 let lastLoggedRemoteFailure = "";
 let lastLoggedPullFailureSha = "";
 
@@ -83,7 +83,7 @@ async function checkForUpdate(): Promise<void> {
 }
 
 let started = false;
-export function startAutoUpdater(intervalMs = 5 * 60 * 1000): void {
+export function startAutoUpdater(intervalMs = 24 * 60 * 60 * 1000): void {
   if (started) return; // idempotent — tests may import routes more than once
   started = true;
   setInterval(() => {
