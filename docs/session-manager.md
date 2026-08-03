@@ -72,7 +72,22 @@ function pidAlive(pid) {
 
 ```
 
-**Tickets** are note-only cards (with no Claude session started) for jotting down work to do later. They render in a distinct amber color so they never get confused with real sessions, and can be converted into a real session in a single click.
+**Tickets** are note-only cards (with no Claude session started) for jotting down work to do later. They render in a distinct amber color so they never get confused with real sessions, and can be converted into a real session in a single click. They're stored in `data/tickets.json`, keyed by id:
+
+```json
+{
+  "a1b2c3": {
+    "id": "a1b2c3",
+    "title": "Fix flaky orphanWatcher test",
+    "notes": "Placeholder tests reference a removed export — decide delete vs. rewrite.",
+    "cwd": "/Users/prathambhatia/Desktop/claude-session-manager/claude-session-manager",
+    "boardTags": { "claude-session-manager": "priority" },
+    "createdAt": 1753430400000
+  }
+}
+```
+
+Once someone starts work on it, `startedSessionId` gets set to the new session's id and the card switches from its amber ticket styling to a normal session card.
 
 ---
 

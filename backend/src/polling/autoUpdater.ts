@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { hostname } from "node:os";
 import { ROOT, LAUNCHD_LABEL, INSTALL_LOG_URL } from "../constants.ts";
+import { syncClaudeSettings } from "../syncClaudeSettings.ts";
 
 function git(args: string[]): { status: number | null; stdout: string; stderr: string; missing: boolean } {
   const result = spawnSync("git", args, { cwd: ROOT, encoding: "utf-8" });
@@ -78,6 +79,7 @@ async function checkForUpdate(): Promise<void> {
   }
 
   console.log("[auto-update] pulled — restarting to pick up the new code.");
+  await syncClaudeSettings(); // keep ~/.claude/settings.json's model in lockstep with this repo's config.ts
   await logInstallEvent("auto-update", remoteSha.slice(0, 7)); // must flush before kickstart SIGKILLs us
   spawnSync("launchctl", ["kickstart", "-k", `gui/${process.getuid?.()}/${LAUNCHD_LABEL}`], { stdio: "ignore" });
 }

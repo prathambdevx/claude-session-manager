@@ -8,6 +8,7 @@ import { writeFile, unlink, mkdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { LAUNCHD_LABEL } from "./src/constants.ts";
 import { ensureCsmCli } from "./src/csmCli.ts";
+import { syncClaudeSettings } from "./src/syncClaudeSettings.ts";
 
 
 const LABEL = LAUNCHD_LABEL;
@@ -187,6 +188,11 @@ async function install() {
   console.log(`  logs:    ${LOG_PATH}`);
 
   ensureCsmCli();
+
+  // Every teammate gets this app's configured model (e.g. 1M-context Sonnet) as their own `claude`
+  // default too, not just for launches from this UI — see src/config.ts.
+  const sync = await syncClaudeSettings();
+  console.log(`✓ Synced default model into ~/.claude/settings.json (${JSON.stringify(sync.previousModel)} -> ${JSON.stringify(sync.newModel)}).`);
 
   const ghosttyPresent = existsSync(GHOSTTY_APP);
   const accessTarget = ghosttyPresent ? "\"bun\" and \"Ghostty\"" : "\"bun\"";

@@ -9,10 +9,10 @@ export function dangerousDefault() {
 
 export const MODEL_OPTIONS = [
   { value: "", label: "Inherit default" },
-  { value: "sonnet", label: "Sonnet 5" },
-  { value: "opus", label: "Opus 4.8" },
-  { value: "haiku", label: "Haiku 4.5" },
-  { value: "fable", label: "Fable 5" },
+  { value: "sonnet", label: "Sonnet" },
+  { value: "opus", label: "Opus" },
+  { value: "haiku", label: "Haiku" },
+  { value: "fable", label: "Fable" },
 ];
 
 export function modelSelectHtml(id, selectedValue = "") {
