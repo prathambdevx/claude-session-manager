@@ -17,11 +17,10 @@ export async function reconcileNow(): Promise<Record<string, Meta>> {
   };
   const { meta: reconciledMeta, changed, reconciled } = await reconcileClearedSessions(running, meta, resolveFallbackLabel);
   if (changed) await saveMeta(reconciledMeta);
-  // The window is still reading its pre-clear title file, so keep writing there — with the
-  // carried-over name and the new session's tag — to keep both its title and future focus-matching
-  // correct.
+  // The window only ever reads its ORIGINAL (pre-any-clear) title file, tracked via titleFileOwner.
   for (const { oldId, newId, carriedName } of reconciled) {
-    await writeGhosttyTitle(oldId, ghosttyWindowTitle(carriedName || newId.slice(0, 8), newId));
+    const titleOwner = reconciledMeta[newId]?.titleFileOwner || oldId;
+    await writeGhosttyTitle(titleOwner, ghosttyWindowTitle(carriedName || newId.slice(0, 8), newId));
   }
   return reconciledMeta;
 }

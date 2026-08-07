@@ -64,7 +64,7 @@ test("reconcileClearedSessions carries a running session's name/board to its new
   const second = await store.reconcileClearedSessions({ "new-session-id": { pid: 111 } }, first.meta);
   expect(second.changed).toBe(true);
   // new id inherits the identity + board slot
-  expect(second.meta["new-session-id"]).toEqual({ name: "Bugs v1", board: "in-progress", pinned: true });
+  expect(second.meta["new-session-id"]).toEqual({ name: "Bugs v1", board: "in-progress", pinned: true, titleFileOwner: "old-session-id" });
   // old id is relabeled and dropped out of its board column (falls back to "All sessions")
   expect(second.meta["old-session-id"].name).toBe("Bugs v1 (before clear)");
   expect(second.meta["old-session-id"].board).toBeUndefined();

@@ -25,6 +25,11 @@ via an OSC escape **every ~1 second** (`openTerminalRunning`, `terminalLaunch.ts
 - Each launch also writes a per-session **title file** (`GHOSTTY_TITLES_DIR/<id>.txt`). The OSC loop
   reads it every second, so a rename in the UI just rewrites this file. Its **existence also marks a
   session as "ours"** — see the orphan watcher below.
+- That OSC loop's file path is baked into the launch script **once, at launch time** — it never learns
+  about a new id. So after `/clear` (new session id, same window/pid), the loop keeps reading the
+  ORIGINAL id's file forever. `meta.titleFileOwner` (`store.ts`, `reconcileClearedSessions`) tracks that
+  original id across any number of chained `/clear`s; both the auto-reconcile write (`polling/reconcile.ts`)
+  and a manual rename (`routes/sessions.ts`) resolve through it before calling `writeGhosttyTitle`.
 
 ## Who kills a `claude` process — the complete list
 

@@ -117,6 +117,7 @@ export type Meta = {
   boardTags?: Record<string, string | null>; // per-board-context column tag, keyed by ctxKey(ctx)
   lastContextId?: string;
   promptHistory?: { text: string; count: number }[]; // Quick Prompt's per-session recency/frequency chips
+  titleFileOwner?: string; // /clear carry-over: the session id whose ghostty title file the open terminal actually reads
 };
 
 export async function loadMeta(): Promise<Record<string, Meta>> {
@@ -311,6 +312,8 @@ export async function reconcileClearedSessions(
         const value = prevMeta[field];
         if (value !== undefined) (carried as Record<string, unknown>)[field] = value;
       }
+      // chained across repeated /clear's — every descendant must keep pointing at the SAME root id
+      carried.titleFileOwner = prevMeta.titleFileOwner || prevSessionId;
       if (Object.keys(carried).length) {
         meta[sessionId] = carried; // new session inherits the name + board slot
         const baseLabel = prevMeta.name || (await resolveFallbackLabel?.(prevSessionId));

@@ -63,7 +63,9 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     // keep an already-open Ghostty window's title in sync with a rename (harmless no-op if the
     // session isn't currently open — its window-title-polling loop just isn't there to read it)
     if (typeof patch.name === "string" && patch.name.trim()) {
-      await writeGhosttyTitle(id, ghosttyWindowTitle(patch.name.trim(), id));
+      // titleFileOwner redirects a post-/clear session to the id whose file the terminal really reads
+      const titleOwner = meta[id]?.titleFileOwner || id;
+      await writeGhosttyTitle(titleOwner, ghosttyWindowTitle(patch.name.trim(), id));
     }
     return json({ ok: true, meta: meta[id] });
   }
