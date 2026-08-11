@@ -52,6 +52,12 @@ export async function saveGroupBoard(columns: BoardColumn[]) {
 export type SavedView = { id: string; title: string; columns: BoardColumn[] };
 
 export async function loadSavedViews(): Promise<SavedView[]> {
+  if (!existsSync(SAVED_VIEWS_PATH)) {
+    // first run only (file never existed) — seeds one empty view so a fresh install isn't blank
+    const seeded: SavedView[] = [{ id: crypto.randomUUID(), title: "Untitled view", columns: [] }];
+    await saveSavedViews(seeded);
+    return seeded;
+  }
   try {
     const j = JSON.parse(await readFile(SAVED_VIEWS_PATH, "utf-8"));
     return Array.isArray(j.views) ? j.views : [];
