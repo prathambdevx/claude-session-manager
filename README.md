@@ -37,15 +37,3 @@ Then open `http://127.0.0.1:4321` in your browser.
   `data/` (gitignored). Sessions themselves are never copied — always read live from
   `~/.claude/projects/`.
 
-## Configuration
-
-Edit `backend/src/config.ts`:
-
-```ts
-export const DEFAULT_MODEL = "sonnet"; // sonnet | opus
-export const DEFAULT_EFFORT = "medium"; // low | medium | high
-export const EXTENDED_CONTEXT = true; // 1M-context — only if your plan actually has access
-```
-
-Then run `bun run config` to push `model`/`effortLevel` into your real `~/.claude/settings.json`,
-so the same defaults apply everywhere, not just from this app.
