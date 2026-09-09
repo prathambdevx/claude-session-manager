@@ -28,6 +28,12 @@ export const PID_LINKS_PATH = join(DATA_DIR, "pid-links.json");
 export const CONTEXTS_DIR = join(DATA_DIR, "contexts");
 export const DELEGATIONS_DIR = join(DATA_DIR, "delegations");
 export const QUICKPROMPTS_DIR = join(DATA_DIR, "quickprompts");
+// One digest per session for the Master Router (routing/digest.ts) — the rolling, full-coverage
+// summary the router reads instead of transcripts. Per-session files rather than one central doc:
+// several sessions get caught up concurrently, and a shared file would mean write contention plus
+// a second source of truth that can drift from meta.json.
+export const ROUTING_DIGESTS_DIR = join(DATA_DIR, "routing-digests");
+export const ROUTING_CONFIG_PATH = join(DATA_DIR, "routing-config.json");
 // One small text file per resumed session, read by a polling loop inside its Ghostty window (see
 // ghosttyTitleFilePath in claude.ts) so a rename in the UI can update an already-open window's
 // title live — Ghostty's window "name" is read-only via AppleScript, so this file is the only way
@@ -46,6 +52,7 @@ export const ROOT = REPO_ROOT;
 await mkdir(CONTEXTS_DIR, { recursive: true });
 await mkdir(DELEGATIONS_DIR, { recursive: true });
 await mkdir(QUICKPROMPTS_DIR, { recursive: true });
+await mkdir(ROUTING_DIGESTS_DIR, { recursive: true });
 await mkdir(GHOSTTY_TITLES_DIR, { recursive: true });
 
 export const KNOWN_MODELS = new Set(["sonnet", "opus", "haiku", "fable"]);

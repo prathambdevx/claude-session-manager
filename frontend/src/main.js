@@ -140,4 +140,5 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("focus", () => loadSessions({ background: true }));
 // apply initial tab
-if (currentTab === "todos") setTimeout(() => setTab("todos"), 0);
+// restore whichever non-default tab was last open (sessions is already rendered above)
+if (currentTab === "todos" || currentTab === "router") setTimeout(() => setTab(currentTab), 0);

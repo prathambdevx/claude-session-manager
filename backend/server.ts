@@ -5,6 +5,7 @@ import { handleRequest, startClearReconciliationPoller, startOrphanWatcher, star
 import { startAutoUpdater } from "./src/polling/autoUpdater.ts";
 import { sanitizeLegacyBoardData } from "./src/store.ts";
 import { ensureCsmCli } from "./src/csmCli.ts";
+import { loadRoutingConfig } from "./src/routing/config.ts";
 
 // launchd.log is an undated stream, so update history can't be placed in time — prefix every line
 // with a local timestamp, e.g. "[24 July 2026, 7:52:03 pm]". Done first so startup logs get it too.
@@ -26,6 +27,11 @@ await sanitizeLegacyBoardData();
 // Self-heals `csm --update` onto every restart (including the one a successful auto-update itself
 // triggers) — an already-installed machine gets/refreshes it with no separate reinstall step.
 ensureCsmCli();
+
+// Primes isRouterEnabled()'s in-memory cache from disk before fsWatcher can fire — otherwise a
+// transcript write arriving before any /api/route/config request touched the file would see the
+// default (enabled) rather than a persisted "disabled".
+await loadRoutingConfig();
 
 const server = Bun.serve({
   port: PORT,
