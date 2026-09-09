@@ -10,6 +10,7 @@ import { openColumnTaskModal } from "../modals/columnTaskModal.js";
 import { pushHistory, hasHistoryFor, undoLast } from "./boardUndo.js";
 import { manageColumnsButtonHtml, wireManageColumnsPanel, isManageColumnsMenuOpen } from "./manageColumnsPanel.js";
 import { toast } from "../../ui/toast.js";
+import { relocateProject } from "../../api/projectAliasesApi.js";
 import { wireBoardDragDrop, reorderColumns } from "./wireBoardDragDrop.js";
 
 // New-task glyph — an SVG cross instead of a text "+" so stroke weight stays crisp and
@@ -205,6 +206,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
                 <button class="bc-menu-btn" data-menu-toggle="col-${c.id}" title="Options">⋯</button>
                 <div class="bc-dropdown" id="menu-col-${c.id}">
                   ${c.cwd ? "" : `<button data-rename-col-menu="${c.id}">✎ Rename</button>`}
+                  ${c.cwd ? `<button data-relocate-col-menu="${c.id}">📁 Project moved…</button>` : ""}
                   <button data-collapse-col="${c.id}">◀ Collapse group</button>
                   <button data-hide-col-menu="${c.id}">🙈 Hide column</button>
                   ${ctx.kind === "group" ? "" : `<button data-delete-col-menu="${c.id}" class="danger">✕ Delete column</button>`}
@@ -349,6 +351,16 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
       e.stopPropagation();
       document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
       startColumnRename(ctx, el.dataset.renameColMenu, rerender);
+    });
+  });
+  app.querySelectorAll("[data-relocate-col-menu]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
+      const c = ctx.cols.find((x) => x.id === el.dataset.relocateColMenu);
+      if (!c?.cwd) return;
+      const newPath = window.prompt(`"${c.cwd}" moved. What's its new full path?`, c.cwd);
+      if (newPath && newPath.trim() && newPath.trim() !== c.cwd) relocateProject(c.cwd, newPath.trim());
     });
   });
   app.querySelectorAll("[data-hide-col-menu]").forEach((el) => {

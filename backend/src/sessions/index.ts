@@ -3,14 +3,16 @@
 // re-exported here so every external import site keeps using one path (sessions/index.ts).
 import { readdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { CONTEXT_WINDOW_TOKENS } from "../config.ts";
 import { PROJECTS_DIR } from "../constants.ts";
 import { activityLine } from "../claude/activity.ts";
 import { StatCache } from "../cache.ts";
+import { loadProjectPathAliases, saveProjectPathAliases } from "../store.ts";
 import { NOISE_MESSAGE, decodeProjectSlug, firstTextFromContent } from "./shared.ts";
 import { sampleUserMessages } from "./autoSummary.ts";
 import { isLikelyProjectDir } from "./projectDetection.ts";
+import { findCandidatesForBasename } from "./projectMoveDetection.ts";
 
 export type { Session } from "./shared.ts";
 export { decodeProjectSlug, firstTextFromContent, projectNameFromCwd, NOISE_MESSAGE } from "./shared.ts";
@@ -128,6 +130,46 @@ export async function scanTranscript(path: string, id: string, projectSlug: stri
   return session;
 }
 
+// A folder that moved after its sessions were recorded would otherwise vanish from the board
+// forever — remap through a known alias before the existence check (see loadProjectPathAliases).
+export function resolveAliasedCwd(cwd: string, aliases: Record<string, string>): string {
+  return !existsSync(cwd) && aliases[cwd] ? aliases[cwd] : cwd;
+}
+
+// A missing cwd with no unique match stays cached here for the process's lifetime, and one already
+// being searched is tracked so a fast poll cadence can't pile up duplicate concurrent walks.
+const autoDetectMisses = new Set<string>();
+const autoDetectInFlight = new Set<string>();
+
+// A leaf name reused by one of its own ancestors (e.g. .../bsc/bsc-pos/BSC) is unsafe to match by
+// basename alone — confirmed live: this matched the outer "bsc" folder itself instead of the
+// actual (no-longer-existing) "bsc-pos/BSC" subproject. Left for a manual "Project moved…" instead.
+export function hasSelfReferentialName(cwd: string): boolean {
+  const segments = cwd.split("/").filter(Boolean);
+  const leaf = segments.at(-1)?.toLowerCase();
+  return segments.slice(0, -1).some((seg) => seg.toLowerCase() === leaf);
+}
+
+// Fire-and-forget — a directory walk must never block the response a session list is served from.
+// Persists a found alias for loadProjectPathAliases/resolveAliasedCwd to pick up on the NEXT scan;
+// this scan's own results were already built before the search could possibly finish.
+function autoHealMissingCwd(cwd: string): void {
+  if (autoDetectMisses.has(cwd) || autoDetectInFlight.has(cwd) || hasSelfReferentialName(cwd)) return;
+  autoDetectInFlight.add(cwd);
+  findCandidatesForBasename(basename(cwd))
+    .then(async (candidates) => {
+      if (candidates.length === 1) {
+        const aliases = await loadProjectPathAliases();
+        aliases[cwd] = candidates[0];
+        await saveProjectPathAliases(aliases);
+      } else {
+        autoDetectMisses.add(cwd); // 0 or >1 matches — too risky to guess, don't retry every tick
+      }
+    })
+    .catch(() => {}) // best-effort; a failed walk just means this cwd stays hidden for now
+    .finally(() => autoDetectInFlight.delete(cwd));
+}
+
 export async function scanAllSessions(): Promise<Session[]> {
   if (!existsSync(PROJECTS_DIR)) return [];
   const projectDirs = await readdir(PROJECTS_DIR);
@@ -154,6 +196,17 @@ export async function scanAllSessions(): Promise<Session[]> {
       );
     })
   );
+
+  const aliases = await loadProjectPathAliases();
+  for (const s of sessions) s.cwd = resolveAliasedCwd(s.cwd, aliases);
+
+  // Still missing after the known-alias pass? Kick off a background search — a moved folder is
+  // common enough (reorganizing into a shared parent, renaming a workspace) that requiring a
+  // manual "this moved" click for every one would defeat the point. Doesn't affect this scan's
+  // own results; a found alias shows up starting the next one.
+  for (const s of sessions) {
+    if (!existsSync(s.cwd)) autoHealMissingCwd(s.cwd);
+  }
 
   // A stub transcript never got a real cwd line to correct the slug-decoded guess, which is
   // ambiguous for a hyphenated dir name — neither is resumable, so don't surface either.

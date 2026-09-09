@@ -37,6 +37,9 @@ export const GHOSTTY_TITLES_DIR = join(DATA_DIR, "ghostty-titles");
 // by real open order instead of trusting System Events' window list order, which is only reliable
 // for the just-created window (always frontmost); order among the rest isn't dependable.
 export const GHOSTTY_WINDOW_ORDER_PATH = join(DATA_DIR, "ghostty-window-order.json");
+// Old absolute project path -> its current one, for a folder that moved after sessions were
+// recorded against it (see loadProjectPathAliases in store.ts and scanAllSessions).
+export const PROJECT_PATH_ALIASES_PATH = join(DATA_DIR, "project-path-aliases.json");
 export const PUBLIC_DIR = join(REPO_ROOT, "frontend", "public");
 // Component JS modules (frontend/src/**) are a sibling of public/, not nested under it — served
 // separately since index.html's <script type="module"> requests them at /src/*.
