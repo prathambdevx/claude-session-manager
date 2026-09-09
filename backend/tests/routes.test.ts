@@ -112,3 +112,32 @@ test("PUT /api/sessions/:id/meta ignores a malformed (non-object) boardTags inst
   const data = await res.json();
   expect(data.meta.boardTags).toEqual({ main: "custom-1" });
 });
+
+test("GET /api/project-aliases returns the registered aliases as a plain object", async () => {
+  const res = await handleRequest(new Request("http://localhost/api/project-aliases"));
+  const data = await res.json();
+  expect(typeof data.aliases).toBe("object");
+});
+
+test("POST /api/project-aliases requires oldPath, newPath, and a newPath that actually exists", async () => {
+  const missingFields = await post("/api/project-aliases", { oldPath: "/old" });
+  expect(missingFields.status).toBe(400);
+
+  const nonExistent = await post("/api/project-aliases", { oldPath: "/old", newPath: "/definitely/not/real/path" });
+  expect(nonExistent.status).toBe(400);
+
+  const ok = await post("/api/project-aliases", { oldPath: "/old/project", newPath: dir });
+  const okData = await ok.json();
+  expect(okData.ok).toBe(true);
+  expect(okData.aliases["/old/project"]).toBe(dir);
+});
+
+test("DELETE /api/project-aliases removes a registered alias", async () => {
+  await post("/api/project-aliases", { oldPath: "/to-remove", newPath: dir });
+  const res = await handleRequest(
+    new Request("http://localhost/api/project-aliases", { method: "DELETE", body: JSON.stringify({ oldPath: "/to-remove" }) })
+  );
+  const data = await res.json();
+  expect(data.ok).toBe(true);
+  expect(data.aliases["/to-remove"]).toBeUndefined();
+});

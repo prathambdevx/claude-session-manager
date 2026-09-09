@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import {
   META_PATH, TICKETS_PATH, TODOS_PATH, AGENTS_PATH, TODO_BOARD_PATH,
-  GROUP_BOARD_PATH, SAVED_VIEWS_PATH,
+  GROUP_BOARD_PATH, SAVED_VIEWS_PATH, PROJECT_PATH_ALIASES_PATH,
   CONTEXTS_DIR, DELEGATIONS_DIR, QUICKPROMPTS_DIR, RUNNING_DIR, PID_LINKS_PATH,
   QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS,
 } from "./constants.ts";
@@ -68,6 +68,22 @@ export async function loadSavedViews(): Promise<SavedView[]> {
 
 export async function saveSavedViews(views: SavedView[]) {
   await Bun.write(SAVED_VIEWS_PATH, JSON.stringify({ views }, null, 2));
+}
+
+// Old absolute cwd -> where that project actually lives now — bridges a moved folder without a
+// real filesystem symlink, since a session's cwd is baked into its transcript forever.
+export type ProjectPathAliases = Record<string, string>;
+
+export async function loadProjectPathAliases(): Promise<ProjectPathAliases> {
+  try {
+    return JSON.parse(await readFile(PROJECT_PATH_ALIASES_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+export async function saveProjectPathAliases(aliases: ProjectPathAliases) {
+  await Bun.write(PROJECT_PATH_ALIASES_PATH, JSON.stringify(aliases, null, 2));
 }
 
 const LEGACY_COLUMN_FIELDS = ["isAll", "neverPopulated"];
