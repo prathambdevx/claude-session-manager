@@ -12,6 +12,7 @@ import { loadRunning, loadMeta, loadQuickPromptJob } from "./store.ts";
 import type { RunningInfo } from "./store.ts";
 import { scanTranscript, computeActivelyWorking } from "./sessions/index.ts";
 import { broadcast } from "./sse.ts";
+import { queueDigestCatchUp } from "./routing/worker.ts";
 
 const DEBOUNCE_MS = 100;
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -87,7 +88,12 @@ async function handleProjectsChange(filename: string) {
   const m = filename.match(/^([^/]+)\/([^/]+)\.jsonl$/);
   if (!m) return;
   const [, projectSlug, sessionId] = m;
-  debounced(`transcript:${sessionId}`, () => refreshSessionFromTranscript(sessionId, projectSlug));
+  debounced(`transcript:${sessionId}`, () => {
+    // Keep this session's Master Router digest warm. The worker itself gates on whether a full
+    // chunk has actually accumulated, so the overwhelming majority of these are a single stat().
+    queueDigestCatchUp(sessionId, projectSlug);
+    return refreshSessionFromTranscript(sessionId, projectSlug);
+  });
 }
 
 async function handleQuickPromptChange(filename: string) {

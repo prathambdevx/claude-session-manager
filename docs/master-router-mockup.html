@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Master Router — mockup</title>
+<style>
+  :root {
+    --bg: #111110;
+    --panel: #1a1a19;
+    --ink: #f0f0ee;
+    --dim: #9a9a96;
+    --line: #2c2c2a;
+    --accent: #B27D14;
+    --danger: #c0392b;
+    --ok: #2e7d32;
+    --warn: #b8860b;
+    --chip-bg: #262624;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+  header {
+    position: sticky; top: 0; z-index: 5;
+    background: var(--bg);
+    padding: 20px 24px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+  .subtitle { font-size: 12px; color: var(--dim); margin: 0 0 14px; }
+  .mock-badge {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    background: rgba(178,125,20,0.18); color: var(--accent); border-radius: 5px; padding: 2px 7px;
+  }
+  main { padding: 20px 24px 60px; max-width: 900px; margin: 0 auto; }
+
+  /* ---------- Router input panel ---------- */
+  .router-panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px;
+  }
+  .router-panel label { font-size: 12px; font-weight: 600; color: var(--dim); }
+  .router-input-row { display: flex; gap: 8px; }
+  .router-input-row textarea {
+    flex: 1; min-height: 56px; resize: vertical; font-family: inherit; font-size: 13.5px;
+    background: var(--bg); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 8px; padding: 10px 12px; outline: none;
+  }
+  .router-input-row textarea:focus { border-color: var(--accent); }
+  button {
+    cursor: pointer; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    border-radius: 8px; padding: 8px 14px; font-size: 12.5px; font-weight: 500;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #1c1200; border-color: var(--accent); font-weight: 600; align-self: flex-start; }
+  button.primary:hover { filter: brightness(1.08); }
+  button.ghost { background: transparent; }
+
+  /* ---------- Decision result ---------- */
+  .decision {
+    background: var(--panel); border: 1px solid var(--accent); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 10px;
+  }
+  .decision-head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--accent); }
+  .decision-head .spin {
+    width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0;
+    background: var(--ok); box-shadow: 0 0 0 3px rgba(46,125,50,0.18);
+  }
+  .decision-reason { font-size: 12.5px; color: var(--dim); line-height: 1.55; }
+  .decision-reason b { color: var(--ink); font-weight: 600; }
+  .decision-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ---------- Candidate session list ---------- */
+  .section-label {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--dim); margin: 4px 0 10px;
+  }
+  .candidates { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .cand-card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 8px;
+    transition: border-color 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+  }
+  .cand-card.top-match { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .cand-card.faded { opacity: 0.55; }
+  .cand-top { display: flex; align-items: flex-start; gap: 10px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+  .dot.live { background: var(--ok); box-shadow: 0 0 0 3px rgba(46,125,50,0.18); }
+  .dot.idle { background: var(--dim); opacity: 0.5; }
+  .cand-title-wrap { flex: 1; min-width: 0; }
+  .cand-title { font-size: 13.5px; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+  .cand-msg { font-size: 12.5px; color: var(--dim); margin-top: 3px; }
+  .match-score {
+    display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; flex-shrink: 0;
+  }
+  .match-score .bar { width: 46px; height: 5px; border-radius: 3px; background: var(--chip-bg); overflow: hidden; }
+  .match-score .bar > span { display: block; height: 100%; border-radius: 3px; background: var(--ok); }
+  .match-score.med .bar > span { background: var(--warn); }
+  .match-score.low .bar > span { background: var(--dim); }
+  .match-score.med { color: var(--warn); }
+  .match-score.low { color: var(--dim); }
+  .match-score.high { color: var(--ok); }
+  .meta-row { display: flex; gap: 6px; flex-wrap: wrap; font-size: 11px; color: var(--dim); align-items: center; }
+  .chip {
+    background: var(--chip-bg); border-radius: 6px; padding: 2px 7px; white-space: nowrap;
+  }
+  .chip.branch { font-family: ui-monospace, SFMono-Regular, monospace; }
+  .chip.proj-1 { background: rgba(178,125,20,0.16); color: var(--accent); }
+  .chip.proj-2 { background: rgba(91,122,158,0.16); color: #5b7a9e; }
+  .chip.proj-3 { background: rgba(90,158,122,0.16); color: #5a9e7a; }
+  .pick-btn { align-self: flex-start; font-size: 11.5px; padding: 5px 10px; }
+
+  .cand-card.new-session {
+    border-style: dashed; align-items: center; text-align: center; gap: 4px; padding: 16px;
+  }
+  .cand-card.new-session .cand-title { justify-content: center; color: var(--dim); font-weight: 500; }
+  .cand-card.new-session .cand-msg { text-align: center; max-width: 380px; margin: 2px auto 6px; }
+
+  /* ---------- footer note ---------- */
+  .mock-note {
+    font-size: 11.5px; color: var(--dim); line-height: 1.6; border-top: 1px solid var(--line);
+    padding-top: 16px; margin-top: 8px;
+  }
+  .mock-note a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧭 Master Router <span class="mock-badge">Mockup — not wired up</span></h1>
+  <p class="subtitle">One place to hand off a task — it decides which existing session should take it, or starts a new one.</p>
+</header>
+<main>
+
+  <div class="router-panel">
+    <label for="taskInput">What do you need done?</label>
+    <div class="router-input-row">
+      <textarea id="taskInput">Fix the checkout page total not updating when a discount code is applied</textarea>
+    </div>
+    <button class="primary">🧭 Route this task</button>
+  </div>
+
+  <div class="decision">
+    <div class="decision-head"><span class="spin"></span> Routed to: <b>storefront-checkout-fix</b></div>
+    <div class="decision-reason">
+      <b>Why:</b> This session is already inside <code>bsc-storefront/</code> on branch <code>fix/discount-total</code>,
+      and its last few turns were about the checkout total calculation — same file area, same bug class.
+      The other two candidates are on unrelated repos/branches.
+    </div>
+    <div class="decision-actions">
+      <button class="primary">Send prompt to this session</button>
+      <button class="ghost">Pick a different session instead ▾</button>
+      <button class="ghost">Start a new session instead</button>
+    </div>
+  </div>
+
+  <div class="section-label">Candidate sessions considered</div>
+  <div class="candidates">
+
+    <div class="cand-card top-match">
+      <div class="cand-top">
+        <span class="dot live"></span>
+        <div class="cand-title-wrap">
+          <div class="cand-title">storefront-checkout-fix</div>
+          <div class="cand-msg">"...so the discount line updates but the total field is stale until you..."</div>
+        </div>
+        <div class="match-score high">92% <div class="bar"><span style="width:92%"></span></div></div>
+      </div>
+      <div class="meta-row">
+        <span class="chip proj-1">bsc-storefront</span>
+        <span class="chip branch">fix/discount-total</span>
+        <span class="chip">last active 4m ago</span>
+      </div>
+    </div>
+
+    <div class="cand-card faded">
+      <div class="cand-top">
+        <span class="dot idle"></span>
+        <div class="cand-title-wrap">
+          <div class="cand-title">pos-inventory-sync</div>
+          <div class="cand-msg">"...batch sync job for the till's local inventory cache is failing on..."</div>
+        </div>
+        <div class="match-score low">11% <div class="bar"><span style="width:11%"></span></div></div>
+      </div>
+      <div class="meta-row">
+        <span class="chip proj-2">devx-pos</span>
+        <span class="chip branch">main</span>
+        <span class="chip">last active 3h ago</span>
+      </div>
+      <button class="pick-btn ghost">Route here instead</button>
+    </div>
+
+    <div class="cand-card faded">
+      <div class="cand-top">
+        <span class="dot idle"></span>
+        <div class="cand-title-wrap">
+          <div class="cand-title">energy-drink-landing-redesign</div>
+          <div class="cand-msg">"...hero section spacing on mobile, also swap the CTA copy per..."</div>
+        </div>
+        <div class="match-score med">28% <div class="bar"><span style="width:28%"></span></div></div>
+      </div>
+      <div class="meta-row">
+        <span class="chip proj-3">rush-energy-site</span>
+        <span class="chip branch">redesign/hero</span>
+        <span class="chip">last active 1d ago</span>
+      </div>
+      <button class="pick-btn ghost">Route here instead</button>
+    </div>
+
+    <div class="cand-card new-session">
+      <div class="cand-title">＋ Start a fresh session</div>
+      <div class="cand-msg">Used when nothing existing has relevant context — router suggests a project/directory and launches a new session there, same as today's launch panel.</div>
+      <button class="pick-btn ghost">Start new session</button>
+    </div>
+
+  </div>
+
+  <div class="mock-note">
+    This is a static visual mock, not wired to real data — colors/spacing/type match the current app's
+    <code>styles.css</code> (dark theme). See <code>docs/master-session-router-research.md</code> for the
+    feasibility research and rough v1 shape behind this screen. Real version would pull candidates from
+    the same session state <code>sessions.ts</code> already reads, and reuse Quick Prompt's existing
+    delivery path (<code>routes/quickPrompts.ts</code>) to actually send the prompt once routed.
+  </div>
+
+</main>
+</body>
+</html>
