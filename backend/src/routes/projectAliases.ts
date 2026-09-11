@@ -1,7 +1,7 @@
 // Lets a moved project's historical sessions keep resolving without a real filesystem symlink —
 // remaps oldPath to newPath for every future scan (see scanAllSessions, sessions/index.ts).
 import { existsSync } from "node:fs";
-import { loadProjectPathAliases, saveProjectPathAliases } from "../store.ts";
+import { loadProjectPathAliases, saveProjectPathAliases, retargetProjectColumns } from "../store.ts";
 import { json } from "./json.ts";
 
 export async function handleProjectAliasesRoutes(req: Request, url: URL): Promise<Response | null> {
@@ -18,6 +18,7 @@ export async function handleProjectAliasesRoutes(req: Request, url: URL): Promis
     const aliases = await loadProjectPathAliases();
     aliases[oldPath] = newPath;
     await saveProjectPathAliases(aliases);
+    await retargetProjectColumns(oldPath, newPath);
     return json({ ok: true, aliases });
   }
 

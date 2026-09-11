@@ -86,6 +86,35 @@ export async function saveProjectPathAliases(aliases: ProjectPathAliases) {
   await Bun.write(PROJECT_PATH_ALIASES_PATH, JSON.stringify(aliases, null, 2));
 }
 
+// An alias fixes what scanAllSessions reports for a SESSION's cwd, but a project COLUMN's own cwd
+// is separately persisted — left on the old path, it stops matching any of that project's sessions
+// at all. Retargets every column pointing at oldPath, and drops any duplicate mergeInProjectColumns
+// (boardRouting.js) already auto-created for newPath once sessions started reporting it.
+export async function retargetProjectColumns(oldPath: string, newPath: string): Promise<void> {
+  const retarget = (cols: BoardColumn[]): { cols: BoardColumn[]; changed: boolean } => {
+    if (!cols.some((c) => c.cwd === oldPath)) return { cols, changed: false };
+    const next = cols
+      .filter((c) => c.cwd !== newPath) // drop any pre-existing duplicate — the retargeted original replaces it
+      .map((c) => (c.cwd === oldPath ? { ...c, cwd: newPath } : c));
+    return { cols: next, changed: true };
+  };
+
+  const group = await loadGroupBoard();
+  if (group) {
+    const { cols, changed } = retarget(group);
+    if (changed) await saveGroupBoard(cols);
+  }
+
+  const views = await loadSavedViews();
+  let viewsChanged = false;
+  const nextViews = views.map((v) => {
+    const { cols, changed } = retarget(v.columns);
+    if (changed) viewsChanged = true;
+    return changed ? { ...v, columns: cols } : v;
+  });
+  if (viewsChanged) await saveSavedViews(nextViews);
+}
+
 const LEGACY_COLUMN_FIELDS = ["isAll", "neverPopulated"];
 
 // Strips legacy column fields (isAll, neverPopulated) left over from older app versions out of

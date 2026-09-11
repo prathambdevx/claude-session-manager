@@ -8,7 +8,7 @@ import { CONTEXT_WINDOW_TOKENS } from "../config.ts";
 import { PROJECTS_DIR } from "../constants.ts";
 import { activityLine } from "../claude/activity.ts";
 import { StatCache } from "../cache.ts";
-import { loadProjectPathAliases, saveProjectPathAliases } from "../store.ts";
+import { loadProjectPathAliases, saveProjectPathAliases, retargetProjectColumns } from "../store.ts";
 import { NOISE_MESSAGE, decodeProjectSlug, firstTextFromContent } from "./shared.ts";
 import { sampleUserMessages } from "./autoSummary.ts";
 import { isLikelyProjectDir } from "./projectDetection.ts";
@@ -162,6 +162,7 @@ function autoHealMissingCwd(cwd: string): void {
         const aliases = await loadProjectPathAliases();
         aliases[cwd] = candidates[0];
         await saveProjectPathAliases(aliases);
+        await retargetProjectColumns(cwd, candidates[0]);
       } else {
         autoDetectMisses.add(cwd); // 0 or >1 matches — too risky to guess, don't retry every tick
       }

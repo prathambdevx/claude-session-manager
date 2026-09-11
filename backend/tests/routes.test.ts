@@ -141,3 +141,27 @@ test("DELETE /api/project-aliases removes a registered alias", async () => {
   expect(data.ok).toBe(true);
   expect(data.aliases["/to-remove"]).toBeUndefined();
 });
+
+test("retargetProjectColumns fixes a project column's cwd, and drops a duplicate already sitting on the new path", async () => {
+  const { loadGroupBoard, saveGroupBoard, retargetProjectColumns } = await import("../src/store.ts");
+  await saveGroupBoard([
+    { id: "proj-enigma", title: "bsc-enigma", cwd: "/old/bsc-enigma" },
+    { id: "proj-enigma-2", title: "bsc-enigma", cwd: "/new/bsc-enigma" }, // stray dupe auto-created before the alias existed
+    { id: "custom-1", title: "Unrelated" },
+  ]);
+
+  await retargetProjectColumns("/old/bsc-enigma", "/new/bsc-enigma");
+
+  const cols = await loadGroupBoard();
+  expect(cols).toEqual([
+    { id: "proj-enigma", title: "bsc-enigma", cwd: "/new/bsc-enigma" },
+    { id: "custom-1", title: "Unrelated" },
+  ]);
+});
+
+test("retargetProjectColumns is a no-op when nothing references the old path", async () => {
+  const { loadGroupBoard, saveGroupBoard, retargetProjectColumns } = await import("../src/store.ts");
+  await saveGroupBoard([{ id: "custom-1", title: "Unrelated" }]);
+  await retargetProjectColumns("/old/nowhere", "/new/nowhere");
+  expect(await loadGroupBoard()).toEqual([{ id: "custom-1", title: "Unrelated" }]);
+});
