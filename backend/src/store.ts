@@ -334,7 +334,7 @@ export async function savePidLinks(links: PidLinks) {
   await Bun.write(PID_LINKS_PATH, JSON.stringify(links, null, 2));
 }
 
-const CARRIED_META_FIELDS = ["name", "description", "descriptionSource", "tags", "notes", "status", "pinned", "board", "boardTags"] as const;
+export const CARRIED_META_FIELDS = ["name", "description", "descriptionSource", "tags", "notes", "status", "pinned", "board", "boardTags"] as const;
 
 // On a /clear, the new transcript id inherits the old one's name/board slot; the old (now-frozen)
 // transcript is relabeled "<name> (before clear)" and dropped to the default column.

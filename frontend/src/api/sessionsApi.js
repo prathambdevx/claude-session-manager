@@ -112,11 +112,11 @@ export async function patchMeta(id, patch) {
   });
 }
 
-export async function resumeSession(id, fork) {
+export async function resumeSession(id, fork, forkName) {
   const res = await fetch(`/api/sessions/${id}/resume`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fork: !!fork, dangerous: dangerousDefault() }),
+    body: JSON.stringify({ fork: !!fork, name: forkName || undefined, dangerous: dangerousDefault() }),
   });
   const data = await res.json();
   if (data.ok) {
@@ -124,6 +124,7 @@ export async function resumeSession(id, fork) {
       toast("Already running — switched to its terminal window");
     } else {
       toast((fork ? "Forked → " : "Resuming → ") + data.command);
+      loadSessions();
     }
   } else if (data.busy) {
     // a headless quick prompt is still running on this session — don't copy a command or imply a

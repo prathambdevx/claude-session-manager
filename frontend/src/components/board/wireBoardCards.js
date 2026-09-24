@@ -23,7 +23,10 @@ export function wireBoardCards(app) {
       const s = sessions.find((x) => x.id === id);
       const title = s?.meta?.name || s?.firstMessage || id;
       if (action === "resume") resumeSession(id, false);
-      if (action === "fork") resumeSession(id, true);
+      if (action === "fork") {
+        const name = await openPromptModal({ title: "Fork session", label: "Session name", placeholder: title, confirmLabel: "Start forked session" });
+        if (name && name.trim()) resumeSession(id, true, name.trim());
+      }
       if (action === "copyResumeCmd") copyCommand(id, false);
       if (action === "delete") deleteSession(id, title);
       if (action === "closeTerminal") closeSessionTerminal(id);

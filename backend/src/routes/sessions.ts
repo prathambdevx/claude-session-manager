@@ -5,7 +5,7 @@ import { PROJECTS_DIR } from "../constants.ts";
 import {
   loadMeta, saveMeta, loadTickets, loadRunning, loadAgents, loadAllDelegations, loadTodos,
   loadTodoBoard, loadGroupBoard, loadSavedViews,
-  loadAllQuickPromptJobs, pidAlive,
+  loadAllQuickPromptJobs, pidAlive, CARRIED_META_FIELDS,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
 import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions/index.ts";
@@ -132,16 +132,29 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
       }
     }
 
-    const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${fork ? " --fork-session" : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
+    // A fork gets its own id (never the original's) via --session-id, so its name can be set
+    // before the transcript even exists — see docs/ghostty-instance-bug-explainer.md for why its
+    // Ghostty tag must also be this new id, not the original's.
+    const forkName = fork ? String(body?.name ?? "").trim() : "";
+    const newId = fork ? crypto.randomUUID() : id;
+    const cmd = `${shellQuote(CLAUDE_BIN)} --resume ${id}${fork ? ` --fork-session --session-id ${newId}` : ""}${dangerous ? DANGEROUS_FLAG : ""}`;
+    const meta = await loadMeta();
+    if (fork) {
+      // a fork should land in the same board column(s) as its parent, not float untagged
+      const carried: Meta = {};
+      for (const field of CARRIED_META_FIELDS) {
+        const value = meta[id]?.[field];
+        if (value !== undefined) (carried as Record<string, unknown>)[field] = value;
+      }
+      meta[newId] = { ...carried, name: forkName || carried.name };
+      await saveMeta(meta);
+    }
     // same display label the card itself uses, so the Ghostty window title reads like the UI —
     // written to a file *before* launch so the window's title-polling loop has it from frame one.
-    // A fork gets its own random tag, never the original id's — see docs/ghostty-instance-bug-explainer.md.
-    const meta = await loadMeta();
-    const label = meta[id]?.name || s.firstMessage || id.slice(0, 8);
-    const tagId = fork ? crypto.randomUUID() : id;
-    await writeGhosttyTitle(tagId, ghosttyWindowTitle(label, tagId));
-    await openTerminalRunning(s.cwd, cmd, { ghosttyTitleFile: ghosttyTitleFilePath(tagId), ghosttyTag: ghosttyWindowTag(tagId) });
-    return json({ ok: true, command: cmd, cwd: s.cwd });
+    const label = forkName || meta[id]?.name || s.firstMessage || id.slice(0, 8);
+    await writeGhosttyTitle(newId, ghosttyWindowTitle(label, newId));
+    await openTerminalRunning(s.cwd, cmd, { ghosttyTitleFile: ghosttyTitleFilePath(newId), ghosttyTag: ghosttyWindowTag(newId) });
+    return json({ ok: true, command: cmd, cwd: s.cwd, sessionId: newId });
   }
 
   const closeTerminalMatch = url.pathname.match(/^\/api\/sessions\/([^/]+)\/close-terminal$/);

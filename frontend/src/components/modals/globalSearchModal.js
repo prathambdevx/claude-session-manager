@@ -3,6 +3,7 @@ import { modalShell, closeModal } from "../../ui/modalShell.js";
 import { escapeHtml, fmtTime, projectName } from "../../ui/format.js";
 import { resumeSession } from "../../api/sessionsApi.js";
 import { openExtractModal } from "./extractModal.js";
+import { openPromptModal } from "../../ui/promptModal.js";
 
 export function openGlobalSearchModal() {
   modalShell(`
@@ -62,10 +63,14 @@ export function openGlobalSearchModal() {
       </div>
     `;
     results.querySelectorAll("[data-gsearch-action]").forEach((el) => {
-      el.addEventListener("click", () => {
+      el.addEventListener("click", async () => {
         const { gsearchAction, id } = el.dataset;
         if (gsearchAction === "resume") { closeModal(); resumeSession(id, false); }
-        if (gsearchAction === "fork") { closeModal(); resumeSession(id, true); }
+        if (gsearchAction === "fork") {
+          closeModal();
+          const name = await openPromptModal({ title: "Fork session", label: "Session name", confirmLabel: "Start forked session" });
+          if (name && name.trim()) resumeSession(id, true, name.trim());
+        }
         if (gsearchAction === "extract") { closeModal(); openExtractModal(id); }
       });
     });
