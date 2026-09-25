@@ -17,6 +17,8 @@
 </head>
 <body>
 <div id="appShell">
+<!-- Top header (logo, Sessions/Todos, search) is hidden in CSS; the theme toggle lives here instead. -->
+<button id="themeToggleBtn" class="floating-theme" title="Toggle dark / light mode">🌙</button>
 <header>
   <h1><img src="/favicon.webp" alt="" style="width:22px; height:22px; vertical-align:-4px; margin-right:8px; border-radius:5px;" />Claude Sessions</h1>
   <div class="toolbar">
@@ -35,7 +37,6 @@
       <option value="30">Last 30 days</option>
     </select> -->
     <!-- <button id="refreshBtn">↻ Refresh</button> -->
-    <button id="themeToggleBtn" title="Toggle dark / light mode">🌙</button>
     <!-- <label class="dangerous-label" style="font-size:12px; display:flex; align-items:center; gap:4px;" title="Default for every launch (new / resume / fork / fix). Per-launch modals still let you override.">
       <input type="checkbox" id="globalDangerous" /> ⚠ Run dangerously
     </label> -->

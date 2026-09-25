@@ -14,6 +14,8 @@ import { openCommandPalette } from "./components/commandPalette/commandPalette.j
 import { closeModal } from "./ui/modalShell.js";
 import { initThemeToggle } from "./components/theme/themeToggle.js";
 
+// Compact board layout is a per-browser preference, applied before the first render.
+try { document.body.classList.toggle("compact-board", localStorage.getItem("compactBoard") === "1"); } catch {}
 initBoardStateFromLocation();
 wirePopstate();
 
@@ -81,7 +83,7 @@ render();
 // toolbar can wrap on a narrow window), so it's measured live instead of hardcoded.
 function updateHeaderHeightVar() {
   const h = document.querySelector("header")?.offsetHeight;
-  if (h) document.documentElement.style.setProperty("--header-h", h + "px");
+  if (h != null) document.documentElement.style.setProperty("--header-h", h + "px"); // 0 while the header is hidden
 }
 updateHeaderHeightVar();
 // .board's sticky offset also depends on the toolbar's height (set per-render in

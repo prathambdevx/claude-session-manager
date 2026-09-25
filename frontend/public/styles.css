@@ -890,3 +890,21 @@
   }
   .cp-item { padding: 8px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
   .cp-item:hover, .cp-item.sel { background: var(--chip-bg); }
+
+/* ---------- Compact board (toggle: "Compact" button on the board toolbar, saved in localStorage) ----------
+   Ticket Desk sizing: narrower columns, one-line column names (full name on hover) so every header is
+   the same height and first cards line up, and an icon-only "+" add button. Collapsed columns untouched. */
+body.compact-board .board { gap: 12px; }
+body.compact-board .board-col:not(.collapsed) { border-radius: 12px; flex: 0 0 265px; min-width: 265px; max-width: 265px; }
+body.compact-board .board-card { border-radius: 10px; padding: 11px 13px; }
+body.compact-board .board-col-header { white-space: nowrap; }
+body.compact-board .board-col-header > * { flex: none; }
+body.compact-board .board-col-header .col-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+body.compact-board .board-col-header .col-add-btn span { display: none; }
+#compactBoardBtn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- No top header (like Ticket Desk) ----------
+   Logo, Sessions/Todos tabs and the search box are hidden, not removed: the page code still reads
+   #search and the tab buttons. The theme toggle moved out of the header and floats top-right. */
+header, #statLine { display: none; }
+.floating-theme { position: fixed; top: 14px; right: 18px; z-index: 20; }

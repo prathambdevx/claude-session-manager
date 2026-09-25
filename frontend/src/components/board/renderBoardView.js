@@ -171,6 +171,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
       <span style="flex:1"></span>
       ${ctx.kind === "group" ? "" : `
         <button class="btn ghost" id="boardUndoBtn" ${hasHistoryFor(ctx) ? "" : "disabled"} title="Undo the last change to this board">↩ Undo</button>`}
+      <button class="btn ghost" id="compactBoardBtn" aria-pressed="${document.body.classList.contains("compact-board")}" title="Narrower columns with one-line names">▥ Compact</button>
       <button class="btn ghost" id="collapseAllBtn" title="${anyExpanded ? "Collapse every column" : "Expand every column"}">${anyExpanded ? "« Collapse all" : "» Expand all"}</button>
       ${manageColumnsButtonHtml()}
     </div>
@@ -189,7 +190,7 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
         );
         const titleHtml = c.renaming
           ? `<input class="col-title-input" data-rename-col-input="${c.id}" value="${escapeHtml(c.title)}" />`
-          : `<span>${escapeHtml(c.title)}</span>`;
+          : `<span class="col-title" title="${escapeHtml(c.title)}">${escapeHtml(c.title)}</span>`;
 
         // Header/body and collapsed pill both stay in the DOM; only a .collapsed class (toggled
         // directly, not via rerender) switches them, so the CSS transition has something to animate.
@@ -381,6 +382,11 @@ export function renderBoardView(filtered, ctx, breadcrumbHtml = "") {
       document.querySelectorAll(".bc-dropdown.open").forEach((d) => d.classList.remove("open"));
       removeColumn(ctx, el.dataset.deleteColMenu || el.dataset.removeCol, rerender);
     });
+  });
+  document.getElementById("compactBoardBtn")?.addEventListener("click", (e) => {
+    const on = document.body.classList.toggle("compact-board");
+    e.currentTarget.setAttribute("aria-pressed", String(on));
+    try { localStorage.setItem("compactBoard", on ? "1" : "0"); } catch {}
   });
   document.getElementById("collapseAllBtn")?.addEventListener("click", () => {
     // re-read collapsed state at click time, not the render-time snapshot — otherwise a second

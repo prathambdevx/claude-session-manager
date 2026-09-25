@@ -23,7 +23,7 @@ export function renderTodoBoard() {
         <div class="board-col" data-todo-col-id="${c.id}">
           <div class="board-col-header" draggable="true" data-todo-col-drag="${c.id}">
             <span class="drag-handle">⠿</span>
-            <span>${escapeHtml(c.title)}</span>
+            <span class="col-title" title="${escapeHtml(c.title)}">${escapeHtml(c.title)}</span>
             <span class="board-count">${(byCol.get(c.id) || []).length}</span>
             <div class="bc-menu-wrap" style="margin-left:auto;">
               <button class="bc-menu-btn" data-todo-col-menu="${c.id}" title="Column options">⋮</button>
