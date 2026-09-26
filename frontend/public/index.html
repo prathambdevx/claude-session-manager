@@ -14,11 +14,10 @@
   })();
 </script>
 <link rel="stylesheet" href="/styles.css" />
+<script>try { document.documentElement.setAttribute("data-accent", localStorage.getItem("accent") || "gold"); } catch {}</script>
 </head>
 <body>
 <div id="appShell">
-<!-- Top header (logo, Sessions/Todos, search) is hidden in CSS; the theme toggle lives here instead. -->
-<button id="themeToggleBtn" class="floating-theme" title="Toggle dark / light mode">🌙</button>
 <header>
   <h1><img src="/favicon.webp" alt="" style="width:22px; height:22px; vertical-align:-4px; margin-right:8px; border-radius:5px;" />Claude Sessions</h1>
   <div class="toolbar">
@@ -51,6 +50,11 @@
 <div class="layout">
   <aside id="sidebar"></aside>
   <button id="sidebarToggle" class="sidebar-toggle" title="Collapse sidebar">‹</button>
+  <div class="side-bottom">
+  <div class="accent-pick" role="radiogroup" aria-label="Accent colour"><button data-a="teal" role="radio" title="Teal" style="background:#2A9D8F"></button><button data-a="violet" role="radio" title="Violet" style="background:#7C6CF0"></button><button data-a="coral" role="radio" title="Coral" style="background:#E07360"></button><button data-a="green" role="radio" title="Green" style="background:#4FA368"></button><button data-a="gold" role="radio" title="Gold" style="background:#B27D14"></button></div>
+  <!-- The top header is hidden in CSS, so the theme toggle lives here, next to the accent colours. -->
+  <button id="themeToggleBtn" title="Toggle dark / light mode">🌙</button>
+  </div>
   <div class="layout-main">
     <main id="app"></main>
     <main id="todoApp" style="display:none"></main>

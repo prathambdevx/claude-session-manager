@@ -16,6 +16,14 @@ import { initThemeToggle } from "./components/theme/themeToggle.js";
 
 // Compact board layout is a per-browser preference, applied before the first render.
 try { document.body.classList.toggle("compact-board", localStorage.getItem("compactBoard") === "1"); } catch {}
+// Accent colour switcher (bottom of the sidebar); the pre-paint script in index.html applies it first.
+function setAccent(a, save = true) {
+  document.documentElement.dataset.accent = a;
+  document.querySelectorAll(".accent-pick button").forEach((b) => { b.classList.toggle("on", b.dataset.a === a); b.setAttribute("aria-checked", String(b.dataset.a === a)); });
+  if (save) try { localStorage.setItem("accent", a); } catch {}
+}
+document.querySelectorAll(".accent-pick button").forEach((b) => (b.onclick = () => setAccent(b.dataset.a)));
+setAccent(document.documentElement.dataset.accent || "gold", false);
 initBoardStateFromLocation();
 wirePopstate();
 
