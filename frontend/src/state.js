@@ -35,8 +35,6 @@ export let savedViews = []; // SavedView[] — mirrors server's saved-views.json
 export let sessionsLoaded = false;
 export let boardHistory = []; // in-memory undo stack — transient, not persisted
 
-export let contentMatchIds = new Set();
-export let contentSearchTimer = null;
 export let delegationPoll = null;
 
 // Plain setters for every binding above — relying on importers reassigning `export let` directly
@@ -50,8 +48,6 @@ export function setCurrentTab(v) { currentTab = v; }
 export function setExpandedCards(v) { expandedCards = v; }
 export function setTodoBoardColumns(v) { todoBoardColumns = v; }
 export function setGroupBoardColumns(v) { groupBoardColumns = v; }
-export function setContentMatchIds(v) { contentMatchIds = v; }
-export function setContentSearchTimer(v) { contentSearchTimer = v; }
 export function setDelegationPoll(v) { delegationPoll = v; }
 export function setActiveView(v) { activeView = v; }
 export function setSessionsLoaded(v) { sessionsLoaded = v; }

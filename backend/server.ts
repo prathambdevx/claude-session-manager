@@ -1,7 +1,7 @@
 // Entry point: starts the local server and delegates every request to the router.
 // Implementation lives in src/ — config, store, sessions, claude, html, routes.
 import { PORT } from "./src/constants.ts";
-import { handleRequest, startClearReconciliationPoller, startOrphanWatcher, startFsWatcher } from "./src/routes/index.ts";
+import { handleRequest, startClearReconciliationPoller, startOrphanWatcher, startFsWatcher, startIdleRelease } from "./src/routes/index.ts";
 import { startAutoUpdater } from "./src/polling/autoUpdater.ts";
 import { sanitizeLegacyBoardData } from "./src/store.ts";
 import { ensureCsmCli } from "./src/csmCli.ts";
@@ -47,6 +47,9 @@ startClearReconciliationPoller();
 // Quick Prompt job file changes, instead of only finding out on the next scheduled poll — see
 // src/fsWatcher.ts / src/sse.ts / routes/events.ts.
 startFsWatcher();
+
+// Drops the transcript head cache after 30 idle minutes — see src/polling/idleRelease.ts.
+startIdleRelease();
 
 // Pulls and restarts on its own once a teammate's machine drifts behind main — see
 // src/polling/autoUpdater.ts for why this is poll-based rather than push-based.

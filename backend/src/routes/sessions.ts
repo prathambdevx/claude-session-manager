@@ -8,7 +8,7 @@ import {
   loadAllQuickPromptJobs, pidAlive, CARRIED_META_FIELDS,
 } from "../store.ts";
 import type { Meta } from "../store.ts";
-import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking } from "../sessions/index.ts";
+import { scanAllSessions, summarizeSession as summarizeSessionTranscript, computeActivelyWorking, readTranscriptDetails } from "../sessions/index.ts";
 import {
   ghosttyWindowTitle, writeGhosttyTitle, deleteGhosttyTitle, ghosttyTitleFilePath,
   openTerminalRunning, tryFocusRunningSession, closeRunningSessionTerminal, ghosttyWindowTag, shellQuote, usingGhostty,
@@ -76,11 +76,13 @@ export async function handleSessionsRoutes(req: Request, url: URL): Promise<Resp
     const sessions = await scanAllSessions();
     const s = sessions.find((x) => x.id === id);
     if (!s) return json({ error: "session not found" }, { status: 404 });
-    if (!s.userMessageSample.length) {
+    // read on demand, only this one transcript (the list never parses bodies)
+    const details = await readTranscriptDetails(join(PROJECTS_DIR, s.projectSlug, `${id}.jsonl`));
+    if (!details.userMessageSample.length) {
       return json({ error: "no user messages to summarize" }, { status: 422 });
     }
     try {
-      const description = await summarizeSessionTranscript(s);
+      const description = await summarizeSessionTranscript(details);
       const meta = await loadMeta();
       meta[id] = { ...meta[id], description, descriptionSource: "auto" };
       await saveMeta(meta);

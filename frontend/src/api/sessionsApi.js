@@ -3,7 +3,7 @@
 import {
   sessions, setSessions, agents, setAgents, delegations, setDelegations, todos, setTodos,
   todoBoardColumns, setTodoBoardColumns, groupBoardColumns, setGroupBoardColumns,
-  summarizingIds, setContentMatchIds, currentTab,
+  summarizingIds, currentTab,
   DEFAULT_TODO_COLUMNS, setSavedViews, setQuickPrompts, setSessionsLoaded,
 } from "../state.js";
 import { mergeInProjectColumns } from "../routing/boardRouting.js";
@@ -194,18 +194,6 @@ export async function closeSessionTerminal(id) {
   const data = await res.json();
   toast(data.closed ? "Terminal closed" : "No terminal window was open for this session");
   loadSessions();
-}
-
-export async function fetchContentMatches(q) {
-  if (q.trim().length < 2) { setContentMatchIds(new Set()); render(); return; }
-  try {
-    const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`);
-    const data = await res.json();
-    setContentMatchIds(new Set(data.ids || []));
-  } catch {
-    setContentMatchIds(new Set());
-  }
-  render();
 }
 
 export async function launchTask({ cwd, task, name, model, dangerous = true }) {

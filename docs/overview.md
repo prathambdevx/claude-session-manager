@@ -74,15 +74,13 @@ All four share the same rendering code (`renderBoardView.js`) through a small `c
 
 Each session card (`frontend/src/subcomponents/boardCard.js`) shows: a live/idle dot, an editable
 title, a project chip (color-coded consistently with that project's column), git branch, relative
-last-active time, a description (or a "✦ auto-generate" button), and a **context-usage bar**
-(green/yellow/red, `~N tokens (~X% of Yk)`).
+last-active time and a description (or a "✦ auto-generate" button).
 
 Exactly one status chip shows at a time:
 - **Job chip** — the session's most recent Quick Prompt job (spinner/step-text/progress while
   running, ✓/⚠ once settled, dismissible after).
 - **Working chip** — the session is actively working right now, even if the prompt was typed
   straight into an open terminal rather than dispatched through Quick Prompt.
-- **Done chip** — inferred from the transcript, auto-expires after 5 minutes, dismissible.
 
 A **ticket** (a note-only card, no Claude session behind it) renders instead with a "TICKET" tag, a
 Done/Reopen toggle, and "▶ Start session" — once started, it shows "▶ Resume" and mirrors its
@@ -93,14 +91,14 @@ shortcut.
 
 ---
 
-## Context-usage percentage
+## How the session list is built
 
-Computed per-session (`backend/src/sessions/index.ts`) by walking the transcript and accumulating
-the last assistant turn's real token usage (input + cache-creation + cache-read), also reacting
-immediately to a compaction event's own post-compaction token count. The denominator is decided
-**per session**: if usage ever exceeds 200K, the window is assumed to be 1,000,000 (a plain 200K
-model couldn't have produced that), otherwise the configured default — so the percentage scale
-correctly flips if a session switches models mid-conversation.
+`backend/src/sessions/index.ts` lists sessions from the file system only: the id is the file name,
+last-active and size come from `stat()`, and a small head read (at most 1 MB, stopping at the first
+real user message) gives the real cwd, git branch and first message. Heads are cached per file;
+transcript bodies are never parsed for the list. The auto-summary and delegations read their one
+transcript on demand, streamed (`sessions/details.ts`). The context-usage bar, the transcript-derived
+activity text and the Done chip were removed (24/10/2026) because they needed every transcript parsed.
 
 ---
 
@@ -157,13 +155,9 @@ the main path.
 
 ## Search
 
-- **Quick keyword search** (`GET /api/search`) — fast, threshold-based, powers the board's own
-  search box.
-- **Smart/global search** (`POST /api/search/smart`) — casts a wide keyword net, re-ranks by how
-  densely the query terms co-occur in the actual transcript text (not scattered mentions), then
-  asks Claude to pick the genuine best matches from the top candidates. **Currently hidden from the
-  UI** — the trigger button is commented out in `index.html`; the route and modal are both fully
-  functional, just not exposed right now.
+The board's search box filters the loaded list in the browser (name, description, first message,
+folder, branch, tags, notes, id). Transcript content search (`GET /api/search`, `POST /api/search/smart`
+and the global search modal) was removed on 24/10/2026: it read every transcript and drove memory to ~6 GB.
 
 ---
 
@@ -182,5 +176,4 @@ the main path.
 These exist in the codebase and work, but aren't reachable from the UI right now (each was
 deliberately disabled, not broken):
 - **Agents dock** (drag-a-card-onto-an-agent delegation UI) — `agentsDockHtml()` returns empty.
-- **Global search button** — commented out in `index.html`.
 - **Extract-context modal** — not currently wired into the card menu.

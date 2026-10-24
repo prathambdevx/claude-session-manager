@@ -2,23 +2,20 @@
 // several MB. Used by the live Delegations feature; the OTHER caller, routes/contexts.ts (backend
 // half of "🧠 Extract"), is currently unused — its only frontend entry point is hidden/disabled,
 // see components/modals/extractModal.js.
-import { readFile } from "node:fs/promises";
 import { NOISE_MESSAGE, firstTextFromContent } from "./shared.ts";
+import { scanLines } from "./lineReader.ts";
 
 const DIGEST_CHAR_BUDGET = 120_000;
 const DIGEST_ENTRY_MAX_CHARS = 600;
 
 export async function buildTranscriptDigest(transcriptPath: string): Promise<string> {
-  const text = await readFile(transcriptPath, "utf-8");
-  const lines = text.split("\n").filter(Boolean);
   const entries: string[] = [];
-
-  for (const line of lines) {
+  const onLine = (line: string) => {
     let d: any;
     try {
       d = JSON.parse(line);
     } catch {
-      continue;
+      return;
     }
     if (d.type === "user" && d.message?.content && !d.isMeta) {
       const t = firstTextFromContent(d.message.content);
@@ -36,7 +33,9 @@ export async function buildTranscriptDigest(transcriptPath: string): Promise<str
         }
       }
     }
-  }
+  };
+  const { partial } = await scanLines(transcriptPath, onLine);
+  if (partial) onLine(partial);
 
   if (!entries.length) return "(no readable messages in this transcript)";
 

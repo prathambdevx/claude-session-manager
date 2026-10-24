@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { PROJECTS_DIR } from "../constants.ts";
 import { loadAgents, loadMeta, saveDelegation, loadDelegation, loadAllDelegations, deleteDelegation } from "../store.ts";
 import type { Delegation } from "../store.ts";
-import { scanAllSessions, buildTranscriptDigest } from "../sessions/index.ts";
+import { scanAllSessions, buildTranscriptDigest, readTranscriptDetails } from "../sessions/index.ts";
 import { runClaudeHeadlessDetached, buildDelegationPrompt } from "../claude/index.ts";
 import { escapeHtmlServer, markdownToHtml, delegationsIndexHtml } from "../html.ts";
 import { json } from "./json.ts";
@@ -21,8 +21,9 @@ export async function handleDelegationsRoutes(req: Request, url: URL): Promise<R
 
     const meta = await loadMeta();
     const label = meta[s.id]?.name || meta[s.id]?.description || s.firstMessage || sessionId.slice(0, 8);
-    const briefing = await buildTranscriptDigest(join(PROJECTS_DIR, s.projectSlug, `${sessionId}.jsonl`));
-    const prompt = buildDelegationPrompt(agent, briefing, s.changedFiles);
+    const transcriptPath = join(PROJECTS_DIR, s.projectSlug, `${sessionId}.jsonl`);
+    const briefing = await buildTranscriptDigest(transcriptPath);
+    const prompt = buildDelegationPrompt(agent, briefing, (await readTranscriptDetails(transcriptPath)).changedFiles);
 
     const id = crypto.randomUUID();
     const record: Delegation = {

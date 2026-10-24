@@ -1,6 +1,6 @@
 // Quick Prompt: hands a session a follow-up task without opening a terminal. Types into an open
 // terminal if one exists, else runs headless in the background — see handleQuickPromptRoutes.
-import { stat, readFile } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { PROJECTS_DIR, QUICKPROMPT_TERMINAL_WATCH_TIMEOUT_MS } from "../constants.ts";
 import { saveQuickPromptJob, loadQuickPromptJob, deleteQuickPromptJob, loadRunning } from "../store.ts";
@@ -8,9 +8,12 @@ import type { QuickPromptJob } from "../store.ts";
 import { scanAllSessions } from "../sessions/index.ts";
 import { runClaudeHeadlessDetached, sendPromptToRunningTerminal, ghosttyWindowTag, usingGhostty } from "../claude/index.ts";
 import { activityLine } from "../claude/activity.ts";
+import { readTail } from "../sessions/lineReader.ts";
 import { json } from "./json.ts";
 
 const WATCH_POLL_MS = 1000;
+// Only the end of the transcript is read — the latest assistant entry sits there, and a session can be hundreds of MB.
+const TAIL_BYTES = 8 * 1024 * 1024;
 
 function lastAssistantEntry(raw: string): any | null {
   const lines = raw.split("\n").filter(Boolean);
@@ -70,7 +73,7 @@ function watchTranscriptForCompletion(
       await new Promise((r) => setTimeout(r, 500)); // let the writer finish flushing this turn
       let text = "";
       try {
-        text = await readFile(transcriptPath, "utf-8");
+        text = await readTail(transcriptPath, TAIL_BYTES);
       } catch {
         // fall through with empty text — treated as "still working", not a false "done"
       }
@@ -138,7 +141,7 @@ export async function handleQuickPromptRoutes(req: Request, url: URL): Promise<R
       let baselineEntryUuid: string | null = null;
       try {
         baselineMtimeMs = (await stat(transcriptPath)).mtimeMs;
-        baselineEntryUuid = lastAssistantEntry(await readFile(transcriptPath, "utf-8"))?.uuid ?? null;
+        baselineEntryUuid = lastAssistantEntry(await readTail(transcriptPath, TAIL_BYTES))?.uuid ?? null;
       } catch {
         // no transcript on disk yet — any future write counts as new
       }

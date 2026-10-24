@@ -1,14 +1,13 @@
 // Entry point — derives board routing from the URL first (must happen before the first render()),
 // then wires DOM controls and starts polling.
-import { currentTab, contentSearchTimer, setContentSearchTimer } from "./state.js";
+import { currentTab } from "./state.js";
 import { initBoardStateFromLocation, wirePopstate, savedViewCtx, currentSavedView } from "./routing/boardRouting.js";
-import { loadSessions, fetchContentMatches } from "./api/sessionsApi.js";
+import { loadSessions } from "./api/sessionsApi.js";
 import { initLiveUpdates } from "./api/sse.js";
 import { dangerousDefault } from "./ui/formFragments.js";
 import { render } from "./pages/sessionsPage.js";
 import { setTab, wireTabs } from "./pages/todosPage.js";
 import { renderTodoBoard } from "./components/todoBoard/renderTodoBoard.js";
-import { openGlobalSearchModal } from "./components/modals/globalSearchModal.js";
 import { openColumnTaskModal } from "./components/modals/columnTaskModal.js";
 import { openCommandPalette } from "./components/commandPalette/commandPalette.js";
 import { closeModal } from "./ui/modalShell.js";
@@ -27,11 +26,9 @@ setAccent(document.documentElement.dataset.accent || "gold", false);
 initBoardStateFromLocation();
 wirePopstate();
 
-document.getElementById("search").addEventListener("input", (e) => {
+document.getElementById("search").addEventListener("input", () => {
   if (currentTab === "todos") { renderTodoBoard(); return; }
   render();
-  clearTimeout(contentSearchTimer);
-  setContentSearchTimer(setTimeout(() => fetchContentMatches(e.target.value), 350));
 });
 
 document.getElementById("filterDate").addEventListener("change", render);
@@ -43,8 +40,6 @@ globalDangerousBox.addEventListener("change", (e) => {
 });
 
 document.getElementById("refreshBtn").addEventListener("click", loadSessions);
-// global search button is hidden in index.html (feature not reliable yet) — guard the wiring
-document.getElementById("globalSearchBtn")?.addEventListener("click", openGlobalSearchModal);
 
 initThemeToggle();
 

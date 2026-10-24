@@ -3,6 +3,8 @@
 export { startClearReconciliationPoller } from "../polling/reconcile.ts";
 export { startOrphanWatcher } from "../polling/orphanWatcher.ts";
 export { startFsWatcher } from "../fsWatcher.ts";
+export { startIdleRelease } from "../polling/idleRelease.ts";
+import { noteRequest } from "../polling/idleRelease.ts";
 import { handleEventsRoutes } from "./events.ts";
 import { handleSessionsRoutes } from "./sessions.ts";
 import { handleBoardRoutes } from "./board.ts";
@@ -14,7 +16,6 @@ import { handleQuickPromptRoutes } from "./quickPrompts.ts";
 import { handleImagesRoutes } from "./images.ts";
 import { handleTicketsRoutes } from "./tickets.ts";
 import { handleProjectsRoutes } from "./projects.ts";
-import { handleSearchRoutes } from "./search.ts";
 import { handleLaunchRoutes } from "./launch.ts";
 import { handleContextsRoutes } from "./contexts.ts";
 import { handleTodosRoutes } from "./todos.ts";
@@ -33,7 +34,6 @@ const ROUTE_HANDLERS = [
   handleImagesRoutes,
   handleTicketsRoutes,
   handleProjectsRoutes,
-  handleSearchRoutes,
   handleLaunchRoutes,
   handleContextsRoutes,
   handleTodosRoutes,
@@ -43,6 +43,7 @@ const ROUTE_HANDLERS = [
 
 export async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
+  noteRequest(req, url);
   for (const handler of ROUTE_HANDLERS) {
     const res = await handler(req, url);
     if (res) return res;

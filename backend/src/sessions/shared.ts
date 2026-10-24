@@ -1,23 +1,16 @@
 // The Session type and small dependency-free helpers used across every file in this folder — kept
-// separate so autoSummary.ts/extract.ts/search.ts don't need to import from index.ts (which itself
+// separate so autoSummary.ts/details.ts/extract.ts don't need to import from index.ts (which itself
 // re-exports them), avoiding a circular import.
 
+// Built from the file name, stat() and a small head read only — never the whole transcript.
 export type Session = {
   id: string;
   projectSlug: string;
   cwd: string;
   gitBranch: string | null;
   firstMessage: string | null;
-  userMessageSample: string[];
-  messageCount: number;
   lastActive: number; // epoch ms
   sizeBytes: number;
-  contextTokens: number | null;
-  contextPct: number | null; // 0-100, null if unknown
-  contextWindow: number | null; // the denominator actually used for contextPct
-  changedFiles: string[];
-  lastActivity: string | null; // last tool-use/thinking/text line seen — "what is it doing" for a running session
-  lastUserMessage: string | null; // most recent real user turn — what a running session is working ON
   isProjectDir: boolean; // false for scratch/temp cwds — gates auto-adding a "Projects" column, see projectDetection.ts
 };
 

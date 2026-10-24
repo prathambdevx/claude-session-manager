@@ -31,7 +31,7 @@ browser refresh.
   quick-prompts, etc.) lives as JSON files + per-item dirs under `data/` (`CSM_DATA_DIR`).
 - **Server:** `Bun.serve` on 4321; router in `backend/src/routes/index.ts`, one file per resource.
 - **Backend split by concern:** `claude/*` shells out to the `claude` CLI + drives Ghostty/Terminal;
-  `store.ts` persistence; `sessions.ts` transcript scanning; `sse.ts` + `fsWatcher.ts` live push.
+  `store.ts` persistence; `sessions/` transcript listing; `sse.ts` + `fsWatcher.ts` live push.
 - **Frontend split:** `frontend/src/{api,components,pages,routing,ui,subcomponents}`.
 
 ## Key behaviors to know (non-obvious)
@@ -50,8 +50,9 @@ browser refresh.
   new window). Resume refuses to open a second terminal while a headless job is still running.
 - **`loadRunning()` liveness comes from `~/.claude/sessions/*.json`** and can lag — treat "is a
   process alive" and "is a terminal window open" as different questions.
-- **Per-session context %** uses a per-turn denominator: a turn whose real token usage exceeds 200K
-  must be on the 1M window, so the scale flips per session (handles mid-session model switches).
+- **The session list never parses transcript bodies** (`sessions/index.ts`): id from the file name,
+  times from `stat()`, cwd/branch/first message from a capped head read. Never `readFile` a whole
+  transcript (they reach 300 MB); stream one file with `sessions/lineReader.ts`, at most a few at a time.
 
 ## Working here
 

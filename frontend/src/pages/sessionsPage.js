@@ -1,6 +1,6 @@
 // Top-level dispatcher: All Projects vs. a saved view, and holds the toolbar-driven
 // search/date filtering that both share.
-import { sessions, contentMatchIds, activeView, sessionsLoaded } from "../state.js";
+import { sessions, activeView, sessionsLoaded } from "../state.js";
 import { groupBoardCtx, savedViewCtx, switchToView, currentSavedView } from "../routing/boardRouting.js";
 import { renderBoardView } from "../components/board/renderBoardView.js";
 import { renderSidebar } from "../components/sidebar/renderSidebar.js";
@@ -18,7 +18,7 @@ export function matchesSearch(s, q) {
     s.meta?.name, s.meta?.description, s.firstMessage, s.cwd, s.gitBranch,
     ...(s.meta?.tags || []), s.meta?.notes, s.id,
   ].filter(Boolean).join(" ").toLowerCase();
-  return hay.includes(q) || contentMatchIds.has(s.id);
+  return hay.includes(q);
 }
 
 export function render() {

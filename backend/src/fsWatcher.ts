@@ -47,7 +47,7 @@ async function refreshSessionFromTranscript(sessionId: string, projectSlug: stri
   // Same unresumable-stub filter as scanAllSessions() — this is the one other path that can push a
   // session into the browser's live state, so it needs the identical check or a broken transcript's
   // very first write slips through here before the next full /api/sessions fetch would catch it.
-  if (session.messageCount === 0 || !existsSync(session.cwd)) {
+  if (!session || !existsSync(session.cwd)) {
     broadcast({ type: "session-removed", id: sessionId });
     return;
   }

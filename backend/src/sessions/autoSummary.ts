@@ -1,22 +1,23 @@
 // One-line auto-summary of a session (the ✦ button on a card) — a cheap headless Haiku call, no
 // tools, over a small sample of the transcript rather than the whole thing.
 import { runClaudeHeadless } from "../claude/index.ts";
-import type { Session } from "./shared.ts";
+import type { TranscriptDetails } from "./details.ts";
 
 // Head+tail sampling (not just the first N) so a summary reflects where a session ENDED UP too.
 const SAMPLE_HEAD_MESSAGES = 4;
 const SAMPLE_TAIL_MESSAGES = 4;
+export const SAMPLE_GAP_MARKER = "(…conversation continues…)";
 
 export function sampleUserMessages(allUserMessages: string[]): string[] {
   if (allUserMessages.length <= SAMPLE_HEAD_MESSAGES + SAMPLE_TAIL_MESSAGES) return allUserMessages;
   return [
     ...allUserMessages.slice(0, SAMPLE_HEAD_MESSAGES),
-    "(…conversation continues…)",
+    SAMPLE_GAP_MARKER,
     ...allUserMessages.slice(-SAMPLE_TAIL_MESSAGES),
   ];
 }
 
-export async function summarizeSession(s: Session): Promise<string> {
+export async function summarizeSession(s: TranscriptDetails): Promise<string> {
   const transcript = s.userMessageSample.join("\n---\n");
   const filesNote = s.changedFiles.length
     ? `\n\nFiles actually changed in this session: ${s.changedFiles.slice(0, 12).join(", ")}`
